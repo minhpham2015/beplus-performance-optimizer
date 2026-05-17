@@ -1,0 +1,1155 @@
+/**
+ * BePlus Optimizer — Admin settings page styles.
+ *
+ * @package Site_Optimizer_BePlus
+ */
+
+/* ---- Wrap & tagline -------------------------------------------------------- */
+
+.sob-settings-wrap h1 {
+	margin-bottom: 4px;
+}
+
+.sob-settings-wrap .sob-tagline {
+	color: #646970;
+	margin-top: 0;
+	margin-bottom: 0;
+	font-size: 13px;
+}
+
+/* ---- Tab navigation (underline style) -------------------------------------- */
+
+.sob-tabs-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0;
+	margin: 16px 0 0;
+	border-bottom: 2px solid #dcdcde;
+}
+
+.sob-tab-btn {
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	padding: 10px 16px;
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 500;
+	color: #50575e;
+	margin-bottom: -2px;
+	transition: color 0.15s, border-color 0.15s;
+	line-height: 1.4;
+}
+
+.sob-tab-btn:hover {
+	color: #2271b1;
+	border-bottom-color: #2271b1;
+}
+
+.sob-tab-btn.active {
+	color: #2271b1;
+	border-bottom-color: #2271b1;
+	font-weight: 600;
+}
+
+/* ---- Tab panels ------------------------------------------------------------ */
+
+.sob-tab-panel {
+	display: none;
+}
+
+.sob-tab-panel.active {
+	display: block;
+}
+
+/* ---- Cards ----------------------------------------------------------------- */
+
+.sob-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin-top: 20px;
+}
+
+.sob-card-header {
+	padding: 14px 20px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.sob-card-header h2 {
+	margin: 0;
+	padding: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d2327;
+	border: none;
+}
+
+.sob-card-header p {
+	margin: 5px 0 0;
+	color: #646970;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.sob-card-body {
+	padding: 0 20px 4px;
+}
+
+/* ---- Form rows (two-column) ------------------------------------------------ */
+
+.sob-form-row {
+	display: flex;
+	padding: 16px 0;
+	border-bottom: 1px solid #f0f0f0;
+	align-items: flex-start;
+	gap: 20px;
+}
+
+.sob-form-row:last-child {
+	border-bottom: none;
+}
+
+.sob-form-row-label {
+	flex: 0 0 35%;
+	max-width: 35%;
+	padding-top: 3px;
+}
+
+.sob-form-row-label > label {
+	font-weight: 600;
+	font-size: 13px;
+	color: #1d2327;
+	display: block;
+}
+
+.sob-form-row-label .sob-row-desc {
+	color: #646970;
+	font-size: 12px;
+	margin-top: 4px;
+	line-height: 1.4;
+}
+
+.sob-form-row-field {
+	flex: 1;
+	min-width: 0;
+}
+
+.sob-form-row-field .description {
+	color: #646970;
+	font-size: 12px;
+	margin-top: 6px;
+	line-height: 1.5;
+}
+
+.sob-form-row-field .sob-warn {
+	color: #b32d2e;
+	font-size: 12px;
+	margin-top: 4px;
+}
+
+.sob-form-row-field textarea.large-text {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* ---- Checkbox label inline ------------------------------------------------- */
+
+.sob-check-label {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.sob-check-label input[type="checkbox"] {
+	margin-top: 2px;
+	flex-shrink: 0;
+}
+
+.sob-check-label .sob-check-text {
+	font-size: 13px;
+	color: #1d2327;
+	line-height: 1.5;
+}
+
+/* ---- Inline warning notices ----------------------------------------------- */
+
+.sob-notice-warning {
+	border-left-color: #dba617;
+	padding: 8px 12px;
+	margin: 12px 0;
+}
+
+/* ---- Save bar ------------------------------------------------------------- */
+
+.sob-save-bar {
+	padding: 20px 0 8px;
+	margin-top: 4px;
+}
+
+/* ---- Dashboard: recommended settings table --------------------------------- */
+
+.sob-rec-table th {
+	font-size: 12px;
+	color: #50575e;
+}
+
+.sob-status-on {
+	color: #008a00;
+	font-weight: 500;
+}
+
+.sob-status-off {
+	color: #996800;
+	font-weight: 500;
+}
+
+.sob-quick-enable-btn {
+	font-size: 12px !important;
+	padding: 2px 10px !important;
+	height: auto !important;
+	line-height: 1.6 !important;
+}
+
+/* =============================================================================
+   Admin Bar — BePlus Optimizer panel (dark Autoptimize-style)
+   ============================================================================= */
+
+/* Green filled dot before the parent label */
+#wpadminbar #wp-admin-bar-sob-cache .sob-ab-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	background: #00a32a;
+	border-radius: 50%;
+	margin-right: 5px;
+	vertical-align: middle;
+	margin-top: -1px;
+	flex-shrink: 0;
+}
+
+/* Parent node link */
+#wpadminbar #wp-admin-bar-sob-cache > .ab-item {
+	color: #eee;
+}
+
+#wpadminbar #wp-admin-bar-sob-cache:hover > .ab-item,
+#wpadminbar #wp-admin-bar-sob-cache.hover > .ab-item {
+	background: #32373c;
+	color: #fff;
+}
+
+/* ---- Panel list item: strip all default WP submenu styles ----------------- */
+
+#wpadminbar #wp-admin-bar-sob-cache-panel {
+	width: 240px;
+	padding: 0;
+	background: transparent !important;
+}
+
+#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item,
+#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item {
+	display: block !important;
+	padding: 0 !important;
+	height: auto !important;
+	min-height: 0 !important;
+	line-height: 1 !important;
+	background: transparent !important;
+	color: inherit !important;
+	cursor: default !important;
+}
+
+#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item:hover,
+#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item:focus,
+#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item:hover,
+#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item:focus {
+	background: transparent !important;
+	color: inherit !important;
+}
+
+/* ---- Dark panel ----------------------------------------------------------- */
+
+.sob-ab-panel {
+	background: #1d2327;
+	width: 240px;
+	box-sizing: border-box;
+	overflow: hidden;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Padded info area (header + ring/stats row) */
+.sob-ab-info {
+	padding: 14px 16px;
+}
+
+/* ---- Header row: green dot + uppercase label ------------------------------ */
+
+.sob-ab-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 12px;
+}
+
+.sob-ab-header-dot {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	background: #00a32a;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.sob-ab-header-text {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: #a7aaad;
+	font-weight: 600;
+	line-height: 1;
+}
+
+/* ---- Main content: ring left, stats right --------------------------------- */
+
+.sob-ab-content {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.sob-ab-ring-wrap {
+	flex-shrink: 0;
+}
+
+/* SVG donut ring: 52 × 52px display, viewBox 36 × 36 → scale ≈ 1.44× */
+.sob-ring-svg {
+	width: 52px;
+	height: 52px;
+	display: block;
+}
+
+/* Percentage text: 7 SVG units × 1.44 scale ≈ 10px rendered, white bold */
+.sob-ring-pct {
+	font-size: 7px;
+	font-weight: 700;
+	fill: #fff;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Stats column */
+.sob-ab-stats {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.sob-ab-stat-row {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: nowrap;
+}
+
+.sob-ab-stat-label {
+	color: #a7aaad;
+	font-weight: 400;
+}
+
+/* Size value: green */
+.sob-ab-stat-size {
+	color: #00a32a;
+	font-weight: 700;
+}
+
+/* Files value: white */
+.sob-ab-stat-files {
+	color: #fff;
+	font-weight: 700;
+}
+
+/* ---- Separator ------------------------------------------------------------ */
+
+.sob-ab-sep {
+	height: 1px;
+	background: #3c434a;
+}
+
+/* ---- Clear button: full-width, flush, no border-radius -------------------- */
+
+.sob-ab-clear-btn {
+	display: flex !important;
+	align-items: center !important;
+	gap: 6px !important;
+	width: 100% !important;
+	box-sizing: border-box !important;
+	background: #2c3338 !important;
+	color: #fff !important;
+	padding: 10px 16px !important;
+	font-size: 12px !important;
+	font-weight: 500 !important;
+	text-decoration: none !important;
+	line-height: 1.4 !important;
+	transition: background 0.15s !important;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif !important;
+}
+
+.sob-ab-clear-btn:hover,
+.sob-ab-clear-btn:focus {
+	background: #32373c !important;
+	color: #fff !important;
+	text-decoration: none !important;
+}
+
+
+/* ---- Meta box (per-page cache disable) ------------------------------------ */
+
+#sob-page-settings .inside {
+	padding: 8px 12px;
+}
+
+#sob-page-settings label {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	cursor: pointer;
+}
+
+#sob-page-settings input[type="checkbox"] {
+	margin-top: 2px;
+	flex-shrink: 0;
+}
+
+/* ---- Responsive ----------------------------------------------------------- */
+
+@media ( max-width: 782px ) {
+	.sob-form-row {
+		flex-direction: column;
+		gap: 8px;
+	}
+	.sob-form-row-label {
+		flex: none;
+		max-width: 100%;
+	}
+}
+
+/* =============================================================================
+   Dashboard — Stat cards (Row 1)
+   ============================================================================= */
+
+.sob-stat-grid {
+	display: grid;
+	grid-template-columns: repeat( 4, 1fr );
+	gap: 14px;
+	margin: 20px 0 0;
+}
+
+.sob-stat-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left-width: 4px;
+	border-radius: 4px;
+	padding: 16px 18px;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+/* Accent colours */
+.sob-stat-card--blue   { border-left-color: #2271b1; }
+.sob-stat-card--green  { border-left-color: #00a32a; }
+.sob-stat-card--grey   { border-left-color: #8c8f94; }
+.sob-stat-card--teal   { border-left-color: #007cba; }
+.sob-stat-card--orange { border-left-color: #d63638; }
+
+.sob-stat-icon {
+	font-size: 28px;
+	line-height: 1;
+	flex-shrink: 0;
+}
+
+.sob-stat-card--blue   .sob-stat-icon { color: #2271b1; }
+.sob-stat-card--green  .sob-stat-icon { color: #00a32a; }
+.sob-stat-card--grey   .sob-stat-icon { color: #8c8f94; }
+.sob-stat-card--teal   .sob-stat-icon { color: #007cba; }
+.sob-stat-card--orange .sob-stat-icon { color: #d63638; }
+
+.sob-stat-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.sob-stat-value {
+	font-size: 26px;
+	font-weight: 700;
+	color: #1d2327;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.sob-stat-value--sm {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.sob-stat-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #646970;
+	white-space: nowrap;
+}
+
+/* =============================================================================
+   Dashboard — Two-column row (Row 2)
+   ============================================================================= */
+
+.sob-two-col {
+	display: grid;
+	grid-template-columns: 1fr 2fr;
+	gap: 14px;
+	margin-top: 14px;
+}
+
+/* =============================================================================
+   Dashboard — Cache Actions card
+   ============================================================================= */
+
+.sob-actions-card .sob-card-body {
+	padding-top: 20px;
+	padding-bottom: 20px;
+}
+
+/* Full-width red-toned clear button */
+.sob-clear-btn {
+	display: flex !important;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	justify-content: center;
+	padding: 9px 16px !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	background: #d63638 !important;
+	border-color: #d63638 !important;
+	color: #fff !important;
+	border-radius: 3px;
+	text-decoration: none;
+	box-sizing: border-box;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.sob-clear-btn:hover,
+.sob-clear-btn:focus {
+	background: #b32d2e !important;
+	border-color: #b32d2e !important;
+	color: #fff !important;
+}
+
+.sob-clear-btn.sob-clear-btn--empty {
+	background: #8c8f94 !important;
+	border-color: #8c8f94 !important;
+	pointer-events: none;
+	opacity: 0.7;
+}
+
+
+.sob-cache-summary {
+	margin: 10px 0 0;
+	font-size: 12px;
+	color: #646970;
+	text-align: center;
+}
+
+.sob-refresh-link {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	margin-top: 10px;
+	font-size: 12px;
+	color: #2271b1;
+	text-decoration: none;
+}
+
+.sob-refresh-link:hover {
+	text-decoration: underline;
+}
+
+.sob-refresh-link .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	line-height: 1;
+}
+
+/* =============================================================================
+   Dashboard — Recommended Settings table
+   ============================================================================= */
+
+.sob-card-body--flush {
+	padding-left: 0;
+	padding-right: 0;
+	padding-bottom: 0;
+}
+
+.sob-rec-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+.sob-rec-table th,
+.sob-rec-table td {
+	padding: 9px 16px;
+	text-align: left;
+	border-bottom: 1px solid #f0f0f0;
+	vertical-align: middle;
+}
+
+.sob-rec-table thead th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #646970;
+	font-weight: 600;
+	background: #f9f9f9;
+}
+
+.sob-rec-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.sob-rec-table tbody tr:hover {
+	background: #f9f9f9;
+}
+
+/* Status badges */
+.sob-status-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.6;
+	white-space: nowrap;
+}
+
+.sob-status-badge.active {
+	background: #edfaef;
+	color: #00a32a;
+	border: 1px solid #c0e6c6;
+}
+
+.sob-status-badge.inactive {
+	background: #f6f7f7;
+	color: #646970;
+	border: 1px solid #dcdcde;
+}
+
+.sob-status-check {
+	color: #00a32a;
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+	line-height: 1;
+}
+
+/* Quick-enable button (compact) */
+.sob-quick-enable-btn {
+	font-size: 12px !important;
+	padding: 2px 10px !important;
+	height: auto !important;
+	line-height: 1.6 !important;
+}
+
+/* =============================================================================
+   Dashboard — Plugin Info strip (Row 3)
+   ============================================================================= */
+
+.sob-info-strip {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+	padding: 12px 16px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	font-size: 12px;
+	color: #646970;
+}
+
+.sob-info-strip-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.sob-info-strip-left strong {
+	color: #1d2327;
+}
+
+.sob-info-version {
+	background: #dcdcde;
+	color: #50575e;
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.sob-info-sep {
+	color: #c3c4c7;
+}
+
+.sob-info-strip-links {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.sob-info-strip-links a {
+	color: #2271b1;
+	text-decoration: none;
+}
+
+.sob-info-strip-links a:hover {
+	text-decoration: underline;
+}
+
+/* =============================================================================
+   Dashboard — Responsive
+   ============================================================================= */
+
+@media ( max-width: 1200px ) {
+	.sob-stat-grid {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+}
+
+@media ( max-width: 782px ) {
+	.sob-stat-grid {
+		grid-template-columns: 1fr 1fr;
+	}
+	.sob-two-col {
+		grid-template-columns: 1fr;
+	}
+	.sob-info-strip {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}
+
+/* =============================================================================
+   Master Cache Toggle
+   ============================================================================= */
+
+.sob-toggle-section {
+	margin-bottom: 16px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.sob-toggle-wrap {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 6px;
+}
+
+/* The pill/label wrapper */
+.sob-toggle {
+	position: relative;
+	display: inline-block;
+	width: 48px;
+	height: 26px;
+	flex-shrink: 0;
+}
+
+.sob-toggle input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+	position: absolute;
+}
+
+.sob-toggle-slider {
+	position: absolute;
+	inset: 0;
+	background: #c3c4c7;
+	border-radius: 26px;
+	transition: background 0.25s;
+	cursor: pointer;
+}
+
+.sob-toggle-slider::before {
+	content: '';
+	position: absolute;
+	height: 20px;
+	width: 20px;
+	left: 3px;
+	bottom: 3px;
+	background: #fff;
+	border-radius: 50%;
+	transition: transform 0.25s;
+	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.25 );
+}
+
+.sob-toggle input:checked + .sob-toggle-slider {
+	background: #00a32a;
+}
+
+.sob-toggle input:checked + .sob-toggle-slider::before {
+	transform: translateX( 22px );
+}
+
+.sob-toggle input:focus-visible + .sob-toggle-slider {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* Labels beside the toggle */
+.sob-toggle-labels {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.sob-toggle-title {
+	font-weight: 600;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.sob-toggle-status {
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.sob-toggle-status--on {
+	color: #00a32a;
+}
+
+.sob-toggle-status--off {
+	color: #787c82;
+}
+
+.sob-toggle-desc {
+	margin: 0;
+	font-size: 12px;
+	color: #646970;
+}
+
+/* Warning notice when cache is disabled */
+.sob-cache-disabled-notice {
+	margin: 0 0 14px !important;
+	font-size: 13px;
+}
+
+/* Clear button row */
+.sob-cache-actions-row {
+	margin-bottom: 10px;
+}
+
+/* Disabled clear button state */
+.sob-clear-btn[aria-disabled="true"] {
+	opacity: 0.5;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+/* =============================================================================
+   AI Optimizer Tab
+   ============================================================================= */
+
+.sob-ai-card {
+	max-width: 640px;
+	margin: 24px auto 0;
+}
+
+.sob-ai-body {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	padding: 40px 48px !important;
+}
+
+.sob-ai-icon {
+	font-size: 52px;
+	line-height: 1;
+	margin-bottom: 16px;
+}
+
+.sob-ai-title {
+	font-size: 22px;
+	font-weight: 700;
+	color: #1d2327;
+	margin: 0 0 8px;
+}
+
+.sob-ai-subtitle {
+	font-size: 14px;
+	color: #646970;
+	margin: 0;
+}
+
+.sob-ai-divider {
+	width: 100%;
+	border: none;
+	border-top: 1px solid #f0f0f1;
+	margin: 24px 0;
+}
+
+.sob-ai-features {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	width: 100%;
+	text-align: left;
+}
+
+.sob-ai-features li {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+	background: #f6f7f7;
+	border-radius: 6px;
+	margin-bottom: 8px;
+	font-size: 13px;
+	color: #50575e;
+}
+
+.sob-ai-features li:last-child {
+	margin-bottom: 0;
+}
+
+.sob-ai-lock {
+	font-size: 16px;
+	flex-shrink: 0;
+	opacity: 0.6;
+}
+
+.sob-ai-notice {
+	width: 100%;
+	text-align: left;
+	margin: 0 !important;
+	box-sizing: border-box;
+}
+
+.sob-ai-notice p {
+	margin: 0.5em 0;
+	font-size: 13px;
+}
+
+.sob-ai-version-badge {
+	margin-top: 20px;
+	display: inline-block;
+	background: #f0f0f1;
+	color: #50575e;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 4px 12px;
+	border-radius: 20px;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+}
+
+/* ==========================================================================
+   Status Tab
+   ========================================================================== */
+
+.sob-status-tab-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.sob-status-tab-header h2 {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.sob-copy-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 13px;
+}
+
+.sob-copy-btn.sob-copied {
+	color: #00a32a;
+	border-color: #00a32a;
+}
+
+/* Two-column grid — collapses to single column on narrow screens */
+.sob-status-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+	align-items: start;
+}
+
+@media (max-width: 782px) {
+	.sob-status-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* Remove default card-body padding when the body IS the status table */
+.sob-card-body.sob-status-table {
+	padding: 0;
+}
+
+/* ---- Status rows ---- */
+
+.sob-status-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 16px;
+	border-bottom: 1px solid #f0f0f1;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.sob-status-row:last-child {
+	border-bottom: none;
+}
+
+.sob-status-label {
+	color: #50575e;
+	flex-shrink: 0;
+	min-width: 130px;
+}
+
+.sob-status-value {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	text-align: right;
+	word-break: break-all;
+	color: #1d2327;
+}
+
+/* ---- Status badges ---- */
+
+.sob-status-badge {
+	display: inline-block;
+	font-size: 10px;
+	font-weight: 700;
+	padding: 2px 7px;
+	border-radius: 10px;
+	white-space: nowrap;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+	flex-shrink: 0;
+}
+
+.sob-status-ok {
+	background: #edfaef;
+	color: #00a32a;
+}
+
+.sob-status-warn {
+	background: #fcf9e8;
+	color: #996800;
+}
+
+.sob-status-error {
+	background: #fce8e8;
+	color: #d63638;
+}
+
+.sob-status-info {
+	background: #e5f5fa;
+	color: #0072ae;
+}
+
+/* ---- Active Plugins panel ---- */
+
+.sob-plugins-flagged {
+	margin-bottom: 8px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.sob-plugin-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 16px;
+	border-bottom: 1px solid #f0f0f1;
+	font-size: 13px;
+}
+
+.sob-plugins-flagged .sob-plugin-row {
+	border-bottom: none;
+	padding: 6px 0 6px 16px;
+}
+
+.sob-plugin-row:last-child {
+	border-bottom: none;
+}
+
+.sob-plugin-row--flagged {
+	flex-wrap: wrap;
+	row-gap: 4px;
+}
+
+.sob-plugin-info {
+	display: flex;
+	align-items: baseline;
+	gap: 5px;
+	flex-shrink: 0;
+}
+
+.sob-plugin-ver {
+	color: #787c82;
+	font-size: 11px;
+}
+
+.sob-all-plugins {
+	margin-top: 8px;
+}
+
+.sob-all-plugins summary {
+	cursor: pointer;
+	color: #2271b1;
+	font-size: 13px;
+	padding: 6px 16px;
+	user-select: none;
+	list-style: disclosure-closed;
+}
+
+.sob-all-plugins[open] summary {
+	list-style: disclosure-open;
+}
+
+.sob-all-plugins summary:hover {
+	color: #135e96;
+}
+
+.sob-plugins-all {
+	margin-top: 4px;
+}
