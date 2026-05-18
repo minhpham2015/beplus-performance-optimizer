@@ -362,6 +362,9 @@ class SOB_CSS {
 	/**
 	 * Minify the content of every inline <style> block in the given HTML.
 	 *
+	 * Delegates to SOB_Minify::minify_css() so that inline style blocks and
+	 * cached CSS files always use identical, single-source-of-truth minification.
+	 *
 	 * Removes:
 	 *  - Block comments (license comments starting with "/*!" are preserved)
 	 *  - Redundant whitespace
@@ -375,45 +378,7 @@ class SOB_CSS {
 			'/<style([^>]*)>(.*?)<\/style>/is',
 			function ( $matches ) {
 				$attrs = $matches[1];
-				$css   = $matches[2];
-
-				// Step 1: protect /*! license / copyright comments with tokens.
-				$license_tokens = array();
-				$lic_idx        = 0;
-				$css = preg_replace_callback(
-					'/\/\*![\s\S]*?\*\//',
-					function ( $m ) use ( &$license_tokens, &$lic_idx ) {
-						$token                    = 'SOBCSSLIC' . $lic_idx . 'END';
-						$license_tokens[ $token ] = $m[0];
-						$lic_idx++;
-						return $token;
-					},
-					$css
-				);
-
-				// Step 2: strip all remaining block comments.
-				$css = preg_replace( '/\/\*[\s\S]*?\*\//', '', $css );
-
-				// Step 3: collapse runs of whitespace to a single space.
-				$css = preg_replace( '/\s+/', ' ', $css );
-
-				// Step 4: remove whitespace around structural characters.
-				// NOTE: `+` is intentionally omitted — removing spaces around `+`
-				// breaks calc() expressions such as calc(100% + 20px).
-				$css = preg_replace( '/\s*([{};:,>~])\s*/', '$1', $css );
-
-				// Step 5: remove trailing semicolons before closing braces.
-				$css = str_replace( ';}', '}', $css );
-
-				$css = trim( $css );
-
-				// Step 6: restore license comments.
-				if ( ! empty( $license_tokens ) ) {
-					foreach ( $license_tokens as $token => $comment ) {
-						$css = str_replace( $token, $comment, $css );
-					}
-				}
-
+				$css   = SOB_Minify::minify_css( $matches[2] );
 				return '<style' . $attrs . '>' . $css . '</style>';
 			},
 			$html

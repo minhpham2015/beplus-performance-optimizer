@@ -12,9 +12,10 @@
 
 .sob-settings-wrap .sob-tagline {
 	color: #646970;
-	margin-top: 0;
+	margin-top: 4px;
 	margin-bottom: 0;
 	font-size: 13px;
+	line-height: 1.6;
 }
 
 /* ---- Tab navigation (underline style) -------------------------------------- */
@@ -97,7 +98,7 @@
 }
 
 .sob-card-body {
-	padding: 4px 22px 6px;
+	padding: 8px 22px 12px;
 }
 
 /* ---- Form rows (two-column) ------------------------------------------------ */
@@ -188,8 +189,9 @@
 /* ---- Save bar ------------------------------------------------------------- */
 
 .sob-save-bar {
-	padding: 20px 0 8px;
-	margin-top: 4px;
+	padding: 18px 0 10px;
+	margin-top: 8px;
+	border-top: 1px solid #e3e5e7;
 }
 
 /* ---- Dashboard: recommended settings table --------------------------------- */
@@ -197,23 +199,6 @@
 .sob-rec-table th {
 	font-size: 12px;
 	color: #50575e;
-}
-
-.sob-status-on {
-	color: #008a00;
-	font-weight: 500;
-}
-
-.sob-status-off {
-	color: #996800;
-	font-weight: 500;
-}
-
-.sob-quick-enable-btn {
-	font-size: 12px !important;
-	padding: 2px 10px !important;
-	height: auto !important;
-	line-height: 1.6 !important;
 }
 
 /* =============================================================================
@@ -659,18 +644,19 @@
 	color: #1d2327;
 }
 
-/* Status badges */
+/* Status badges — canonical definition used across the whole settings page */
 .sob-status-badge {
 	display: inline-flex;
 	align-items: center;
-	padding: 3px 10px;
-	border-radius: 12px;
+	padding: 2px 8px;
+	border-radius: 10px;
 	font-size: 11px;
-	font-weight: 600;
+	font-weight: 700;
 	line-height: 1.5;
 	white-space: nowrap;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
+	flex-shrink: 0;
 }
 
 .sob-status-badge.active {
@@ -1210,19 +1196,7 @@
 	color: #1d2327;
 }
 
-/* ---- Status badges ---- */
-
-.sob-status-badge {
-	display: inline-block;
-	font-size: 10px;
-	font-weight: 700;
-	padding: 2px 7px;
-	border-radius: 10px;
-	white-space: nowrap;
-	text-transform: uppercase;
-	letter-spacing: 0.3px;
-	flex-shrink: 0;
-}
+/* ---- Status badge colour variants ---- */
 
 .sob-status-ok {
 	background: #edfaef;

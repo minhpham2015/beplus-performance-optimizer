@@ -93,13 +93,16 @@ class SOB_Admin {
 				SOB_VERSION,
 				true // load in footer
 			);
-			// Pass AJAX URL and nonce for the master cache toggle.
+			// Pass AJAX URL, nonce, and translated strings for the master cache toggle.
 			wp_localize_script(
 				'sob-admin-js',
 				'sobAdmin',
 				array(
-					'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
-					'toggleNonce' => wp_create_nonce( 'sob_toggle_cache' ),
+					'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+					'toggleNonce'    => wp_create_nonce( 'sob_toggle_cache' ),
+					'labelEnabled'   => __( 'Enabled', 'site-optimizer-by-beplus' ),
+					'labelDisabled'  => __( 'Disabled', 'site-optimizer-by-beplus' ),
+					'noticeDisabled' => __( 'All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.', 'site-optimizer-by-beplus' ),
 				)
 			);
 		}
@@ -1619,7 +1622,7 @@ class SOB_Admin {
 				$suggestions[] = array(
 					'title'  => __( 'Enable lazy loading', 'site-optimizer-by-beplus' ),
 					'detail' => __( 'Add loading="lazy" to off-screen images so they only load when scrolled into view — large Core Web Vitals win on image-heavy pages.', 'site-optimizer-by-beplus' ),
-					'action' => $tab_link( 'cleanup', __( 'Open Cleanup tab', 'site-optimizer-by-beplus' ) ),
+					'action' => $tab_link( 'cache_files', __( 'Open Cache Files tab', 'site-optimizer-by-beplus' ) ),
 				);
 			}
 
@@ -2379,8 +2382,4 @@ gzip_min_length 1024;'
 	}
 }
 
-// Hard-stop the PHP parser at end-of-class so any stray whitespace/binary
-// padding appended by some editors (which would otherwise trigger a
-// "unexpected character 0x00" parse error) is treated as inert file data.
-__HALT_COMPILER();
-                                                                                                                                                                   
+

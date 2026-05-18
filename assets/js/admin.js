@@ -121,15 +121,20 @@
 	/**
 	 * Update the toggle label, warning notice, and clear button to reflect state.
 	 *
+	 * Uses server-side translated strings from sobAdmin (wp_localize_script)
+	 * so the labels appear in the site's configured language.
+	 *
 	 * @param {number} enabled 1 = on, 0 = off.
 	 */
 	function updateToggleUI(enabled) {
+		var i18n = (typeof sobAdmin !== 'undefined') ? sobAdmin : {};
+
 		if (status) {
 			if (enabled) {
-				status.textContent = 'Enabled';
+				status.textContent = i18n.labelEnabled  || 'Enabled';
 				status.className = 'sob-toggle-status sob-toggle-status--on';
 			} else {
-				status.textContent = 'Disabled';
+				status.textContent = i18n.labelDisabled || 'Disabled';
 				status.className = 'sob-toggle-status sob-toggle-status--off';
 			}
 		}
@@ -139,8 +144,9 @@
 				notice.style.display = 'none';
 				notice.innerHTML = '';
 			} else {
+				var msg = i18n.noticeDisabled || 'All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.';
 				notice.style.display = '';
-				notice.innerHTML = '<p>&#9888; All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.</p>';
+				notice.innerHTML = '<p>&#9888; ' + msg + '</p>';
 			}
 		}
 
