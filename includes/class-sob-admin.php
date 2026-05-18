@@ -231,13 +231,15 @@ class SOB_Admin {
 
 		// ---- Master cache switch — preserved from DB when not submitted. ----
 		// cache_enabled lives on the Dashboard tab outside the main <form>, so it
-		// is never present in the Settings API POST.  Read the existing DB value
+		// is never present in the Settings API POST. Read the existing DB value
 		// rather than defaulting to 0 (which would undo every AJAX toggle save).
+		// Fallback uses 0 to match sob_default_options() — the master toggle
+		// must stay OFF on a fresh install until the user explicitly enables it.
 		if ( isset( $input['cache_enabled'] ) ) {
 			$sanitized['cache_enabled'] = (int) (bool) $input['cache_enabled'];
 		} else {
 			$existing                   = get_option( SOB_OPTIONS_KEY, array() );
-			$sanitized['cache_enabled'] = isset( $existing['cache_enabled'] ) ? (int) $existing['cache_enabled'] : 1;
+			$sanitized['cache_enabled'] = isset( $existing['cache_enabled'] ) ? (int) $existing['cache_enabled'] : 0;
 		}
 
 		// ---- Sync .htaccess rules when the cache_headers toggle changes. ----
@@ -2130,15 +2132,23 @@ gzip_min_length 1024;'
 	/**
 	 * Handle POST to admin-post.php?action=sob_quick_enable.
 	 *
-	 * Enables a single boolean option from the Dashboard recommended-settings
-	 * panel, then redirects back to the Dashboard tab.
+	 * Enables exactly one boolean option from the Dashboard recommended-settings
+	 * panel — every other key in the saved option array is preserved verbatim.
+	 *
+	 * BUG-FIX (toggle-leak):
+	 *   The previous implementation called sob_get_options(), which merges the
+	 *   raw DB row with sob_default_options() *before* writing it back. That
+	 *   merge would (1) introduce every default key into the DB row, and
+	 *   (2) when defaults later changed, replay those new defaults as if the
+	 *   user had explicitly opted-in. Reading the raw row via get_option() and
+	 *   modifying only the targeted key guarantees no other toggle is affected.
 	 */
 	public static function handle_quick_enable() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to perform this action.', 'site-optimizer-by-beplus' ) );
 		}
 
-		$option = isset( $_POST['sob_option'] ) ? sanitize_key( $_POST['sob_option'] ) : '';
+		$option = isset( $_POST['sob_option'] ) ? sanitize_key( wp_unslash( $_POST['sob_option'] ) ) : '';
 
 		// Validate that this is an allowed option key.
 		$allowed = array( 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'remove_emoji', 'css_minify', 'cache_headers' );
@@ -2148,9 +2158,14 @@ gzip_min_length 1024;'
 
 		check_admin_referer( 'sob_quick_enable_' . $option, 'sob_quick_enable_nonce' );
 
-		$opts            = sob_get_options();
-		$opts[ $option ] = 1;
-		update_option( SOB_OPTIONS_KEY, $opts );
+		// Read RAW from DB (no defaults merged in) so we modify exactly one key
+		// and leave every other previously-saved option untouched.
+		$saved = get_option( SOB_OPTIONS_KEY, array() );
+		if ( ! is_array( $saved ) ) {
+			$saved = array();
+		}
+		$saved[ $option ] = 1;
+		update_option( SOB_OPTIONS_KEY, $saved );
 		sob_flush_options_cache();
 
 		// FC-1: When the browser-cache option is quick-enabled via the Dashboard,
@@ -2179,9 +2194,10 @@ gzip_min_length 1024;'
 	 * Handle wp_ajax_sob_toggle_cache.
 	 *
 	 * Reads the raw saved option directly (not through sob_get_options()) so
-	 * that any in-memory cache populated earlier in this request cannot cause
-	 * a stale write.  Only the cache_enabled key is modified; all other keys
-	 * remain exactly as they were last saved.
+	 * that defaults are never merged back into the DB row. Only the
+	 * cache_enabled key is modified; every other key remains exactly as it was
+	 * last saved — toggling the master cache must never cascade-enable other
+	 * features (lazy load, minify, defer, etc.).
 	 *
 	 * Expects POST fields: nonce, enabled (1 or 0).
 	 * Returns JSON: { success: true, cache_enabled: 0|1 }.
@@ -2198,10 +2214,14 @@ gzip_min_length 1024;'
 		// Cast to 0 or 1: any truthy POST value → 1, anything else → 0.
 		$enabled = isset( $_POST['enabled'] ) ? (int) (bool) $_POST['enabled'] : 0;
 
-		// Read directly from the DB — bypass sob_get_options() / global cache.
-		$settings                    = get_option( SOB_OPTIONS_KEY, array() );
-		$settings['cache_enabled']   = $enabled;
-		update_option( SOB_OPTIONS_KEY, $settings );
+		// Read RAW saved row from DB — no defaults merged. Then mutate only the
+		// single cache_enabled key. This guarantees no other toggle is touched.
+		$saved = get_option( SOB_OPTIONS_KEY, array() );
+		if ( ! is_array( $saved ) ) {
+			$saved = array();
+		}
+		$saved['cache_enabled'] = $enabled;
+		update_option( SOB_OPTIONS_KEY, $saved );
 
 		// Invalidate in-memory cache so any code in this same request that calls
 		// sob_get_options() afterwards gets the freshly saved value.
