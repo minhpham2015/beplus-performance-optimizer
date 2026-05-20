@@ -57,7 +57,7 @@ class SOB_Htaccess {
 			return false;
 		}
 
-		if ( ! is_writable( $htaccess ) ) {
+		if ( ! wp_is_writable( $htaccess ) ) {
 			return false;
 		}
 
@@ -77,7 +77,7 @@ class SOB_Htaccess {
 		self::load_wp_admin_helpers();
 		$htaccess = self::htaccess_path();
 
-		if ( ! file_exists( $htaccess ) || ! is_writable( $htaccess ) ) {
+		if ( ! file_exists( $htaccess ) || ! wp_is_writable( $htaccess ) ) {
 			return false;
 		}
 
@@ -93,7 +93,7 @@ class SOB_Htaccess {
 	 */
 	public static function is_writable() {
 		$htaccess = self::htaccess_path();
-		return file_exists( $htaccess ) && is_writable( $htaccess );
+		return file_exists( $htaccess ) && wp_is_writable( $htaccess );
 	}
 
 	// -------------------------------------------------------------------------

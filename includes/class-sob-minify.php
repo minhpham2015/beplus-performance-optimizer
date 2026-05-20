@@ -542,7 +542,7 @@ class SOB_Minify {
 			);
 		}
 
-		return is_writable( $dir );
+		return wp_is_writable( $dir );
 	}
 
 	/**
@@ -562,8 +562,11 @@ class SOB_Minify {
 
 		if ( is_array( $files ) ) {
 			foreach ( $files as $file ) {
-				if ( is_file( $file ) && @unlink( $file ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-					$count++;
+				if ( is_file( $file ) ) {
+					wp_delete_file( $file );
+					if ( ! file_exists( $file ) ) {
+						$count++;
+					}
 				}
 			}
 		}
@@ -596,7 +599,7 @@ class SOB_Minify {
 			// Re-evaluate dynamic flags on every call (directory could be deleted).
 			$dir             = SOB_CACHE_DIR;
 			$cached['exists']   = file_exists( $dir ) && is_dir( $dir );
-			$cached['writable'] = ( $cached['exists'] && is_writable( $dir ) );
+			$cached['writable'] = ( $cached['exists'] && wp_is_writable( $dir ) );
 			return $cached;
 		}
 
@@ -608,7 +611,7 @@ class SOB_Minify {
 			'oldest'   => false,
 			'newest'   => false,
 			'exists'   => file_exists( $dir ) && is_dir( $dir ),
-			'writable' => ( file_exists( $dir ) && is_writable( $dir ) ),
+			'writable' => ( file_exists( $dir ) && wp_is_writable( $dir ) ),
 			'dir'      => $dir,
 		);
 

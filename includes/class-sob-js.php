@@ -228,7 +228,7 @@ class SOB_JS {
 (function () {
 	'use strict';
 
-	var _sobExclude = <?php echo $exclude_json; // phpcs:ignore WordPress.Security.EscapeOutput — value is JSON-encoded ?>;
+	var _sobExclude = <?php echo $exclude_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- value is JSON-encoded via wp_json_encode() ?>;
 	var _sobLoaded  = false;
 
 	function _sobIsExcluded(src) {

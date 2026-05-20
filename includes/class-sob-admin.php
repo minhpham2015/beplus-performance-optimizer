@@ -187,7 +187,7 @@ class SOB_Admin {
 			'cache_for_logged_in',
 		);
 		foreach ( $booleans as $key ) {
-			$sanitized[ $key ] = isset( $input[ $key ] ) ? 1 : 0;
+			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
 		}
 
 		// ---- Textarea / text fields. ----
@@ -1212,11 +1212,11 @@ class SOB_Admin {
 		// ---- Cache directory ----
 		$cache_dir    = SOB_CACHE_DIR;
 		$dir_exists   = is_dir( $cache_dir );
-		$dir_writable = $dir_exists ? is_writable( $cache_dir ) : is_writable( dirname( $cache_dir ) );
+		$dir_writable = $dir_exists ? wp_is_writable( $cache_dir ) : wp_is_writable( dirname( $cache_dir ) );
 		$ht_path      = get_home_path() . '.htaccess';
 		$ht_exists    = file_exists( $ht_path );
-		$ht_writable  = $ht_exists ? is_writable( $ht_path ) : is_writable( dirname( $ht_path ) );
-		$wc_writable  = is_writable( WP_CONTENT_DIR );
+		$ht_writable  = $ht_exists ? wp_is_writable( $ht_path ) : wp_is_writable( dirname( $ht_path ) );
+		$wc_writable  = wp_is_writable( WP_CONTENT_DIR );
 		$cache_stats  = SOB_Minify::get_cache_stats();
 		$cache_size   = $cache_stats['size'] > 0 ? SOB_Minify::human_filesize( $cache_stats['size'] ) : '0 B';
 		$cache_count  = (int) $cache_stats['count'];
@@ -2295,7 +2295,7 @@ gzip_min_length 1024;'
 						$count,
 						'site-optimizer-by-beplus'
 					) ),
-					$count
+					absint( $count )
 				);
 				?>
 			</p>

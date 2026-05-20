@@ -58,7 +58,7 @@ if ( file_exists( $cache_dir ) && is_dir( $cache_dir ) ) {
 	if ( is_array( $cached_files ) ) {
 		foreach ( $cached_files as $file ) {
 			if ( is_file( $file ) ) {
-				@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+				wp_delete_file( $file );
 			}
 		}
 	}
@@ -67,12 +67,17 @@ if ( file_exists( $cache_dir ) && is_dir( $cache_dir ) ) {
 	foreach ( array( 'index.php', '.htaccess' ) as $support_file ) {
 		$path = $cache_dir . $support_file;
 		if ( file_exists( $path ) ) {
-			@unlink( $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			wp_delete_file( $path );
 		}
 	}
 
 	// Remove the directory itself if it is now empty.
-	@rmdir( $cache_dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+	if ( ! function_exists( 'WP_Filesystem' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+	}
+	WP_Filesystem();
+	global $wp_filesystem;
+	$wp_filesystem->rmdir( $cache_dir );
 }
 
 // ---------------------------------------------------------------------------
@@ -82,8 +87,8 @@ if ( file_exists( $cache_dir ) && is_dir( $cache_dir ) ) {
 // Use a direct DB query for efficiency — avoids loading every post into memory.
 global $wpdb;
 
-$wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+$wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->postmeta,
-	array( 'meta_key' => '_sob_disable_cache' ),
+	array( 'meta_key' => '_sob_disable_cache' ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one-time uninstall cleanup, no alternative
 	array( '%s' )
 );
