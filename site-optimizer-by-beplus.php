@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Plugin Name: Site Optimizer by BePlus
  * Plugin URI:  https://beplusthemes.com/plugins/site-optimizer-by-beplus/
@@ -8,7 +8,7 @@
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: site-optimizer-by-beplus-master
+ * Text Domain: site-optimizer-by-beplus
  * Domain Path: /languages
  * Requires at least: 5.0
  * Requires PHP: 7.4
