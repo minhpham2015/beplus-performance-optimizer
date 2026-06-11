@@ -1,16 +1,16 @@
 /**
  * BePlus Optimizer — Admin settings page styles.
  *
- * @package Site_Optimizer_BePlus
+ * @package Performance_Optimizer_BePlus
  */
 
 /* ---- Wrap & tagline -------------------------------------------------------- */
 
-.sob-settings-wrap h1 {
+.pobp-settings-wrap h1 {
 	margin-bottom: 4px;
 }
 
-.sob-settings-wrap .sob-tagline {
+.pobp-settings-wrap .pobp-tagline {
 	color: #646970;
 	margin-top: 4px;
 	margin-bottom: 0;
@@ -20,7 +20,7 @@
 
 /* ---- Tab navigation (underline style) -------------------------------------- */
 
-.sob-tabs-nav {
+.pobp-tabs-nav {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0;
@@ -28,7 +28,7 @@
 	border-bottom: 2px solid #dcdcde;
 }
 
-.sob-tab-btn {
+.pobp-tab-btn {
 	background: none;
 	border: none;
 	border-bottom: 2px solid transparent;
@@ -42,12 +42,12 @@
 	line-height: 1.4;
 }
 
-.sob-tab-btn:hover {
+.pobp-tab-btn:hover {
 	color: #2271b1;
 	border-bottom-color: #2271b1;
 }
 
-.sob-tab-btn.active {
+.pobp-tab-btn.active {
 	color: #2271b1;
 	border-bottom-color: #2271b1;
 	font-weight: 600;
@@ -55,17 +55,17 @@
 
 /* ---- Tab panels ------------------------------------------------------------ */
 
-.sob-tab-panel {
+.pobp-tab-panel {
 	display: none;
 }
 
-.sob-tab-panel.active {
+.pobp-tab-panel.active {
 	display: block;
 }
 
 /* ---- Cards ----------------------------------------------------------------- */
 
-.sob-card {
+.pobp-card {
 	background: #fff;
 	border: 1px solid #dcdcde;
 	border-radius: 6px;
@@ -73,14 +73,14 @@
 	box-shadow: 0 1px 2px rgba( 16, 24, 40, 0.04 );
 }
 
-.sob-card-header {
+.pobp-card-header {
 	padding: 16px 22px;
 	border-bottom: 1px solid #eef0f1;
 	background: linear-gradient( to bottom, #fcfcfd, #fafafa );
 	border-radius: 6px 6px 0 0;
 }
 
-.sob-card-header h2 {
+.pobp-card-header h2 {
 	margin: 0;
 	padding: 0;
 	font-size: 14px;
@@ -90,20 +90,20 @@
 	letter-spacing: -0.005em;
 }
 
-.sob-card-header p {
+.pobp-card-header p {
 	margin: 4px 0 0;
 	color: #646970;
 	font-size: 12px;
 	line-height: 1.5;
 }
 
-.sob-card-body {
+.pobp-card-body {
 	padding: 8px 22px 12px;
 }
 
 /* ---- Form rows (two-column) ------------------------------------------------ */
 
-.sob-form-row {
+.pobp-form-row {
 	display: flex;
 	padding: 16px 0;
 	border-bottom: 1px solid #f0f0f0;
@@ -111,68 +111,68 @@
 	gap: 20px;
 }
 
-.sob-form-row:last-child {
+.pobp-form-row:last-child {
 	border-bottom: none;
 }
 
-.sob-form-row-label {
+.pobp-form-row-label {
 	flex: 0 0 35%;
 	max-width: 35%;
 	padding-top: 3px;
 }
 
-.sob-form-row-label > label {
+.pobp-form-row-label > label {
 	font-weight: 600;
 	font-size: 13px;
 	color: #1d2327;
 	display: block;
 }
 
-.sob-form-row-label .sob-row-desc {
+.pobp-form-row-label .pobp-row-desc {
 	color: #646970;
 	font-size: 12px;
 	margin-top: 4px;
 	line-height: 1.4;
 }
 
-.sob-form-row-field {
+.pobp-form-row-field {
 	flex: 1;
 	min-width: 0;
 }
 
-.sob-form-row-field .description {
+.pobp-form-row-field .description {
 	color: #646970;
 	font-size: 12px;
 	margin-top: 6px;
 	line-height: 1.5;
 }
 
-.sob-form-row-field .sob-warn {
+.pobp-form-row-field .pobp-warn {
 	color: #b32d2e;
 	font-size: 12px;
 	margin-top: 4px;
 }
 
-.sob-form-row-field textarea.large-text {
+.pobp-form-row-field textarea.large-text {
 	width: 100%;
 	box-sizing: border-box;
 }
 
 /* ---- Checkbox label inline ------------------------------------------------- */
 
-.sob-check-label {
+.pobp-check-label {
 	display: flex;
 	align-items: flex-start;
 	gap: 8px;
 	cursor: pointer;
 }
 
-.sob-check-label input[type="checkbox"] {
+.pobp-check-label input[type="checkbox"] {
 	margin-top: 2px;
 	flex-shrink: 0;
 }
 
-.sob-check-label .sob-check-text {
+.pobp-check-label .pobp-check-text {
 	font-size: 13px;
 	color: #1d2327;
 	line-height: 1.5;
@@ -180,7 +180,7 @@
 
 /* ---- Inline warning notices ----------------------------------------------- */
 
-.sob-notice-warning {
+.pobp-notice-warning {
 	border-left-color: #dba617;
 	padding: 8px 12px;
 	margin: 12px 0;
@@ -188,7 +188,7 @@
 
 /* ---- Save bar ------------------------------------------------------------- */
 
-.sob-save-bar {
+.pobp-save-bar {
 	padding: 18px 0 10px;
 	margin-top: 8px;
 	border-top: 1px solid #e3e5e7;
@@ -196,7 +196,7 @@
 
 /* ---- Dashboard: recommended settings table --------------------------------- */
 
-.sob-rec-table th {
+.pobp-rec-table th {
 	font-size: 12px;
 	color: #50575e;
 }
@@ -206,7 +206,7 @@
    ============================================================================= */
 
 /* Green filled dot before the parent label */
-#wpadminbar #wp-admin-bar-sob-cache .sob-ab-dot {
+#wpadminbar #wp-admin-bar-pobp-cache .pobp-ab-dot {
 	display: inline-block;
 	width: 8px;
 	height: 8px;
@@ -219,26 +219,26 @@
 }
 
 /* Parent node link */
-#wpadminbar #wp-admin-bar-sob-cache > .ab-item {
+#wpadminbar #wp-admin-bar-pobp-cache > .ab-item {
 	color: #eee;
 }
 
-#wpadminbar #wp-admin-bar-sob-cache:hover > .ab-item,
-#wpadminbar #wp-admin-bar-sob-cache.hover > .ab-item {
+#wpadminbar #wp-admin-bar-pobp-cache:hover > .ab-item,
+#wpadminbar #wp-admin-bar-pobp-cache.hover > .ab-item {
 	background: #32373c;
 	color: #fff;
 }
 
 /* ---- Panel list item: strip all default WP submenu styles ----------------- */
 
-#wpadminbar #wp-admin-bar-sob-cache-panel {
+#wpadminbar #wp-admin-bar-pobp-cache-panel {
 	width: 240px;
 	padding: 0;
 	background: transparent !important;
 }
 
-#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item,
-#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item {
+#wpadminbar #wp-admin-bar-pobp-cache-panel > .ab-item,
+#wpadminbar #wp-admin-bar-pobp-cache-panel > a.ab-item {
 	display: block !important;
 	padding: 0 !important;
 	height: auto !important;
@@ -249,17 +249,17 @@
 	cursor: default !important;
 }
 
-#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item:hover,
-#wpadminbar #wp-admin-bar-sob-cache-panel > .ab-item:focus,
-#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item:hover,
-#wpadminbar #wp-admin-bar-sob-cache-panel > a.ab-item:focus {
+#wpadminbar #wp-admin-bar-pobp-cache-panel > .ab-item:hover,
+#wpadminbar #wp-admin-bar-pobp-cache-panel > .ab-item:focus,
+#wpadminbar #wp-admin-bar-pobp-cache-panel > a.ab-item:hover,
+#wpadminbar #wp-admin-bar-pobp-cache-panel > a.ab-item:focus {
 	background: transparent !important;
 	color: inherit !important;
 }
 
 /* ---- Dark panel ----------------------------------------------------------- */
 
-.sob-ab-panel {
+.pobp-ab-panel {
 	background: #1d2327;
 	width: 240px;
 	box-sizing: border-box;
@@ -268,20 +268,20 @@
 }
 
 /* Padded info area (header + ring/stats row) */
-.sob-ab-info {
+.pobp-ab-info {
 	padding: 14px 16px;
 }
 
 /* ---- Header row: green dot + uppercase label ------------------------------ */
 
-.sob-ab-header {
+.pobp-ab-header {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	margin-bottom: 12px;
 }
 
-.sob-ab-header-dot {
+.pobp-ab-header-dot {
 	display: inline-block;
 	width: 6px;
 	height: 6px;
@@ -290,7 +290,7 @@
 	flex-shrink: 0;
 }
 
-.sob-ab-header-text {
+.pobp-ab-header-text {
 	font-size: 11px;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -301,25 +301,25 @@
 
 /* ---- Main content: ring left, stats right --------------------------------- */
 
-.sob-ab-content {
+.pobp-ab-content {
 	display: flex;
 	align-items: center;
 	gap: 12px;
 }
 
-.sob-ab-ring-wrap {
+.pobp-ab-ring-wrap {
 	flex-shrink: 0;
 }
 
 /* SVG donut ring: 52 × 52px display, viewBox 36 × 36 → scale ≈ 1.44× */
-.sob-ring-svg {
+.pobp-ring-svg {
 	width: 52px;
 	height: 52px;
 	display: block;
 }
 
 /* Percentage text: 7 SVG units × 1.44 scale ≈ 10px rendered, white bold */
-.sob-ring-pct {
+.pobp-ring-pct {
 	font-size: 7px;
 	font-weight: 700;
 	fill: #fff;
@@ -327,14 +327,14 @@
 }
 
 /* Stats column */
-.sob-ab-stats {
+.pobp-ab-stats {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 	min-width: 0;
 }
 
-.sob-ab-stat-row {
+.pobp-ab-stat-row {
 	display: flex;
 	align-items: baseline;
 	gap: 4px;
@@ -344,33 +344,33 @@
 	white-space: nowrap;
 }
 
-.sob-ab-stat-label {
+.pobp-ab-stat-label {
 	color: #a7aaad;
 	font-weight: 400;
 }
 
 /* Size value: green */
-.sob-ab-stat-size {
+.pobp-ab-stat-size {
 	color: #00a32a;
 	font-weight: 700;
 }
 
 /* Files value: white */
-.sob-ab-stat-files {
+.pobp-ab-stat-files {
 	color: #fff;
 	font-weight: 700;
 }
 
 /* ---- Separator ------------------------------------------------------------ */
 
-.sob-ab-sep {
+.pobp-ab-sep {
 	height: 1px;
 	background: #3c434a;
 }
 
 /* ---- Clear button: full-width, flush, no border-radius -------------------- */
 
-.sob-ab-clear-btn {
+.pobp-ab-clear-btn {
 	display: flex !important;
 	align-items: center !important;
 	gap: 6px !important;
@@ -387,8 +387,8 @@
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif !important;
 }
 
-.sob-ab-clear-btn:hover,
-.sob-ab-clear-btn:focus {
+.pobp-ab-clear-btn:hover,
+.pobp-ab-clear-btn:focus {
 	background: #32373c !important;
 	color: #fff !important;
 	text-decoration: none !important;
@@ -397,18 +397,18 @@
 
 /* ---- Meta box (per-page cache disable) ------------------------------------ */
 
-#sob-page-settings .inside {
+#pobp-page-settings .inside {
 	padding: 8px 12px;
 }
 
-#sob-page-settings label {
+#pobp-page-settings label {
 	display: flex;
 	align-items: flex-start;
 	gap: 6px;
 	cursor: pointer;
 }
 
-#sob-page-settings input[type="checkbox"] {
+#pobp-page-settings input[type="checkbox"] {
 	margin-top: 2px;
 	flex-shrink: 0;
 }
@@ -416,11 +416,11 @@
 /* ---- Responsive ----------------------------------------------------------- */
 
 @media ( max-width: 782px ) {
-	.sob-form-row {
+	.pobp-form-row {
 		flex-direction: column;
 		gap: 8px;
 	}
-	.sob-form-row-label {
+	.pobp-form-row-label {
 		flex: none;
 		max-width: 100%;
 	}
@@ -430,14 +430,14 @@
    Dashboard — Stat cards (Row 1)
    ============================================================================= */
 
-.sob-stat-grid {
+.pobp-stat-grid {
 	display: grid;
 	grid-template-columns: repeat( 4, 1fr );
 	gap: 14px;
 	margin: 18px 0 0;
 }
 
-.sob-stat-card {
+.pobp-stat-card {
 	background: #fff;
 	border: 1px solid #e3e5e7;
 	border-left-width: 3px;
@@ -450,19 +450,19 @@
 	transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.sob-stat-card:hover {
+.pobp-stat-card:hover {
 	transform: translateY( -1px );
 	box-shadow: 0 4px 8px rgba( 16, 24, 40, 0.06 );
 }
 
 /* Accent colours */
-.sob-stat-card--blue   { border-left-color: #2271b1; }
-.sob-stat-card--green  { border-left-color: #00a32a; }
-.sob-stat-card--grey   { border-left-color: #8c8f94; }
-.sob-stat-card--teal   { border-left-color: #007cba; }
-.sob-stat-card--orange { border-left-color: #d63638; }
+.pobp-stat-card--blue   { border-left-color: #2271b1; }
+.pobp-stat-card--green  { border-left-color: #00a32a; }
+.pobp-stat-card--grey   { border-left-color: #8c8f94; }
+.pobp-stat-card--teal   { border-left-color: #007cba; }
+.pobp-stat-card--orange { border-left-color: #d63638; }
 
-.sob-stat-icon {
+.pobp-stat-icon {
 	font-size: 24px;
 	line-height: 1;
 	flex-shrink: 0;
@@ -475,20 +475,20 @@
 	background: #f6f7f7;
 }
 
-.sob-stat-card--blue   .sob-stat-icon { color: #2271b1; background: #eaf2f9; }
-.sob-stat-card--green  .sob-stat-icon { color: #00a32a; background: #ecf8ef; }
-.sob-stat-card--grey   .sob-stat-icon { color: #6c7378; background: #f1f2f3; }
-.sob-stat-card--teal   .sob-stat-icon { color: #007cba; background: #e6f3fa; }
-.sob-stat-card--orange .sob-stat-icon { color: #d63638; background: #fcebec; }
+.pobp-stat-card--blue   .pobp-stat-icon { color: #2271b1; background: #eaf2f9; }
+.pobp-stat-card--green  .pobp-stat-icon { color: #00a32a; background: #ecf8ef; }
+.pobp-stat-card--grey   .pobp-stat-icon { color: #6c7378; background: #f1f2f3; }
+.pobp-stat-card--teal   .pobp-stat-icon { color: #007cba; background: #e6f3fa; }
+.pobp-stat-card--orange .pobp-stat-icon { color: #d63638; background: #fcebec; }
 
-.sob-stat-body {
+.pobp-stat-body {
 	display: flex;
 	flex-direction: column;
 	gap: 3px;
 	min-width: 0;
 }
 
-.sob-stat-value {
+.pobp-stat-value {
 	font-size: 24px;
 	font-weight: 700;
 	color: #1d2327;
@@ -497,13 +497,13 @@
 	letter-spacing: -0.02em;
 }
 
-.sob-stat-value--sm {
+.pobp-stat-value--sm {
 	font-size: 14px;
 	font-weight: 600;
 	letter-spacing: 0;
 }
 
-.sob-stat-label {
+.pobp-stat-label {
 	font-size: 11px;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -515,7 +515,7 @@
    Dashboard — Two-column row (Row 2)
    ============================================================================= */
 
-.sob-two-col {
+.pobp-two-col {
 	display: grid;
 	grid-template-columns: 1fr 2fr;
 	gap: 14px;
@@ -526,13 +526,13 @@
    Dashboard — Cache Actions card
    ============================================================================= */
 
-.sob-actions-card .sob-card-body {
+.pobp-actions-card .pobp-card-body {
 	padding-top: 20px;
 	padding-bottom: 20px;
 }
 
 /* Full-width red-toned clear button */
-.sob-clear-btn {
+.pobp-clear-btn {
 	display: flex !important;
 	align-items: center;
 	gap: 6px;
@@ -550,14 +550,14 @@
 	transition: background 0.15s, border-color 0.15s;
 }
 
-.sob-clear-btn:hover,
-.sob-clear-btn:focus {
+.pobp-clear-btn:hover,
+.pobp-clear-btn:focus {
 	background: #b32d2e !important;
 	border-color: #b32d2e !important;
 	color: #fff !important;
 }
 
-.sob-clear-btn.sob-clear-btn--empty {
+.pobp-clear-btn.pobp-clear-btn--empty {
 	background: #8c8f94 !important;
 	border-color: #8c8f94 !important;
 	pointer-events: none;
@@ -565,14 +565,14 @@
 }
 
 
-.sob-cache-summary {
+.pobp-cache-summary {
 	margin: 10px 0 0;
 	font-size: 12px;
 	color: #646970;
 	text-align: center;
 }
 
-.sob-refresh-link {
+.pobp-refresh-link {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -583,11 +583,11 @@
 	text-decoration: none;
 }
 
-.sob-refresh-link:hover {
+.pobp-refresh-link:hover {
 	text-decoration: underline;
 }
 
-.sob-refresh-link .dashicons {
+.pobp-refresh-link .dashicons {
 	font-size: 14px;
 	width: 14px;
 	height: 14px;
@@ -598,27 +598,27 @@
    Dashboard — Recommended Settings table
    ============================================================================= */
 
-.sob-card-body--flush {
+.pobp-card-body--flush {
 	padding-left: 0;
 	padding-right: 0;
 	padding-bottom: 0;
 }
 
-.sob-rec-table {
+.pobp-rec-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 13px;
 }
 
-.sob-rec-table th,
-.sob-rec-table td {
+.pobp-rec-table th,
+.pobp-rec-table td {
 	padding: 11px 18px;
 	text-align: left;
 	border-bottom: 1px solid #f0f0f1;
 	vertical-align: middle;
 }
 
-.sob-rec-table thead th {
+.pobp-rec-table thead th {
 	font-size: 11px;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -627,25 +627,25 @@
 	background: #fafbfc;
 }
 
-.sob-rec-table tbody tr:last-child td {
+.pobp-rec-table tbody tr:last-child td {
 	border-bottom: none;
 }
 
-.sob-rec-table tbody tr {
+.pobp-rec-table tbody tr {
 	transition: background-color 0.12s ease;
 }
 
-.sob-rec-table tbody tr:hover {
+.pobp-rec-table tbody tr:hover {
 	background: #fafbfc;
 }
 
-.sob-rec-table td:first-child {
+.pobp-rec-table td:first-child {
 	font-weight: 500;
 	color: #1d2327;
 }
 
 /* Status badges — canonical definition used across the whole settings page */
-.sob-status-badge {
+.pobp-status-badge {
 	display: inline-flex;
 	align-items: center;
 	padding: 2px 8px;
@@ -659,19 +659,19 @@
 	flex-shrink: 0;
 }
 
-.sob-status-badge.active {
+.pobp-status-badge.active {
 	background: #ecf8ef;
 	color: #007a1a;
 	border: 1px solid #b8e0bf;
 }
 
-.sob-status-badge.inactive {
+.pobp-status-badge.inactive {
 	background: #f6f7f7;
 	color: #6c7378;
 	border: 1px solid #dcdcde;
 }
 
-.sob-status-check {
+.pobp-status-check {
 	color: #00a32a;
 	font-size: 18px;
 	width: 18px;
@@ -680,7 +680,7 @@
 }
 
 /* Quick-enable button (compact) */
-.sob-quick-enable-btn {
+.pobp-quick-enable-btn {
 	font-size: 12px !important;
 	padding: 3px 12px !important;
 	height: auto !important;
@@ -693,7 +693,7 @@
    Dashboard — Plugin Info strip (Row 3)
    ============================================================================= */
 
-.sob-info-strip {
+.pobp-info-strip {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -709,18 +709,18 @@
 	box-shadow: 0 1px 2px rgba( 16, 24, 40, 0.03 );
 }
 
-.sob-info-strip-left {
+.pobp-info-strip-left {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
 }
 
-.sob-info-strip-left strong {
+.pobp-info-strip-left strong {
 	color: #1d2327;
 }
 
-.sob-info-version {
+.pobp-info-version {
 	background: #dcdcde;
 	color: #50575e;
 	padding: 1px 6px;
@@ -729,23 +729,23 @@
 	font-weight: 600;
 }
 
-.sob-info-sep {
+.pobp-info-sep {
 	color: #c3c4c7;
 }
 
-.sob-info-strip-links {
+.pobp-info-strip-links {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	flex-wrap: wrap;
 }
 
-.sob-info-strip-links a {
+.pobp-info-strip-links a {
 	color: #2271b1;
 	text-decoration: none;
 }
 
-.sob-info-strip-links a:hover {
+.pobp-info-strip-links a:hover {
 	text-decoration: underline;
 }
 
@@ -754,19 +754,19 @@
    ============================================================================= */
 
 @media ( max-width: 1200px ) {
-	.sob-stat-grid {
+	.pobp-stat-grid {
 		grid-template-columns: repeat( 2, 1fr );
 	}
 }
 
 @media ( max-width: 782px ) {
-	.sob-stat-grid {
+	.pobp-stat-grid {
 		grid-template-columns: 1fr 1fr;
 	}
-	.sob-two-col {
+	.pobp-two-col {
 		grid-template-columns: 1fr;
 	}
-	.sob-info-strip {
+	.pobp-info-strip {
 		flex-direction: column;
 		align-items: flex-start;
 	}
@@ -776,13 +776,13 @@
    Master Cache Toggle
    ============================================================================= */
 
-.sob-toggle-section {
+.pobp-toggle-section {
 	margin-bottom: 16px;
 	padding-bottom: 16px;
 	border-bottom: 1px solid #f0f0f1;
 }
 
-.sob-toggle-wrap {
+.pobp-toggle-wrap {
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -790,7 +790,7 @@
 }
 
 /* The pill/label wrapper */
-.sob-toggle {
+.pobp-toggle {
 	position: relative;
 	display: inline-block;
 	width: 48px;
@@ -798,14 +798,14 @@
 	flex-shrink: 0;
 }
 
-.sob-toggle input {
+.pobp-toggle input {
 	opacity: 0;
 	width: 0;
 	height: 0;
 	position: absolute;
 }
 
-.sob-toggle-slider {
+.pobp-toggle-slider {
 	position: absolute;
 	inset: 0;
 	background: #c3c4c7;
@@ -814,7 +814,7 @@
 	cursor: pointer;
 }
 
-.sob-toggle-slider::before {
+.pobp-toggle-slider::before {
 	content: '';
 	position: absolute;
 	height: 20px;
@@ -827,33 +827,33 @@
 	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.25 );
 }
 
-.sob-toggle input:checked + .sob-toggle-slider {
+.pobp-toggle input:checked + .pobp-toggle-slider {
 	background: #00a32a;
 }
 
-.sob-toggle input:checked + .sob-toggle-slider::before {
+.pobp-toggle input:checked + .pobp-toggle-slider::before {
 	transform: translateX( 22px );
 }
 
-.sob-toggle input:focus-visible + .sob-toggle-slider {
+.pobp-toggle input:focus-visible + .pobp-toggle-slider {
 	outline: 2px solid #2271b1;
 	outline-offset: 2px;
 }
 
 /* Labels beside the toggle */
-.sob-toggle-labels {
+.pobp-toggle-labels {
 	display: flex;
 	flex-direction: column;
 	gap: 1px;
 }
 
-.sob-toggle-title {
+.pobp-toggle-title {
 	font-weight: 600;
 	font-size: 13px;
 	color: #1d2327;
 }
 
-.sob-toggle-status {
+.pobp-toggle-status {
 	display: inline-block;
 	font-size: 10px;
 	font-weight: 700;
@@ -866,37 +866,37 @@
 	align-self: flex-start;
 }
 
-.sob-toggle-status--on {
+.pobp-toggle-status--on {
 	color: #007a1a;
 	background: #ecf8ef;
 	border: 1px solid #b8e0bf;
 }
 
-.sob-toggle-status--off {
+.pobp-toggle-status--off {
 	color: #6c7378;
 	background: #f6f7f7;
 	border: 1px solid #dcdcde;
 }
 
-.sob-toggle-desc {
+.pobp-toggle-desc {
 	margin: 0;
 	font-size: 12px;
 	color: #646970;
 }
 
 /* Warning notice when cache is disabled */
-.sob-cache-disabled-notice {
+.pobp-cache-disabled-notice {
 	margin: 0 0 14px !important;
 	font-size: 13px;
 }
 
 /* Clear button row */
-.sob-cache-actions-row {
+.pobp-cache-actions-row {
 	margin-bottom: 10px;
 }
 
 /* Disabled clear button state */
-.sob-clear-btn[aria-disabled="true"] {
+.pobp-clear-btn[aria-disabled="true"] {
 	opacity: 0.5;
 	cursor: not-allowed;
 	pointer-events: none;
@@ -906,12 +906,12 @@
    AI Optimizer Tab
    ============================================================================= */
 
-.sob-ai-card {
+.pobp-ai-card {
 	max-width: 640px;
 	margin: 24px auto 0;
 }
 
-.sob-ai-body {
+.pobp-ai-body {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -919,33 +919,33 @@
 	padding: 40px 48px !important;
 }
 
-.sob-ai-icon {
+.pobp-ai-icon {
 	font-size: 52px;
 	line-height: 1;
 	margin-bottom: 16px;
 }
 
-.sob-ai-title {
+.pobp-ai-title {
 	font-size: 22px;
 	font-weight: 700;
 	color: #1d2327;
 	margin: 0 0 8px;
 }
 
-.sob-ai-subtitle {
+.pobp-ai-subtitle {
 	font-size: 14px;
 	color: #646970;
 	margin: 0;
 }
 
-.sob-ai-divider {
+.pobp-ai-divider {
 	width: 100%;
 	border: none;
 	border-top: 1px solid #f0f0f1;
 	margin: 24px 0;
 }
 
-.sob-ai-features {
+.pobp-ai-features {
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -953,7 +953,7 @@
 	text-align: left;
 }
 
-.sob-ai-features li {
+.pobp-ai-features li {
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -965,29 +965,29 @@
 	color: #50575e;
 }
 
-.sob-ai-features li:last-child {
+.pobp-ai-features li:last-child {
 	margin-bottom: 0;
 }
 
-.sob-ai-lock {
+.pobp-ai-lock {
 	font-size: 16px;
 	flex-shrink: 0;
 	opacity: 0.6;
 }
 
-.sob-ai-notice {
+.pobp-ai-notice {
 	width: 100%;
 	text-align: left;
 	margin: 0 !important;
 	box-sizing: border-box;
 }
 
-.sob-ai-notice p {
+.pobp-ai-notice p {
 	margin: 0.5em 0;
 	font-size: 13px;
 }
 
-.sob-ai-version-badge {
+.pobp-ai-version-badge {
 	margin-top: 20px;
 	display: inline-block;
 	background: #f0f0f1;
@@ -1004,7 +1004,7 @@
    Status Tab
    ========================================================================== */
 
-.sob-status-tab-header {
+.pobp-status-tab-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1013,7 +1013,7 @@
 	border-bottom: 1px solid #e3e5e7;
 }
 
-.sob-status-tab-header h2 {
+.pobp-status-tab-header h2 {
 	margin: 0;
 	font-size: 17px;
 	font-weight: 600;
@@ -1023,11 +1023,11 @@
 
 /* ---- Recommendations panel (Status tab) ---- */
 
-.sob-recommend-card {
+.pobp-recommend-card {
 	margin-bottom: 18px;
 }
 
-.sob-rec-count {
+.pobp-rec-count {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -1045,7 +1045,7 @@
 	letter-spacing: 0;
 }
 
-.sob-rec-item {
+.pobp-rec-item {
 	display: flex;
 	gap: 14px;
 	align-items: flex-start;
@@ -1058,50 +1058,50 @@
 	transition: box-shadow 0.15s ease;
 }
 
-.sob-rec-item:hover {
+.pobp-rec-item:hover {
 	box-shadow: 0 1px 3px rgba( 16, 24, 40, 0.06 );
 }
 
-.sob-rec-item:last-child {
+.pobp-rec-item:last-child {
 	margin-bottom: 0;
 }
 
-.sob-rec-item--error {
+.pobp-rec-item--error {
 	border-color: #f3c5c6;
 	border-left-color: #d63638;
 	background: #fdf2f3;
 }
 
-.sob-rec-item--warn {
+.pobp-rec-item--warn {
 	border-color: #f0dca7;
 	border-left-color: #dba617;
 	background: #fefbf0;
 }
 
-.sob-rec-item--tip {
+.pobp-rec-item--tip {
 	border-color: #c5dcf2;
 	border-left-color: #2271b1;
 	background: #f4f8fc;
 }
 
-.sob-rec-item--ok {
+.pobp-rec-item--ok {
 	border-color: #b8e0bf;
 	border-left-color: #00a32a;
 	background: #f3fbf5;
 }
 
-.sob-rec-icon {
+.pobp-rec-icon {
 	flex: 0 0 auto;
 	font-size: 18px;
 	line-height: 1.4;
 }
 
-.sob-rec-text {
+.pobp-rec-text {
 	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.sob-rec-text strong {
+.pobp-rec-text strong {
 	display: block;
 	font-size: 13px;
 	color: #1d2327;
@@ -1109,14 +1109,14 @@
 	letter-spacing: -0.005em;
 }
 
-.sob-rec-text p {
+.pobp-rec-text p {
 	margin: 0 0 6px;
 	color: #50575e;
 	font-size: 13px;
 	line-height: 1.55;
 }
 
-.sob-rec-text code {
+.pobp-rec-text code {
 	background: rgba( 0, 0, 0, 0.05 );
 	padding: 1px 6px;
 	border-radius: 3px;
@@ -1124,7 +1124,7 @@
 	font-family: Consolas, Monaco, monospace;
 }
 
-.sob-rec-link {
+.pobp-rec-link {
 	display: inline-block;
 	margin-top: 2px;
 	font-size: 12px;
@@ -1133,12 +1133,12 @@
 	text-decoration: none;
 }
 
-.sob-rec-link:hover {
+.pobp-rec-link:hover {
 	text-decoration: underline;
 }
 
 /* Two-column grid — collapses to single column on narrow screens */
-.sob-status-grid {
+.pobp-status-grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 18px;
@@ -1146,19 +1146,19 @@
 }
 
 @media ( max-width: 782px ) {
-	.sob-status-grid {
+	.pobp-status-grid {
 		grid-template-columns: 1fr;
 	}
 }
 
 /* Remove default card-body padding when the body IS the status table */
-.sob-card-body.sob-status-table {
+.pobp-card-body.pobp-status-table {
 	padding: 0;
 }
 
 /* ---- Status rows ---- */
 
-.sob-status-row {
+.pobp-status-row {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -1170,22 +1170,22 @@
 	transition: background-color 0.1s ease;
 }
 
-.sob-status-row:hover {
+.pobp-status-row:hover {
 	background: #fafbfc;
 }
 
-.sob-status-row:last-child {
+.pobp-status-row:last-child {
 	border-bottom: none;
 }
 
-.sob-status-label {
+.pobp-status-label {
 	color: #50575e;
 	flex-shrink: 0;
 	min-width: 140px;
 	font-weight: 500;
 }
 
-.sob-status-value {
+.pobp-status-value {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -1198,35 +1198,35 @@
 
 /* ---- Status badge colour variants ---- */
 
-.sob-status-ok {
+.pobp-status-ok {
 	background: #edfaef;
 	color: #00a32a;
 }
 
-.sob-status-warn {
+.pobp-status-warn {
 	background: #fcf9e8;
 	color: #996800;
 }
 
-.sob-status-error {
+.pobp-status-error {
 	background: #fce8e8;
 	color: #d63638;
 }
 
-.sob-status-info {
+.pobp-status-info {
 	background: #e5f5fa;
 	color: #0072ae;
 }
 
 /* ---- Active Plugins panel ---- */
 
-.sob-plugins-flagged {
+.pobp-plugins-flagged {
 	margin-bottom: 8px;
 	padding-bottom: 8px;
 	border-bottom: 1px solid #f0f0f1;
 }
 
-.sob-plugin-row {
+.pobp-plugin-row {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -1236,37 +1236,37 @@
 	font-size: 13px;
 }
 
-.sob-plugins-flagged .sob-plugin-row {
+.pobp-plugins-flagged .pobp-plugin-row {
 	border-bottom: none;
 	padding: 6px 0 6px 16px;
 }
 
-.sob-plugin-row:last-child {
+.pobp-plugin-row:last-child {
 	border-bottom: none;
 }
 
-.sob-plugin-row--flagged {
+.pobp-plugin-row--flagged {
 	flex-wrap: wrap;
 	row-gap: 4px;
 }
 
-.sob-plugin-info {
+.pobp-plugin-info {
 	display: flex;
 	align-items: baseline;
 	gap: 5px;
 	flex-shrink: 0;
 }
 
-.sob-plugin-ver {
+.pobp-plugin-ver {
 	color: #787c82;
 	font-size: 11px;
 }
 
-.sob-all-plugins {
+.pobp-all-plugins {
 	margin-top: 8px;
 }
 
-.sob-all-plugins summary {
+.pobp-all-plugins summary {
 	cursor: pointer;
 	color: #2271b1;
 	font-size: 13px;
@@ -1275,14 +1275,14 @@
 	list-style: disclosure-closed;
 }
 
-.sob-all-plugins[open] summary {
+.pobp-all-plugins[open] summary {
 	list-style: disclosure-open;
 }
 
-.sob-all-plugins summary:hover {
+.pobp-all-plugins summary:hover {
 	color: #135e96;
 }
 
-.sob-plugins-all {
+.pobp-plugins-all {
 	margin-top: 4px;
 }

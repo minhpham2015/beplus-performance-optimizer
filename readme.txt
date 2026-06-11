@@ -1,5 +1,5 @@
-=== Site Optimizer by BePlus ===
-Contributors: beplusthemes
+=== Performance Optimizer by BePlus ===
+Contributors: beplusthemes, bearsthemes
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
@@ -76,10 +76,10 @@ so `calc(100% + 20px)` expressions are never broken.
 
 **Minify CSS Files**
 Default: off
-Requires: wp-content/cache/sob-cache/ directory to be writable
+Requires: wp-content/uploads/pobp-cache/ directory to be writable
 
 Minifies every enqueued external CSS file and serves the cached version from
-`wp-content/cache/sob-cache/`. Already-minified `*.min.css` files and
+`wp-content/uploads/pobp-cache/`. Already-minified `*.min.css` files and
 external CDN stylesheets are skipped automatically. Cache files are named using a
 12-character content MD5 hash so they self-invalidate whenever the source changes.
 
@@ -233,7 +233,7 @@ Disabling this option or deactivating the plugin removes the injected block clea
 
 **Minify JS Files**
 Default: off
-Requires: wp-content/cache/sob-cache/ directory to be writable
+Requires: wp-content/uploads/pobp-cache/ directory to be writable
 
 Minifies every enqueued JavaScript file using a safe character-by-character comment
 stripper that correctly handles string literals, template literals, and URL protocol
@@ -246,7 +246,7 @@ Lines are never joined to avoid breaking JavaScript's Automatic Semicolon Insert
 **Cache Status**
 
 Shows how many CSS and JS files are currently stored in the cache directory
-(`wp-content/cache/sob-cache/`). Use the "Clear CSS/JS Cache" button to delete
+(`wp-content/uploads/pobp-cache/`). Use the "Clear CSS/JS Cache" button to delete
 all cached files; they are regenerated on the next page load.
 
 The "BePlus Optimizer" item in the WordPress admin bar (visible to administrators on
@@ -259,14 +259,14 @@ and provides a one-click button to clear the cache.
 
 Every post and page edit screen includes a "BePlus Optimizer" meta box in the sidebar.
 Checking **Disable CSS/JS cache optimizations for this page/post** stores the
-`_sob_disable_cache` flag in post meta. When set, the Minify CSS Files and Minify
+`_pobp_disable_cache` flag in post meta. When set, the Minify CSS Files and Minify
 JS Files features are bypassed for that specific URL and the original (unminified)
 files are served instead. Useful for debugging or resolving conflicts on a specific
 page without disabling minification site-wide.
 
 == Installation ==
 
-1. Upload the `site-optimizer-by-beplus` folder to `/wp-content/plugins/`.
+1. Upload the `performance-optimizer-by-beplus` folder to `/wp-content/plugins/`.
 2. Activate the plugin through the **Plugins** menu in WordPress.
 3. Navigate to **Settings > BePlus Optimizer** to configure each feature.
 
@@ -285,7 +285,7 @@ Your server's file permissions do not allow PHP to write to `.htaccess`. Set the
 file to 644 (or ask your host) and try again, or add the rules manually.
 
 = Where are the minified CSS/JS cache files stored? =
-In `wp-content/cache/sob-cache/` — inside your `wp-content` directory. The directory
+In `wp-content/uploads/pobp-cache/` — inside your `wp-content` directory. The directory
 is created automatically with an `index.php` stub (to prevent directory listing) and
 a `.htaccess` stub (to block direct PHP execution).
 
@@ -299,9 +299,9 @@ Cache, W3 Total Cache, WP Super Cache, etc.). The JS/CSS optimisations operate a
 the PHP output level and work with most caching setups.
 
 = What happens to my settings when I delete the plugin? =
-The `uninstall.php` script removes all plugin data: the `sob_settings` option, the
-injected `.htaccess` rules, every file in `cache/sob-cache/`, and the
-`_sob_disable_cache` post meta from every post.
+The `uninstall.php` script removes all plugin data: the `pobp_settings` option, the
+injected `.htaccess` rules, every file in `uploads/pobp-cache/`, and the
+`_pobp_disable_cache` post meta from every post.
 
 == Screenshots ==
 
