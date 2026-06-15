@@ -31,7 +31,7 @@ class BEPLUSPB_JS {
 
 		if ( $opts['js_delay'] ) {
 			add_filter( 'script_loader_tag', array( __CLASS__, 'delay_scripts' ), 20, 3 );
-			add_action( 'wp_footer', array( __CLASS__, 'output_delay_script' ), 1 );
+			add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_delay_script' ) );
 		}
 
 		if ( ! empty( $opts['remove_js_handles'] ) ) {
@@ -71,7 +71,7 @@ class BEPLUSPB_JS {
 	 * @return string         Modified (or original) tag.
 	 */
 	public static function defer_scripts( $tag, $handle, $src ) {
-		$never_defer = array( 'jquery', 'jquery-core', 'jquery-migrate', 'wc-cart-fragments' );
+		$never_defer = array( 'jquery', 'jquery-core', 'jquery-migrate', 'wc-cart-fragments', 'bepluspb-delay-js', 'bepluspb-lazy-fallback' );
 		if ( in_array( $handle, $never_defer, true ) ) {
 			return $tag;
 		}
@@ -104,7 +104,7 @@ class BEPLUSPB_JS {
 	 * @return string         Modified (or original) tag.
 	 */
 	public static function delay_scripts( $tag, $handle, $src ) {
-		$never_delay = array( 'jquery', 'jquery-core', 'jquery-migrate', 'wc-cart-fragments' );
+		$never_delay = array( 'jquery', 'jquery-core', 'jquery-migrate', 'wc-cart-fragments', 'bepluspb-delay-js', 'bepluspb-lazy-fallback' );
 		if ( in_array( $handle, $never_delay, true ) ) {
 			return $tag;
 		}
@@ -150,76 +150,29 @@ class BEPLUSPB_JS {
 	}
 
 	// -------------------------------------------------------------------------
-	// Footer loader snippet
+	// Enqueue delay loader script
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Output the inline JS delay snippet into wp_footer (priority 1).
+	 * Register and enqueue the delay loader script with the exclude list passed
+	 * via wp_localize_script so no raw PHP is echoed into a <script> tag.
 	 */
-	public static function output_delay_script() {
-		$opts         = bepluspb_get_options();
-		$exclude      = bepluspb_parse_exclude_list( $opts['js_exclude'] );
-		$exclude_json = wp_json_encode( array_values( $exclude ) );
+	public static function enqueue_delay_script() {
+		$opts    = bepluspb_get_options();
+		$exclude = bepluspb_parse_exclude_list( $opts['js_exclude'] );
 
-		if ( false === $exclude_json ) {
-			$exclude_json = '[]';
-		}
-		?>
-<script id="bepluspb-delay-js">
-(function () {
-	'use strict';
+		wp_enqueue_script(
+			'bepluspb-delay-js',
+			BEPLUSPB_PLUGIN_URL . 'assets/js/delay.js',
+			array(),
+			BEPLUSPB_VERSION,
+			true
+		);
 
-	var _bepluspbExclude = <?php echo $exclude_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- value is JSON-encoded via wp_json_encode() ?>;
-	var _bepluspbLoaded  = false;
-
-	function _bepluspbIsExcluded(src) {
-		for (var i = 0; i < _bepluspbExclude.length; i++) {
-			if (_bepluspbExclude[i] && src.indexOf(_bepluspbExclude[i]) !== -1) return true;
-		}
-		return false;
-	}
-
-	function _bepluspbLoadAll() {
-		if (_bepluspbLoaded) return;
-		_bepluspbLoaded = true;
-
-		var delayed = document.querySelectorAll('script[data-bepluspb-delay="1"]');
-		delayed.forEach(function (placeholder) {
-			var src = placeholder.getAttribute('data-bepluspb-src') || '';
-			if (src && !_bepluspbIsExcluded(src)) {
-				var s   = document.createElement('script');
-				s.src   = src;
-				s.async = false;
-				document.body.appendChild(s);
-			}
-			if (placeholder.parentNode) {
-				placeholder.parentNode.removeChild(placeholder);
-			}
-		});
-	}
-
-	var _bepluspbEvents = [
-		'mousemove', 'mousedown',
-		'keydown',
-		'scroll', 'wheel',
-		'touchstart', 'touchmove',
-		'click'
-	];
-
-	function _bepluspbOnInteraction() {
-		_bepluspbLoadAll();
-		_bepluspbEvents.forEach(function (e) {
-			document.removeEventListener(e, _bepluspbOnInteraction, {passive: true});
-		});
-	}
-
-	_bepluspbEvents.forEach(function (e) {
-		document.addEventListener(e, _bepluspbOnInteraction, {once: true, passive: true});
-	});
-
-	setTimeout(_bepluspbLoadAll, 5000);
-})();
-</script>
-		<?php
+		wp_localize_script(
+			'bepluspb-delay-js',
+			'bepluspbDelayConfig',
+			array( 'skip' => array_values( $exclude ) )
+		);
 	}
 }

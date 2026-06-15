@@ -2215,7 +2215,7 @@ gzip_min_length 1024;'
 		}
 
 		// Cast to 0 or 1: any truthy POST value → 1, anything else → 0.
-		$enabled = isset( $_POST['enabled'] ) ? (int) (bool) $_POST['enabled'] : 0;
+		$enabled = isset( $_POST['enabled'] ) ? ( absint( wp_unslash( $_POST['enabled'] ) ) ? 1 : 0 ) : 0;
 
 		// Read RAW saved row from DB — no defaults merged. Then mutate only the
 		// single cache_enabled key. This guarantees no other toggle is touched.

@@ -50,7 +50,7 @@ class BEPLUSPB_Images {
 		add_filter( 'post_thumbnail_html', array( __CLASS__, 'process_html' ), 20 );
 		add_filter( 'widget_text',         array( __CLASS__, 'process_html' ), 20 );
 
-		add_action( 'wp_footer', array( __CLASS__, 'output_fallback_script' ), 20 );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_fallback_script' ) );
 	}
 
 	// -------------------------------------------------------------------------
@@ -186,58 +186,19 @@ class BEPLUSPB_Images {
 	}
 
 	// -------------------------------------------------------------------------
-	// IntersectionObserver polyfill (wp_footer)
+	// IntersectionObserver polyfill (enqueued JS file)
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Output a minimal IntersectionObserver polyfill into wp_footer.
+	 * Enqueue the IntersectionObserver polyfill as a proper WP script asset.
 	 */
-	public static function output_fallback_script() {
-		?>
-<script id="bepluspb-lazy-fallback">
-(function () {
-	'use strict';
-
-	if ( 'loading' in HTMLImageElement.prototype ) {
-		return;
-	}
-
-	var lazyImgs = [].slice.call( document.querySelectorAll( 'img[loading="lazy"]' ) );
-	if ( ! lazyImgs.length ) {
-		return;
-	}
-
-	function loadImage( img ) {
-		if ( img.dataset && img.dataset.src ) {
-			img.src = img.dataset.src;
-		}
-		if ( img.dataset && img.dataset.srcset ) {
-			img.srcset = img.dataset.srcset;
-		}
-		img.removeAttribute( 'loading' );
-	}
-
-	if ( 'IntersectionObserver' in window ) {
-		var observer = new IntersectionObserver(
-			function ( entries ) {
-				entries.forEach( function ( entry ) {
-					if ( ! entry.isIntersecting ) {
-						return;
-					}
-					loadImage( entry.target );
-					observer.unobserve( entry.target );
-				} );
-			},
-			{ rootMargin: '200px 0px', threshold: 0.01 }
+	public static function enqueue_fallback_script() {
+		wp_enqueue_script(
+			'bepluspb-lazy-fallback',
+			BEPLUSPB_PLUGIN_URL . 'assets/js/lazy-fallback.js',
+			array(),
+			BEPLUSPB_VERSION,
+			true
 		);
-		lazyImgs.forEach( function ( img ) {
-			observer.observe( img );
-		} );
-	} else {
-		lazyImgs.forEach( loadImage );
-	}
-})();
-</script>
-		<?php
 	}
 }
