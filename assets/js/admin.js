@@ -1,10 +1,10 @@
 /**
  * Beplus Performance Booster — Admin settings page: tab navigation + cache toggle AJAX.
  *
- * Extracted from the inline <script> block in class-bepluspb-admin.php (CQ-3)
- * so it can be cached by the browser, linted, and tested independently.
+ * Extracted from the inline <script> block in class-bepluspb-admin.php so it can be
+ * cached by the browser, linted, and tested independently.
  *
- * @package Performance_Optimizer_BePlus
+ * @package Beplus_Performance_Booster
  */
 (function () {
 	'use strict';
@@ -146,7 +146,10 @@
 			} else {
 				var msg = i18n.noticeDisabled || 'All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.';
 				notice.style.display = '';
-				notice.innerHTML = '<p>&#9888; ' + msg + '</p>';
+				while ( notice.firstChild ) { notice.removeChild( notice.firstChild ); }
+				var p = document.createElement( 'p' );
+				p.textContent = '⚠ ' + msg;
+				notice.appendChild( p );
 			}
 		}
 

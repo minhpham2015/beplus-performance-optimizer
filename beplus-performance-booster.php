@@ -63,6 +63,8 @@ function bepluspb_default_options() {
 	return array(
 		// --- JavaScript Optimization ---
 		'js_delay'               => 0,
+		'js_delay_mode'          => 'simple',   // 'simple' or 'advanced'
+		'js_delay_rdelay'        => 0,           // ms to wait after above-fold images load (advanced mode)
 		'js_defer'               => 0,
 		'js_exclude'             => '',
 

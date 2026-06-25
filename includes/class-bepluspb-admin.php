@@ -195,6 +195,15 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( $input['js_exclude'] )
 			: '';
 
+		// ---- JS delay mode + rdelay. ----
+		$sanitized['js_delay_mode'] = ( isset( $input['js_delay_mode'] ) && 'advanced' === $input['js_delay_mode'] )
+			? 'advanced'
+			: 'simple';
+
+		$sanitized['js_delay_rdelay'] = isset( $input['js_delay_rdelay'] )
+			? absint( $input['js_delay_rdelay'] )
+			: 0;
+
 		$sanitized['css_exclude'] = isset( $input['css_exclude'] )
 			? sanitize_textarea_field( $input['css_exclude'] )
 			: '';
@@ -645,6 +654,59 @@ class BEPLUSPB_Admin {
 								<?php checked( $opts['js_delay'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Delay all non-excluded scripts until the first user interaction (mousemove, click, scroll, keydown, touch). Falls back automatically after 5 seconds.', 'beplus-performance-booster' ); ?></span>
 						</label>
+					</div>
+				</div>
+
+				<!-- Delay Mode -->
+				<div class="bepluspb-form-row" id="bepluspb-delay-mode-row">
+					<div class="bepluspb-form-row-label">
+						<label><?php esc_html_e( 'Delay Mode', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'Only applies when Delay JS is enabled.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $delay_mode = isset( $opts['js_delay_mode'] ) ? $opts['js_delay_mode'] : 'simple'; ?>
+
+						<label class="bepluspb-check-label" style="margin-bottom:6px;">
+							<input type="radio"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[js_delay_mode]"
+								value="simple"
+								<?php checked( $delay_mode, 'simple' ); ?>>
+							<strong><?php esc_html_e( 'Simple', 'beplus-performance-booster' ); ?></strong>
+						</label>
+						<p class="description" style="margin:0 0 10px 20px;">
+							<?php esc_html_e( 'Converts WordPress-enqueued external scripts to text/plain placeholders. Replays them on first user interaction via a lightweight loader. Low risk, no event-queue replay.', 'beplus-performance-booster' ); ?>
+						</p>
+
+						<label class="bepluspb-check-label" style="margin-bottom:6px;">
+							<input type="radio"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[js_delay_mode]"
+								value="advanced"
+								<?php checked( $delay_mode, 'advanced' ); ?>>
+							<strong><?php esc_html_e( 'Advanced', 'beplus-performance-booster' ); ?></strong>
+						</label>
+						<p class="description" style="margin:0 0 10px 20px;">
+							<?php esc_html_e( 'Output-buffer approach: intercepts ALL scripts (including hardcoded theme scripts and dynamically injected ones) via MutationObserver. Replays DOMContentLoaded and window.load event queues in correct order. Spoofs document.readyState, intercepts document.createElement, and adds preconnect hints for external domains.', 'beplus-performance-booster' ); ?>
+						</p>
+						<div class="notice notice-warning bepluspb-notice-warning inline" style="margin:4px 0 0 20px;">
+							<p><?php esc_html_e( 'Advanced mode rewrites every <script> tag on the page. Test thoroughly — especially carousels, forms, and checkout flows — before enabling on production.', 'beplus-performance-booster' ); ?></p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Image-Load Wait (rdelay) — Advanced mode only -->
+				<div class="bepluspb-form-row" id="bepluspb-rdelay-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_js_delay_rdelay"><?php esc_html_e( 'Image-Load Wait (ms)', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'Advanced mode only.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_js_delay_rdelay"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[js_delay_rdelay]"
+							value="<?php echo esc_attr( isset( $opts['js_delay_rdelay'] ) ? $opts['js_delay_rdelay'] : 0 ); ?>"
+							min="0" max="10000" step="100" class="small-text">
+						<p class="description">
+							<?php esc_html_e( 'Additional milliseconds to wait after above-fold images finish loading before unblocking scripts. 0 = start unblocking on DOMContentLoaded (no image wait).', 'beplus-performance-booster' ); ?>
+						</p>
 					</div>
 				</div>
 
@@ -1152,6 +1214,21 @@ class BEPLUSPB_Admin {
 			echo '</div>';
 		};
 
+		// Common translated strings reused across all status panels.
+		$t_yes      = __( 'Yes', 'beplus-performance-booster' );
+		$t_no       = __( 'No', 'beplus-performance-booster' );
+		$t_on       = __( 'On', 'beplus-performance-booster' );
+		$t_off      = __( 'Off', 'beplus-performance-booster' );
+		$t_ok       = __( 'OK', 'beplus-performance-booster' );
+		$t_warning  = __( 'Warning', 'beplus-performance-booster' );
+		$t_error    = __( 'Error', 'beplus-performance-booster' );
+		$t_info     = __( 'Info', 'beplus-performance-booster' );
+		$t_unl      = __( 'Unlimited', 'beplus-performance-booster' );
+		$t_low      = __( 'Low', 'beplus-performance-booster' );
+		$t_missing  = __( 'Missing', 'beplus-performance-booster' );
+		$t_enabled  = __( 'Enabled', 'beplus-performance-booster' );
+		$t_disabled = __( 'Disabled', 'beplus-performance-booster' );
+
 		// =========================================================================
 		// Gather all data up-front so we can render both check rows and the
 		// recommendations panel from a single source of truth.
@@ -1169,27 +1246,27 @@ class BEPLUSPB_Admin {
 		$mem_bytes = $parse_bytes( $mem );
 
 		if ( version_compare( $php_ver, '7.4', '>=' ) ) {
-			$php_ver_badge = $badge( 'ok', 'OK' );
+			$php_ver_badge = $badge( 'ok', $t_ok );
 		} elseif ( version_compare( $php_ver, '7.0', '>=' ) ) {
-			$php_ver_badge = $badge( 'warn', 'Warning' );
+			$php_ver_badge = $badge( 'warn', $t_warning );
 		} else {
-			$php_ver_badge = $badge( 'error', 'Error' );
+			$php_ver_badge = $badge( 'error', $t_error );
 		}
 
 		if ( -1 === $mem_bytes ) {
-			$mem_badge = $badge( 'ok', 'Unlimited' );
+			$mem_badge = $badge( 'ok', $t_unl );
 		} elseif ( $mem_bytes >= 128 * 1024 * 1024 ) {
-			$mem_badge = $badge( 'ok', 'OK' );
+			$mem_badge = $badge( 'ok', $t_ok );
 		} elseif ( $mem_bytes >= 64 * 1024 * 1024 ) {
-			$mem_badge = $badge( 'warn', 'Warning' );
+			$mem_badge = $badge( 'warn', $t_warning );
 		} else {
-			$mem_badge = $badge( 'error', 'Low' );
+			$mem_badge = $badge( 'error', $t_low );
 		}
 
 		$max_ex_val   = (int) $max_ex;
 		$max_ex_badge = ( 0 === $max_ex_val || $max_ex_val >= 30 )
-			? $badge( 'ok', 'OK' )
-			: $badge( 'warn', 'Warning' );
+			? $badge( 'ok', $t_ok )
+			: $badge( 'warn', $t_warning );
 
 
 		// ---- WordPress ----
@@ -1206,8 +1283,8 @@ class BEPLUSPB_Admin {
 
 		$wp_mem_bytes = $parse_bytes( $wp_mem );
 		$wp_mem_badge = ( -1 === $wp_mem_bytes || $wp_mem_bytes >= 128 * 1024 * 1024 )
-			? $badge( 'ok', 'OK' )
-			: $badge( 'warn', 'Low' );
+			? $badge( 'ok', $t_ok )
+			: $badge( 'warn', $t_low );
 
 		// ---- Cache directory ----
 		$cache_dir    = BEPLUSPB_CACHE_DIR;
@@ -1238,20 +1315,20 @@ class BEPLUSPB_Admin {
 		// Known potential conflicts keyed by plugin file (folder/file.php).
 		$known_conflicts = array(
 			// Caching plugins.
-			'w3-total-cache/w3-total-cache.php'          => array( 'type' => 'warn', 'note' => 'May conflict — caching' ),
-			'wp-super-cache/wp-cache.php'                => array( 'type' => 'warn', 'note' => 'May conflict — caching' ),
-			'wp-rocket/wp-rocket.php'                    => array( 'type' => 'warn', 'note' => 'May conflict — caching & minification' ),
-			'litespeed-cache/litespeed-cache.php'        => array( 'type' => 'warn', 'note' => 'May conflict — caching' ),
-			'autoptimize/autoptimize.php'                => array( 'type' => 'warn', 'note' => 'May conflict — minification' ),
-			'hummingbird-performance/wp-hummingbird.php' => array( 'type' => 'warn', 'note' => 'May conflict — caching' ),
+			'w3-total-cache/w3-total-cache.php'          => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
+			'wp-super-cache/wp-cache.php'                => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
+			'wp-rocket/wp-rocket.php'                    => array( 'type' => 'warn', 'note' => __( 'May conflict — caching and minification', 'beplus-performance-booster' ) ),
+			'litespeed-cache/litespeed-cache.php'        => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
+			'autoptimize/autoptimize.php'                => array( 'type' => 'warn', 'note' => __( 'May conflict — minification', 'beplus-performance-booster' ) ),
+			'hummingbird-performance/wp-hummingbird.php' => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
 			// Minification plugins.
-			'fast-velocity-minify/fvm.php'               => array( 'type' => 'warn', 'note' => 'May conflict — minification' ),
-			'asset-cleanup/asset-cleanup.php'            => array( 'type' => 'warn', 'note' => 'May conflict — asset management' ),
+			'fast-velocity-minify/fvm.php'               => array( 'type' => 'warn', 'note' => __( 'May conflict — minification', 'beplus-performance-booster' ) ),
+			'asset-cleanup/asset-cleanup.php'            => array( 'type' => 'warn', 'note' => __( 'May conflict — asset management', 'beplus-performance-booster' ) ),
 			// Page builders.
-			'elementor/elementor.php'                    => array( 'type' => 'info', 'note' => 'Test output buffering with this plugin' ),
-			'divi-builder/divi-builder.php'              => array( 'type' => 'info', 'note' => 'Test output buffering with this plugin' ),
-			'bb-plugin/fl-builder.php'                   => array( 'type' => 'info', 'note' => 'Test output buffering with this plugin' ),
-			'beaver-builder-lite-version/fl-builder.php' => array( 'type' => 'info', 'note' => 'Test output buffering with this plugin' ),
+			'elementor/elementor.php'                    => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
+			'divi-builder/divi-builder.php'              => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
+			'bb-plugin/fl-builder.php'                   => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
+			'beaver-builder-lite-version/fl-builder.php' => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
 		);
 
 		$flagged_plugins = array();
@@ -1287,8 +1364,8 @@ class BEPLUSPB_Admin {
 		// =========================================================================
 
 		// Shorthand for On/Off badge.
-		$on_off = static function ( $val ) use ( $badge ) {
-			return $badge( $val ? 'ok' : 'error', $val ? 'On' : 'Off' );
+		$on_off = static function ( $val ) use ( $badge, $t_on, $t_off ) {
+			return $badge( $val ? 'ok' : 'error', $val ? $t_on : $t_off );
 		};
 		?>
 
@@ -1310,13 +1387,13 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body bepluspb-status-table">
 					<?php
-					$row( 'PHP Version', $php_ver, $php_ver_badge );
-					$row( 'Memory Limit', $mem, $mem_badge );
-					$row( 'Max Execution Time', $max_ex . 's', $max_ex_badge );
-					$row( 'Post Max Size', $post_max );
-					$row( 'Upload Max Filesize', $upload_max );
-					$row( 'Zlib (gzip)', $has_zlib ? 'Enabled' : 'Disabled', $badge( $has_zlib ? 'ok' : 'warn', $has_zlib ? 'OK' : 'Missing' ) );
-					$row( 'Mbstring', $has_mb ? 'Enabled' : 'Disabled', $badge( $has_mb ? 'ok' : 'warn', $has_mb ? 'OK' : 'Missing' ) );
+					$row( __( 'PHP Version', 'beplus-performance-booster' ), $php_ver, $php_ver_badge );
+					$row( __( 'Memory Limit', 'beplus-performance-booster' ), $mem, $mem_badge );
+					$row( __( 'Max Execution Time', 'beplus-performance-booster' ), $max_ex . 's', $max_ex_badge );
+					$row( __( 'Post Max Size', 'beplus-performance-booster' ), $post_max );
+					$row( __( 'Upload Max Filesize', 'beplus-performance-booster' ), $upload_max );
+					$row( __( 'Zlib (gzip)', 'beplus-performance-booster' ), $has_zlib ? $t_enabled : $t_disabled, $badge( $has_zlib ? 'ok' : 'warn', $has_zlib ? $t_ok : $t_missing ) );
+					$row( __( 'Mbstring', 'beplus-performance-booster' ), $has_mb ? $t_enabled : $t_disabled, $badge( $has_mb ? 'ok' : 'warn', $has_mb ? $t_ok : $t_missing ) );
 					?>
 				</div>
 			</div>
@@ -1328,17 +1405,17 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body bepluspb-status-table">
 					<?php
-					$row( 'WordPress Version', $wp_ver, $badge( 'info', 'Info' ) );
-					$row( 'Active Theme', $theme_name );
+					$row( __( 'WordPress Version', 'beplus-performance-booster' ), $wp_ver, $badge( 'info', $t_info ) );
+					$row( __( 'Active Theme', 'beplus-performance-booster' ), $theme_name );
 					if ( $parent ) {
-						$row( 'Parent Theme', $parent->get( 'Name' ) . ' v' . $parent->get( 'Version' ) );
+						$row( __( 'Parent Theme', 'beplus-performance-booster' ), $parent->get( 'Name' ) . ' v' . $parent->get( 'Version' ) );
 					}
-					$row( 'Multisite', $is_multi ? 'Yes (not recommended)' : 'No', $badge( $is_multi ? 'warn' : 'ok', $is_multi ? 'Warning' : 'OK' ) );
-					$row( 'WP_DEBUG', $wp_debug ? 'On (development)' : 'Off (production)', $badge( $wp_debug ? 'warn' : 'ok', $wp_debug ? 'Warning' : 'OK' ) );
-					$row( 'SCRIPT_DEBUG', $sc_debug ? 'On' : 'Off', $badge( $sc_debug ? 'warn' : 'ok', $sc_debug ? 'Warning' : 'OK' ) );
-					$row( 'WP Memory Limit', $wp_mem, $wp_mem_badge );
-					$row( 'WP Max Memory Limit', $wp_max_mem );
-					$row( 'WP Cron', $cron_dis ? 'Disabled (external cron)' : 'Enabled', $badge( 'info', 'Info' ) );
+					$row( __( 'Multisite', 'beplus-performance-booster' ), $is_multi ? __( 'Yes (not recommended)', 'beplus-performance-booster' ) : $t_no, $badge( $is_multi ? 'warn' : 'ok', $is_multi ? $t_warning : $t_ok ) );
+					$row( __( 'WP_DEBUG', 'beplus-performance-booster' ), $wp_debug ? __( 'On (development)', 'beplus-performance-booster' ) : __( 'Off (production)', 'beplus-performance-booster' ), $badge( $wp_debug ? 'warn' : 'ok', $wp_debug ? $t_warning : $t_ok ) );
+					$row( __( 'SCRIPT_DEBUG', 'beplus-performance-booster' ), $sc_debug ? $t_on : $t_off, $badge( $sc_debug ? 'warn' : 'ok', $sc_debug ? $t_warning : $t_ok ) );
+					$row( __( 'WP Memory Limit', 'beplus-performance-booster' ), $wp_mem, $wp_mem_badge );
+					$row( __( 'WP Max Memory Limit', 'beplus-performance-booster' ), $wp_max_mem );
+					$row( __( 'WP Cron', 'beplus-performance-booster' ), $cron_dis ? __( 'Disabled (external cron)', 'beplus-performance-booster' ) : $t_enabled, $badge( 'info', $t_info ) );
 					?>
 				</div>
 			</div>
@@ -1350,15 +1427,15 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body bepluspb-status-table">
 					<?php
-					$row( 'Cache Directory', $cache_dir );
-					$row( 'Directory Exists', $dir_exists ? 'Yes' : 'No — will be created on first use', $badge( $dir_exists ? 'ok' : 'warn', $dir_exists ? 'OK' : 'Warning' ) );
-					$row( 'Directory Writable', $dir_writable ? 'Yes' : 'No', $badge( $dir_writable ? 'ok' : 'error', $dir_writable ? 'OK' : 'Error' ) );
-					$row( '.htaccess Path', $ht_path );
-					$row( '.htaccess Exists', $ht_exists ? 'Yes' : 'No', $badge( $ht_exists ? 'ok' : 'warn', $ht_exists ? 'OK' : 'Warning' ) );
-					$row( '.htaccess Writable', $ht_writable ? 'Yes' : 'No', $badge( $ht_writable ? 'ok' : 'error', $ht_writable ? 'OK' : 'Error' ) );
-					$row( 'wp-content Writable', $wc_writable ? 'Yes' : 'No', $badge( $wc_writable ? 'ok' : 'error', $wc_writable ? 'OK' : 'Error' ) );
-					$row( 'Cached Files', (string) $cache_count );
-					$row( 'Cache Size', $cache_size );
+					$row( __( 'Cache Directory', 'beplus-performance-booster' ), $cache_dir );
+					$row( __( 'Directory Exists', 'beplus-performance-booster' ), $dir_exists ? $t_yes : __( 'No — will be created on first use', 'beplus-performance-booster' ), $badge( $dir_exists ? 'ok' : 'warn', $dir_exists ? $t_ok : $t_warning ) );
+					$row( __( 'Directory Writable', 'beplus-performance-booster' ), $dir_writable ? $t_yes : $t_no, $badge( $dir_writable ? 'ok' : 'error', $dir_writable ? $t_ok : $t_error ) );
+					$row( __( '.htaccess Path', 'beplus-performance-booster' ), $ht_path );
+					$row( __( '.htaccess Exists', 'beplus-performance-booster' ), $ht_exists ? $t_yes : $t_no, $badge( $ht_exists ? 'ok' : 'warn', $ht_exists ? $t_ok : $t_warning ) );
+					$row( __( '.htaccess Writable', 'beplus-performance-booster' ), $ht_writable ? $t_yes : $t_no, $badge( $ht_writable ? 'ok' : 'error', $ht_writable ? $t_ok : $t_error ) );
+					$row( __( 'wp-content Writable', 'beplus-performance-booster' ), $wc_writable ? $t_yes : $t_no, $badge( $wc_writable ? 'ok' : 'error', $wc_writable ? $t_ok : $t_error ) );
+					$row( __( 'Cached Files', 'beplus-performance-booster' ), (string) $cache_count );
+					$row( __( 'Cache Size', 'beplus-performance-booster' ), $cache_size );
 					?>
 				</div>
 			</div>
@@ -1424,17 +1501,17 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body bepluspb-status-table">
 					<?php
-					$row( 'Server Software', $server_soft );
-					$row( 'Server OS', $server_os );
-					$row( 'Document Root', $doc_root );
-					$row( 'HTTPS', is_ssl() ? 'Yes' : 'No', $badge( is_ssl() ? 'ok' : 'warn', is_ssl() ? 'OK' : 'Warning' ) );
-					$row( 'Home URL', home_url() );
-					$row( 'Site URL', site_url() );
-					$row( 'WordPress Root', ABSPATH );
-					$row( 'wp-content Directory', WP_CONTENT_DIR );
-					$row( 'Max Input Vars', (string) $max_input_vars );
-					$row( 'cURL', $has_curl ? 'Enabled' : 'Disabled', $badge( $has_curl ? 'ok' : 'warn', $has_curl ? 'OK' : 'Missing' ) );
-					$row( 'OpenSSL', $openssl_ver );
+					$row( __( 'Server Software', 'beplus-performance-booster' ), $server_soft );
+					$row( __( 'Server OS', 'beplus-performance-booster' ), $server_os );
+					$row( __( 'Document Root', 'beplus-performance-booster' ), $doc_root );
+					$row( __( 'HTTPS', 'beplus-performance-booster' ), is_ssl() ? $t_yes : $t_no, $badge( is_ssl() ? 'ok' : 'warn', is_ssl() ? $t_ok : $t_warning ) );
+					$row( __( 'Home URL', 'beplus-performance-booster' ), home_url() );
+					$row( __( 'Site URL', 'beplus-performance-booster' ), site_url() );
+					$row( __( 'WordPress Root', 'beplus-performance-booster' ), ABSPATH );
+					$row( __( 'wp-content Directory', 'beplus-performance-booster' ), WP_CONTENT_DIR );
+					$row( __( 'Max Input Vars', 'beplus-performance-booster' ), (string) $max_input_vars );
+					$row( __( 'cURL', 'beplus-performance-booster' ), $has_curl ? $t_enabled : $t_disabled, $badge( $has_curl ? 'ok' : 'warn', $has_curl ? $t_ok : $t_missing ) );
+					$row( __( 'OpenSSL', 'beplus-performance-booster' ), $openssl_ver );
 					?>
 				</div>
 			</div>
@@ -1446,16 +1523,28 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body bepluspb-status-table">
 					<?php
-					$row( 'Plugin Version', BEPLUSPB_VERSION, $badge( 'info', 'Info' ) );
-					$row( 'Plugin Directory', BEPLUSPB_PLUGIN_DIR );
-					$row( 'Cache Directory', BEPLUSPB_CACHE_DIR );
-					$row( 'Cache URL', $cache_url );
-					$row( 'Options Key', BEPLUSPB_OPTIONS_KEY );
-					$row( 'Master Cache Toggle', ! empty( $opts['cache_enabled'] ) ? 'On' : 'Off', $on_off( ! empty( $opts['cache_enabled'] ) ) );
-					$row( 'CSS Minification', ! empty( $opts['minify_css_files'] ) ? 'On' : 'Off', $on_off( ! empty( $opts['minify_css_files'] ) ) );
-					$row( 'JS Minification', ! empty( $opts['minify_js_files'] ) ? 'On' : 'Off', $on_off( ! empty( $opts['minify_js_files'] ) ) );
-					$row( 'Lazy Load', ! empty( $opts['lazy_load'] ) ? 'On' : 'Off', $on_off( ! empty( $opts['lazy_load'] ) ) );
-					$row( 'JS Defer', ! empty( $opts['js_defer'] ) ? 'On' : 'Off', $on_off( ! empty( $opts['js_defer'] ) ) );
+					$row( __( 'Plugin Version', 'beplus-performance-booster' ), BEPLUSPB_VERSION, $badge( 'info', $t_info ) );
+					$row( __( 'Plugin Directory', 'beplus-performance-booster' ), BEPLUSPB_PLUGIN_DIR );
+					$row( __( 'Cache Directory', 'beplus-performance-booster' ), BEPLUSPB_CACHE_DIR );
+					$row( __( 'Cache URL', 'beplus-performance-booster' ), $cache_url );
+					$row( __( 'Options Key', 'beplus-performance-booster' ), BEPLUSPB_OPTIONS_KEY );
+					$row( __( 'Master Cache Toggle', 'beplus-performance-booster' ), ! empty( $opts['cache_enabled'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['cache_enabled'] ) ) );
+					$row( __( 'CSS Minification', 'beplus-performance-booster' ), ! empty( $opts['minify_css_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_css_files'] ) ) );
+					$row( __( 'JS Minification', 'beplus-performance-booster' ), ! empty( $opts['minify_js_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_js_files'] ) ) );
+					$row( __( 'Lazy Load', 'beplus-performance-booster' ), ! empty( $opts['lazy_load'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['lazy_load'] ) ) );
+					$row( __( 'JS Defer', 'beplus-performance-booster' ), ! empty( $opts['js_defer'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['js_defer'] ) ) );
+					$delay_mode_label = ! empty( $opts['js_delay'] )
+						? ( isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ? __( 'Advanced', 'beplus-performance-booster' ) : __( 'Simple', 'beplus-performance-booster' ) )
+						: $t_off;
+					$row( __( 'JS Delay Mode', 'beplus-performance-booster' ), $delay_mode_label, $badge( ! empty( $opts['js_delay'] ) ? 'ok' : 'error', ! empty( $opts['js_delay'] ) ? $t_on : $t_off ) );
+					if ( ! empty( $opts['js_delay'] ) && isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ) {
+						$rdelay = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0;
+						/* translators: %d: millisecond delay value */
+						$rdelay_label = 0 === $rdelay
+							? sprintf( __( '%d ms (wait for DOMContentLoaded)', 'beplus-performance-booster' ), $rdelay )
+							: sprintf( __( '%d ms', 'beplus-performance-booster' ), $rdelay );
+						$row( __( 'JS Delay rdelay', 'beplus-performance-booster' ), $rdelay_label );
+					}
 					?>
 				</div>
 			</div>
