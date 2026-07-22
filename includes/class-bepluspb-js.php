@@ -203,48 +203,7 @@ class BEPLUSPB_JS {
 	 * Bails for REST, JSON, login page, AMP, and page-builder preview contexts.
 	 */
 	public static function advanced_buffer_start() {
-		// REST API / JSON responses must not be buffered.
-		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
-			return;
-		}
-		if ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) {
-			return;
-		}
-
-		// Login page.
-		if ( isset( $GLOBALS['pagenow'] ) && 'wp-login.php' === $GLOBALS['pagenow'] ) {
-			return;
-		}
-
-		// Page-builder editor / preview frames — don't delay inside the editor.
-		$builder_params = array(
-			'bricks', 'brizy-edit-iframe', 'builder', 'ct_builder',
-			'elementor-preview', 'et_fb', 'fb-edit', 'fl_builder',
-			'preview', 'tb-preview', 'tve', 'uxb_iframe',
-			'vc_action', 'vc_editable', 'vcv-action', 'wyp_mode',
-			'wyp_page_type', 'zionbuilder-preview',
-		);
-		foreach ( $builder_params as $param ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			if ( isset( $_GET[ $param ] ) ) {
-				return;
-			}
-		}
-
-		// Elementor editor / preview.
-		if ( class_exists( '\Elementor\Plugin' ) && \Elementor\Plugin::$instance ) {
-			$editor  = \Elementor\Plugin::$instance->editor;
-			$preview = \Elementor\Plugin::$instance->preview;
-			if ( ( $editor && $editor->is_edit_mode() ) || ( $preview && $preview->is_preview_mode() ) ) {
-				return;
-			}
-		}
-
-		// AMP.
-		if ( function_exists( 'is_amp_endpoint' ) && is_amp_endpoint() ) {
-			return;
-		}
-		if ( function_exists( 'ampforwp_is_amp_endpoint' ) && ampforwp_is_amp_endpoint() ) {
+		if ( BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return;
 		}
 

@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -31,6 +31,7 @@ accidentally break the admin panel or your own editing experience.
 * HTML minification and comment stripping
 * Browser cache and gzip/brotli rules via .htaccess
 * Per-page option to disable the cache for specific posts/pages
+* Custom CDN (pull-zone) URL rewriting for static assets
 
 == Settings Reference ==
 
@@ -298,6 +299,42 @@ and provides a one-click button to clear the cache.
 
 ---
 
+= ☁️ CDN =
+
+**Enable CDN**
+Default: off
+
+Rewrites matching static-asset URLs on this site to the CDN domain configured
+below — enqueued CSS/JS, media library images (including responsive `srcset`),
+matching URLs inside post content and widgets, and any other matching URL in
+the rendered page (including root-relative paths written directly into theme
+or page-builder markup). External URLs and already-CDN URLs are left untouched.
+Like other front-end optimisations, this is skipped for logged-in administrators.
+
+**CDN URL**
+Default: empty
+
+Your CDN pull-zone domain — for example, the hostname assigned when you add
+this site as a CDN zone with a provider such as [QUIC.cloud](https://quic.cloud/)
+(e.g. `https://xxxxxxxx.quic.cloud`), BunnyCDN, or KeyCDN, or a custom domain
+CNAME'd to one. This is a generic pull-zone rewriter and works with any CDN
+provider — it is not an official integration with any of them.
+
+**File Types**
+Default: `css,js,jpg,jpeg,png,gif,webp,avif,svg,ico,woff,woff2,ttf,otf,eot,mp4,webm,pdf`
+
+Comma-separated file extensions. Only URLs ending in one of these are rewritten to
+the CDN; everything else (PHP endpoints, REST/AJAX requests, admin URLs) is
+untouched by design since the matching is extension-based.
+
+**Exclude from CDN**
+Default: empty
+
+One URL keyword per line. URLs containing any of these strings stay on your own
+domain instead of being rewritten to the CDN.
+
+---
+
 = Per-Page Cache Disable (Meta Box) =
 
 Every post and page edit screen includes a "Beplus Performance Booster" meta box in the sidebar.
@@ -355,6 +392,13 @@ injected `.htaccess` rules, every file in `uploads/bepluspb-cache/`, and the
 
 == Changelog ==
 
+= 1.0.3 =
+* Added QUIC.cloud (or any pull-zone) CDN support: new "CDN" settings tab rewrites enqueued CSS/JS, media library images (incl. srcset), and matching content/widget URLs to a configured CDN domain.
+* New options: Enable CDN, CDN URL, File Types, Exclude from CDN.
+
+= 1.0.2 =
+* Added Remove Unused CSS: per-URL cached stripping of unused CSS rules, with Unused CSS Selector Safelist and Unused CSS URL Excludes options.
+
 = 1.0.1 =
 * Added Delay Mode option (Simple / Advanced) for JS delay.
 * Added JS Release Delay (ms): fallback timer that releases delayed scripts after above-fold images and fonts load; 0 = user interaction only.
@@ -379,6 +423,12 @@ injected `.htaccess` rules, every file in `uploads/bepluspb-cache/`, and the
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+New CDN tab: rewrite static-asset URLs to a QUIC.cloud (or other) CDN domain. Off by default — no upgrade steps required.
+
+= 1.0.2 =
+New Remove Unused CSS tab: per-URL cached stripping of unused CSS rules. Off by default — no upgrade steps required.
 
 = 1.0.1 =
 New JS delay options: Delay Mode (Simple/Advanced) and JS Release Delay (ms). No upgrade steps required.

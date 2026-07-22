@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION',     '1.0.2' );
+define( 'BEPLUSPB_VERSION',     '1.0.3' );
 define( 'BEPLUSPB_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -122,6 +122,12 @@ function bepluspb_default_options() {
 
 		// --- Master Cache Switch ---
 		'cache_enabled'          => 0,
+
+		// --- CDN (custom pull-zone rewriter) ---
+		'cdn_enabled'            => 0,
+		'cdn_url'                => '',  // e.g. https://xxxxxxxx.quic.cloud or a CNAME'd custom domain
+		'cdn_file_types'         => BEPLUSPB_CDN::default_file_types(),
+		'cdn_exclude'            => '',
 	);
 }
 
@@ -181,6 +187,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cdn.php';
 
 // ---------------------------------------------------------------------------
 // ACTIVATION / DEACTIVATION HOOKS
@@ -276,4 +283,5 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
+	BEPLUSPB_CDN::init( $opts );
 }

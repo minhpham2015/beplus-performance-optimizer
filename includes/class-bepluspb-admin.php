@@ -185,6 +185,8 @@ class BEPLUSPB_Admin {
 			'minify_css_files', 'minify_js_files',
 			// Cache exclusions
 			'cache_for_logged_in',
+			// CDN
+			'cdn_enabled',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -230,6 +232,19 @@ class BEPLUSPB_Admin {
 
 		$sanitized['cache_exclude_pages'] = isset( $input['cache_exclude_pages'] )
 			? sanitize_textarea_field( $input['cache_exclude_pages'] )
+			: '';
+
+		// ---- CDN (custom pull-zone rewriter). ----
+		$sanitized['cdn_url'] = isset( $input['cdn_url'] )
+			? esc_url_raw( trim( $input['cdn_url'] ) )
+			: '';
+
+		$sanitized['cdn_file_types'] = isset( $input['cdn_file_types'] ) && '' !== trim( $input['cdn_file_types'] )
+			? sanitize_text_field( $input['cdn_file_types'] )
+			: BEPLUSPB_CDN::default_file_types();
+
+		$sanitized['cdn_exclude'] = isset( $input['cdn_exclude'] )
+			? sanitize_textarea_field( $input['cdn_exclude'] )
 			: '';
 
 		// ---- Lazy load advanced options. ----
@@ -301,6 +316,7 @@ class BEPLUSPB_Admin {
 			'dashboard'    => '📊 ' . __( 'Dashboard', 'beplus-performance-booster' ),
 			'cache_files'  => '⚡ ' . __( 'Cache Files', 'beplus-performance-booster' ),
 			'fonts'        => '🔤 ' . __( 'Fonts', 'beplus-performance-booster' ),
+			'cdn'          => '☁️ ' . __( 'CDN', 'beplus-performance-booster' ),
 			'cleanup'      => '🧹 ' . __( 'Cleanup', 'beplus-performance-booster' ),
 			'exclusions'   => '🚫 ' . __( 'Cache Exclusions', 'beplus-performance-booster' ),
 			'status'       => '🔍 ' . __( 'Status', 'beplus-performance-booster' ),
@@ -340,6 +356,10 @@ class BEPLUSPB_Admin {
 
 				<div id="bepluspb-tab-fonts" class="bepluspb-tab-panel" role="tabpanel">
 					<?php self::render_section_fonts( $opts ); ?>
+				</div>
+
+				<div id="bepluspb-tab-cdn" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_section_cdn( $opts ); ?>
 				</div>
 
 				<div id="bepluspb-tab-cleanup" class="bepluspb-tab-panel" role="tabpanel">
@@ -1041,6 +1061,101 @@ class BEPLUSPB_Admin {
 							<code>/wp-content/themes/my-theme/fonts/myfont.woff2</code>
 						</p>
 					</div>
+				</div>
+
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "CDN" tab — custom pull-zone static-asset offloading.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_cdn( $opts ) {
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Custom CDN (Pull Zone)', 'beplus-performance-booster' ); ?></h2>
+				<p>
+					<?php
+					printf(
+						/* translators: %s: link to quic.cloud */
+						esc_html__( 'Serve static files (CSS, JS, images, fonts) from a CDN instead of your own server. Sign up for a free CDN zone with a provider such as %s, point it at this site, and paste the domain it gives you below. This is a generic pull-zone rewriter — it is not an official QUIC.cloud integration and works with any CDN provider.', 'beplus-performance-booster' ),
+						'<a href="https://quic.cloud/" target="_blank" rel="noopener noreferrer">QUIC.cloud</a>'
+					);
+					?>
+				</p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<!-- Enable CDN -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cdn_enabled"><?php esc_html_e( 'Enable CDN', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_cdn_enabled"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cdn_enabled]" value="1"
+								<?php checked( $opts['cdn_enabled'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Rewrite matching static-asset URLs on this site to the CDN domain below.', 'beplus-performance-booster' ); ?></span>
+						</label>
+					</div>
+				</div>
+
+				<!-- CDN URL -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cdn_url"><?php esc_html_e( 'CDN URL', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="url" id="bepluspb_cdn_url"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cdn_url]"
+							value="<?php echo esc_attr( $opts['cdn_url'] ); ?>"
+							class="large-text code"
+							placeholder="https://xxxxxxxx.quic.cloud">
+						<p class="description">
+							<?php esc_html_e( 'Your CDN pull-zone domain (e.g. from QUIC.cloud, BunnyCDN, KeyCDN, etc.), or any custom domain CNAME\'d to one.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- File Types -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cdn_file_types"><?php esc_html_e( 'File Types', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'Comma-separated file extensions.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="text" id="bepluspb_cdn_file_types"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cdn_file_types]"
+							value="<?php echo esc_attr( $opts['cdn_file_types'] ); ?>"
+							class="large-text code">
+						<p class="description"><?php esc_html_e( 'Only URLs ending in one of these extensions are rewritten to the CDN.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
+				<!-- Exclude from CDN -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cdn_exclude"><?php esc_html_e( 'Exclude from CDN', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One URL keyword per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_cdn_exclude"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cdn_exclude]"
+							rows="4" class="large-text code"><?php echo esc_textarea( $opts['cdn_exclude'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'URLs containing any of these strings are left on your own domain instead of being rewritten.', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Example: /wp-admin/, custom-uploads-dir', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="notice notice-info bepluspb-notice-warning inline">
+					<p><?php esc_html_e( 'Applies to enqueued CSS/JS, media library images (including responsive srcset), matching URLs inside post content and widgets, and any other matching URL in the rendered page (including root-relative paths written directly into theme or page-builder markup). It is skipped for logged-in administrators, same as other front-end optimisations.', 'beplus-performance-booster' ); ?></p>
 				</div>
 
 			</div>

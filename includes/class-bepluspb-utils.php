@@ -163,4 +163,64 @@ class BEPLUSPB_Utils {
 
 		return $out;
 	}
+
+	// -------------------------------------------------------------------------
+	// Output-buffer context guards
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Whether the current request is one where full-page output buffering
+	 * (URL rewriting, script delay, HTML minification, etc.) must be skipped:
+	 * REST/JSON responses, the login page, page-builder editor/preview frames,
+	 * and AMP endpoints.
+	 *
+	 * @return bool
+	 */
+	public static function is_buffer_excluded_request() {
+		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			return true;
+		}
+		if ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) {
+			return true;
+		}
+
+		// Login page.
+		if ( isset( $GLOBALS['pagenow'] ) && 'wp-login.php' === $GLOBALS['pagenow'] ) {
+			return true;
+		}
+
+		// Page-builder editor / preview frames.
+		$builder_params = array(
+			'bricks', 'brizy-edit-iframe', 'builder', 'ct_builder',
+			'elementor-preview', 'et_fb', 'fb-edit', 'fl_builder',
+			'preview', 'tb-preview', 'tve', 'uxb_iframe',
+			'vc_action', 'vc_editable', 'vcv-action', 'wyp_mode',
+			'wyp_page_type', 'zionbuilder-preview',
+		);
+		foreach ( $builder_params as $param ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( isset( $_GET[ $param ] ) ) {
+				return true;
+			}
+		}
+
+		// Elementor editor / preview.
+		if ( class_exists( '\Elementor\Plugin' ) && \Elementor\Plugin::$instance ) {
+			$editor  = \Elementor\Plugin::$instance->editor;
+			$preview = \Elementor\Plugin::$instance->preview;
+			if ( ( $editor && $editor->is_edit_mode() ) || ( $preview && $preview->is_preview_mode() ) ) {
+				return true;
+			}
+		}
+
+		// AMP.
+		if ( function_exists( 'is_amp_endpoint' ) && is_amp_endpoint() ) {
+			return true;
+		}
+		if ( function_exists( 'ampforwp_is_amp_endpoint' ) && ampforwp_is_amp_endpoint() ) {
+			return true;
+		}
+
+		return false;
+	}
 }
