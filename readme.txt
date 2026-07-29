@@ -344,6 +344,15 @@ JS Files features are bypassed for that specific URL and the original (unminifie
 files are served instead. Useful for debugging or resolving conflicts on a specific
 page without disabling minification site-wide.
 
+= About BePlus =
+
+This plugin is developed and maintained by BePlus,
+a WordPress and Shopify development studio with 10+
+years of experience building themes and plugins for
+nonprofits and eCommerce brands.
+
+Learn more at beplusthemes.com.
+
 == Installation ==
 
 1. Upload the `beplus-performance-booster` folder to `/wp-content/plugins/`.
@@ -382,6 +391,9 @@ the PHP output level and work with most caching setups.
 The `uninstall.php` script removes all plugin data: the `bepluspb_settings` option, the
 injected `.htaccess` rules, every file in `uploads/bepluspb-cache/`, and the
 `_bepluspb_disable_cache` post meta from every post.
+
+= Who develops this plugin? =
+This plugin is developed and maintained by BePlus, a WordPress and Shopify development studio. You can learn more about our work at beplusthemes.com.
 
 == Screenshots ==
 
