@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -404,6 +404,16 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.4 =
+* Added Object Cache support: persistent caching via Redis or Memcached with a WP drop-in (wp-content/object-cache.php).
+* New "Object Cache" settings tab: driver selection (Redis/Memcached), host/port, Redis AUTH password, Redis DB index, persistent connection, global groups, non-persistent groups.
+* Connection test button with live AJAX result.
+* Install/Remove drop-in buttons directly from the settings page.
+* Config file (.bepluspb_oc.json) written to wp-content for zero-overhead bootstrap by the drop-in.
+* Uninstall script now removes the object-cache drop-in and config file.
+* Added "⚡ Enable All Recommended" button to the Dashboard tab — activates all recommended settings in one click (skips settings that require manual prerequisites, e.g. htaccess not writable).
+* Status tab now includes a "PHP Extensions" panel showing availability of Redis, Memcached, OPcache, cURL, GD/ImageMagick, mbstring, OpenSSL, zlib, and intl.
+
 = 1.0.3 =
 * Added QUIC.cloud (or any pull-zone) CDN support: new "CDN" settings tab rewrites enqueued CSS/JS, media library images (incl. srcset), and matching content/widget URLs to a configured CDN domain.
 * New options: Enable CDN, CDN URL, File Types, Exclude from CDN.
@@ -435,6 +445,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+New Object Cache tab, "Enable All Recommended" button, and PHP Extensions panel in Status. Object cache is off by default — install the drop-in from the settings page to activate.
 
 = 1.0.3 =
 New CDN tab: rewrite static-asset URLs to a QUIC.cloud (or other) CDN domain. Off by default — no upgrade steps required.

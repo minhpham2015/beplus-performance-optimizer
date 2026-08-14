@@ -184,4 +184,83 @@
 		}
 	}
 
+
+	// -------------------------------------------------------------------------
+	// Object Cache — driver toggle (show/hide Redis-only rows)
+	// -------------------------------------------------------------------------
+
+	var ocDriverSelect   = document.getElementById('bepluspb_object_cache_driver');
+	var ocPasswordRow    = document.getElementById('bepluspb-oc-password-row');
+	var ocDbRow          = document.getElementById('bepluspb-oc-db-row');
+
+	function toggleOcRedisRows() {
+		var isRedis = ocDriverSelect && ocDriverSelect.value === 'redis';
+		if (ocPasswordRow) { ocPasswordRow.style.display = isRedis ? '' : 'none'; }
+		if (ocDbRow)       { ocDbRow.style.display       = isRedis ? '' : 'none'; }
+	}
+
+	if (ocDriverSelect) {
+		ocDriverSelect.addEventListener('change', toggleOcRedisRows);
+	}
+
+	// -------------------------------------------------------------------------
+	// Object Cache — Test Connection AJAX
+	// -------------------------------------------------------------------------
+
+	var ocTestBtn    = document.getElementById('bepluspb-oc-test-btn');
+	var ocTestResult = document.getElementById('bepluspb-oc-test-result');
+
+	if (ocTestBtn && typeof bepluspbAdmin !== 'undefined') {
+		ocTestBtn.addEventListener('click', function () {
+			var i18n = bepluspbAdmin;
+
+			ocTestBtn.disabled    = true;
+			ocTestBtn.textContent = i18n.testingOc || 'Testing…';
+			if (ocTestResult) {
+				ocTestResult.style.display = 'none';
+				ocTestResult.textContent   = '';
+			}
+
+			var hostEl   = document.getElementById('bepluspb_object_cache_host');
+			var portEl   = document.getElementById('bepluspb_object_cache_port');
+			var pwEl     = document.getElementById('bepluspb_object_cache_password');
+			var dbEl     = document.getElementById('bepluspb_object_cache_db');
+			var driverEl = document.getElementById('bepluspb_object_cache_driver');
+
+			var data = new FormData();
+			data.append('action',   'bepluspb_test_oc_connection');
+			data.append('nonce',    i18n.testOcNonce);
+			data.append('driver',   driverEl  ? driverEl.value  : 'redis');
+			data.append('host',     hostEl    ? hostEl.value     : '127.0.0.1');
+			data.append('port',     portEl    ? portEl.value     : '6379');
+			data.append('password', pwEl      ? pwEl.value       : '');
+			data.append('db',       dbEl      ? dbEl.value       : '0');
+
+			fetch(i18n.ajaxUrl, { method: 'POST', body: data })
+				.then(function (r) { return r.json(); })
+				.then(function (json) {
+					if (ocTestResult) {
+						var ok  = json.success;
+						var msg = ok
+							? (json.data && json.data.message ? json.data.message : 'Connected.')
+							: (json.data && json.data.message ? json.data.message : 'Connection failed.');
+						ocTestResult.textContent   = msg;
+						ocTestResult.className     = 'bepluspb-status-badge ' + (ok ? 'bepluspb-status-ok' : 'bepluspb-status-error');
+						ocTestResult.style.display = 'inline-block';
+					}
+				})
+				.catch(function () {
+					if (ocTestResult) {
+						ocTestResult.textContent   = 'Request failed. Check your browser console.';
+						ocTestResult.className     = 'bepluspb-status-badge bepluspb-status-error';
+						ocTestResult.style.display = 'inline-block';
+					}
+				})
+				.finally(function () {
+					ocTestBtn.disabled    = false;
+					ocTestBtn.textContent = 'Test Connection';
+				});
+		});
+	}
+
 })();

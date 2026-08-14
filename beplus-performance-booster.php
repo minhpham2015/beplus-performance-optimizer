@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION',     '1.0.3' );
+define( 'BEPLUSPB_VERSION',     '1.0.4' );
 define( 'BEPLUSPB_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -128,6 +128,17 @@ function bepluspb_default_options() {
 		'cdn_url'                => '',  // e.g. https://xxxxxxxx.quic.cloud or a CNAME'd custom domain
 		'cdn_file_types'         => BEPLUSPB_CDN::default_file_types(),
 		'cdn_exclude'            => '',
+
+		// --- Object Cache (Redis / Memcached) ---
+		'object_cache_enabled'               => 0,
+		'object_cache_driver'                => 'redis',   // 'redis' or 'memcached'
+		'object_cache_host'                  => '127.0.0.1',
+		'object_cache_port'                  => 6379,
+		'object_cache_password'              => '',        // Redis AUTH only
+		'object_cache_db'                    => 0,         // Redis DB index only
+		'object_cache_persistent'            => 1,
+		'object_cache_global_groups'         => "users\nuserlogins\nuseremail\nusermeta\nsite-transient\nsite-options",
+		'object_cache_non_persistent_groups' => "comment\ncounts\nplugins",
 	);
 }
 
@@ -177,6 +188,7 @@ function bepluspb_parse_exclude_list( $textarea ) {
 // LOAD CLASS FILES
 // ---------------------------------------------------------------------------
 
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-object-cache.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-utils.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-admin.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-htaccess.php';

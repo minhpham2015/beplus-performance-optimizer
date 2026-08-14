@@ -42,6 +42,17 @@ if ( file_exists( $bepluspb_htaccess_class ) ) {
 }
 
 // ---------------------------------------------------------------------------
+// 2b. Remove Object Cache drop-in and config file
+// ---------------------------------------------------------------------------
+
+$bepluspb_oc_class = BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-object-cache.php';
+if ( file_exists( $bepluspb_oc_class ) ) {
+	require_once $bepluspb_oc_class;
+	BEPLUSPB_Object_Cache::uninstall_dropin();
+	BEPLUSPB_Object_Cache::delete_config();
+}
+
+// ---------------------------------------------------------------------------
 // 3. Clear the CSS/JS minification cache directory
 // ---------------------------------------------------------------------------
 
