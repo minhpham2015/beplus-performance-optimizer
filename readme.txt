@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -404,6 +404,17 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.5 =
+* Security: the Object Cache config file (`wp-content/.bepluspb_oc.json`), which
+  can contain a plaintext Redis/Memcached AUTH password, is now blocked from
+  direct HTTP access via an auto-generated `.htaccess` rule in `wp-content/`
+  (Apache/LiteSpeed). Previously this file was served directly if requested.
+  Sites on nginx should add an equivalent `location ~ /\.bepluspb_oc\.json { deny all; }`
+  rule manually, since nginx does not read `.htaccess` files.
+* Security: the Object Cache drop-in now unserializes cached values with
+  `allowed_classes => false`, preventing PHP Object Injection if a cache
+  value is ever read back in a tampered or unexpected state.
+
 = 1.0.4 =
 * Added Object Cache support: persistent caching via Redis or Memcached with a WP drop-in (wp-content/object-cache.php).
 * New "Object Cache" settings tab: driver selection (Redis/Memcached), host/port, Redis AUTH password, Redis DB index, persistent connection, global groups, non-persistent groups.
@@ -445,6 +456,12 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.5 =
+Security fix: protects the Object Cache config file from direct HTTP access
+and hardens the object-cache drop-in against PHP Object Injection.
+Recommended update for anyone using the Object Cache feature with Redis or
+Memcached.
 
 = 1.0.4 =
 New Object Cache tab, "Enable All Recommended" button, and PHP Extensions panel in Status. Object cache is off by default — install the drop-in from the settings page to activate.

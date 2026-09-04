@@ -327,7 +327,15 @@ class WP_Object_Cache {
 				return false;
 			}
 
-			$data = unserialize( $raw ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
+			// Restrict unserialize() to scalars/arrays only (allowed_classes => false).
+			// This blocks PHP Object Injection if a stored value is ever tampered with
+			// (e.g. Redis reachable by another tenant, or credentials leaked) — the cost
+			// is that any previously-cached PHP object comes back as an
+			// __PHP_Incomplete_Class stub instead of a real object. WordPress core only
+			// caches arrays/scalars in the groups this drop-in treats specially, so this
+			// is safe for normal WP usage; a plugin caching objects directly should
+			// serialize them to an array itself before calling wp_cache_set().
+			$data = unserialize( $raw, array( 'allowed_classes' => false ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
 			$this->_store_in_memory( $key, $data, $group );
 			++$this->cache_hits;
 			$found = true;

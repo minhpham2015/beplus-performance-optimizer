@@ -197,9 +197,46 @@ class BEPLUSPB_Object_Cache {
 			return false;
 		}
 
+		self::protect_config_file();
+
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
 		$written = file_put_contents( self::config_file(), $json );
 		return false !== $written;
+	}
+
+	/**
+	 * Deny direct HTTP access to the JSON config file (it may contain a
+	 * plaintext Redis/Memcached AUTH password) by placing an .htaccess
+	 * rule in wp-content/ next to it, similar to how the cache directory
+	 * is protected. Written once; safe to call on every save.
+	 *
+	 * Apache/LiteSpeed only — hosts on nginx or other servers must add an
+	 * equivalent `location ~ /\.bepluspb_oc\.json { deny all; }` rule
+	 * manually, since nginx does not read .htaccess files.
+	 */
+	private static function protect_config_file() {
+		$htaccess = WP_CONTENT_DIR . '/.htaccess';
+		$marker   = 'Beplus Performance Booster — deny .bepluspb_oc.json';
+
+		if ( file_exists( $htaccess ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+			$existing = file_get_contents( $htaccess );
+			if ( false !== $existing && false !== strpos( $existing, $marker ) ) {
+				return; // Rule already present.
+			}
+		} else {
+			$existing = '';
+		}
+
+		$rule  = "\n# {$marker}\n";
+		$rule .= "<Files \".bepluspb_oc.json\">\n";
+		$rule .= "  Require all denied\n";
+		$rule .= "  Order allow,deny\n";
+		$rule .= "  Deny from all\n";
+		$rule .= "</Files>\n";
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
+		file_put_contents( $htaccess, $existing . $rule );
 	}
 
 	/**
