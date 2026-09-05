@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -404,6 +404,17 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.6 =
+* Fixed: Remove Unused CSS cache was not invalidated when a page's content
+  changed (e.g. editing a post to add a shortcode/block whose CSS class was
+  previously stripped out of the cached stylesheet). The cache only checked
+  whether the *source* stylesheet file had changed, not whether the *page
+  content* had — so a stale, over-trimmed CSS file could keep being served
+  after a content edit until someone noticed broken styling and manually
+  clicked "Clear Cache". Now automatically purged on: saving/publishing a
+  post, a scheduled post going live, switching themes, and saving Customizer
+  changes.
+
 = 1.0.5 =
 * Security: the Object Cache config file (`wp-content/.bepluspb_oc.json`), which
   can contain a plaintext Redis/Memcached AUTH password, is now blocked from
@@ -456,6 +467,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.6 =
+Fixes stale CSS after editing content when "Remove Unused CSS" is enabled.
+Recommended update for anyone using that feature.
 
 = 1.0.5 =
 Security fix: protects the Object Cache config file from direct HTTP access

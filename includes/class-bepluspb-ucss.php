@@ -88,6 +88,31 @@ class BEPLUSPB_UCSS {
 	}
 
 	/**
+	 * Register invalidation hooks so stale used-only CSS is purged as soon
+	 * as content that could affect it changes.
+	 *
+	 * Deliberately called unconditionally from plugins_loaded (see bottom of
+	 * beplus-performance-booster.php), NOT from init() above — init() only
+	 * runs on the front-end ('wp' action, is_admin() === false), but the
+	 * events that need to trigger a purge (saving a post, switching a theme,
+	 * saving the Customizer) all happen from wp-admin. If these hooks lived
+	 * inside init(), editing a post in wp-admin would never register them
+	 * and the purge would silently never fire.
+	 *
+	 * @param array $opts Result of bepluspb_get_options().
+	 */
+	public static function register_invalidation_hooks( $opts ) {
+		if ( empty( $opts['css_remove_unused'] ) ) {
+			return;
+		}
+
+		add_action( 'save_post', array( __CLASS__, 'purge_on_content_change' ) );
+		add_action( 'transition_post_status', array( __CLASS__, 'purge_on_status_transition' ), 10, 3 );
+		add_action( 'switch_theme', array( __CLASS__, 'purge_all' ) );
+		add_action( 'customize_save_after', array( __CLASS__, 'purge_all' ) );
+	}
+
+	/**
 	 * Whether the current request URI matches a css_unused_exclude keyword.
 	 *
 	 * @param array $opts Result of bepluspb_get_options().
@@ -192,6 +217,94 @@ class BEPLUSPB_UCSS {
 	 */
 	private static function cache_url( $handle, $path ) {
 		return BEPLUSPB_Minify::cache_url() . self::cache_name( $handle, $path );
+	}
+
+	// -------------------------------------------------------------------------
+	// Cache invalidation
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Delete every cached "used-only" CSS file (ucss-*.css) without touching
+	 * the unrelated minified-JS/CSS cache managed by BEPLUSPB_Minify.
+	 *
+	 * Deliberately a blanket purge rather than a single-URL purge: we have
+	 * no reliable way to know which OTHER pages (home, archives, widgets)
+	 * render an excerpt/snippet of the post that just changed, so the safe
+	 * choice is to invalidate every used-only cache file and let the normal
+	 * "first visit re-generates" flow repopulate them.
+	 *
+	 * @return int Number of files deleted.
+	 */
+	public static function purge_all() {
+		$dir = BEPLUSPB_CACHE_DIR;
+		if ( ! file_exists( $dir ) || ! is_dir( $dir ) ) {
+			return 0;
+		}
+
+		$deleted = 0;
+		$files   = glob( $dir . 'ucss-*.css' );
+		if ( ! $files ) {
+			return 0;
+		}
+
+		foreach ( $files as $file ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_wp_delete_file
+			if ( @unlink( $file ) ) {
+				++$deleted;
+			}
+		}
+
+		return $deleted;
+	}
+
+	/**
+	 * save_post fires on every save (including autosave/revision) — filter
+	 * down to real, user-triggered saves of a public, viewable post before
+	 * purging.
+	 *
+	 * @param int $post_id Post ID being saved.
+	 */
+	public static function purge_on_content_change( $post_id ) {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post instanceof WP_Post ) {
+			return;
+		}
+
+		$post_type_obj = get_post_type_object( $post->post_type );
+		if ( ! $post_type_obj || ! $post_type_obj->public ) {
+			return;
+		}
+
+		self::purge_all();
+	}
+
+	/**
+	 * transition_post_status catches publish/unpublish transitions that
+	 * don't necessarily fire save_post with the final status yet visible
+	 * (e.g. scheduled posts going live via wp-cron).
+	 *
+	 * @param string  $new_status New post status.
+	 * @param string  $old_status Previous post status.
+	 * @param WP_Post $post       Post object.
+	 */
+	public static function purge_on_status_transition( $new_status, $old_status, $post ) {
+		if ( $new_status === $old_status ) {
+			return;
+		}
+
+		$post_type_obj = get_post_type_object( $post->post_type );
+		if ( ! $post_type_obj || ! $post_type_obj->public ) {
+			return;
+		}
+
+		// Only care about transitions that change what's publicly visible.
+		if ( 'publish' === $new_status || 'publish' === $old_status ) {
+			self::purge_all();
+		}
 	}
 
 	// -------------------------------------------------------------------------
