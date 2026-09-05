@@ -402,14 +402,29 @@ class BEPLUSPB_Minify {
 	public static function url_to_path( $src ) {
 		$url = strtok( $src, '?' );
 
+		// Only ever resolve genuine CSS/JS asset URLs to a filesystem path.
+		// Every caller (maybe_minify_css/js, css.php inline, ucss.php) feeds
+		// this enqueued stylesheet/script URLs, so anything that isn't a
+		// .css/.js file has no legitimate reason to be turned into a path and
+		// read from disk. Without this, a URL pointing at (say) wp-config.php
+		// — which lives inside ABSPATH and therefore survives the realpath
+		// prefix check below — could be read, "minified", and cached as a
+		// world-readable .css file, leaking DB credentials. Extension gate
+		// closes that off before any filesystem access happens.
+		$ext = strtolower( pathinfo( $url, PATHINFO_EXTENSION ) );
+		if ( 'css' !== $ext && 'js' !== $ext ) {
+			return false;
+		}
+
 		$url_nr = preg_replace( '#^https?://#i', '//', $url );
 
 		// Attempt 1: WP_CONTENT_URL -> WP_CONTENT_DIR.
 		$content_url_nr = preg_replace( '#^https?://#i', '//', untrailingslashit( WP_CONTENT_URL ) );
 		if ( '' !== $content_url_nr && 0 === strpos( $url_nr, $content_url_nr ) ) {
 			$path = wp_normalize_path( WP_CONTENT_DIR . substr( $url_nr, strlen( $content_url_nr ) ) );
-			if ( file_exists( $path ) && is_file( $path ) ) {
-				return $path;
+			$safe = self::validate_local_path( $path, WP_CONTENT_DIR );
+			if ( false !== $safe ) {
+				return $safe;
 			}
 		}
 
@@ -417,8 +432,9 @@ class BEPLUSPB_Minify {
 		$site_url_nr = preg_replace( '#^https?://#i', '//', trailingslashit( site_url() ) );
 		if ( '' !== $site_url_nr && 0 === strpos( $url_nr, $site_url_nr ) ) {
 			$path = wp_normalize_path( trailingslashit( ABSPATH ) . substr( $url_nr, strlen( $site_url_nr ) ) );
-			if ( file_exists( $path ) && is_file( $path ) ) {
-				return $path;
+			$safe = self::validate_local_path( $path, ABSPATH );
+			if ( false !== $safe ) {
+				return $safe;
 			}
 		}
 
@@ -426,12 +442,52 @@ class BEPLUSPB_Minify {
 		$home_url_nr = preg_replace( '#^https?://#i', '//', trailingslashit( home_url() ) );
 		if ( '' !== $home_url_nr && 0 === strpos( $url_nr, $home_url_nr ) ) {
 			$path = wp_normalize_path( trailingslashit( ABSPATH ) . substr( $url_nr, strlen( $home_url_nr ) ) );
-			if ( file_exists( $path ) && is_file( $path ) ) {
-				return $path;
+			$safe = self::validate_local_path( $path, ABSPATH );
+			if ( false !== $safe ) {
+				return $safe;
 			}
 		}
 
 		return false;
+	}
+
+	/**
+	 * Resolve a candidate path with realpath() and confirm it stays inside an
+	 * allowed base directory.
+	 *
+	 * `wp_normalize_path()` only unifies slashes — it does NOT collapse `../`
+	 * segments, so a crafted URL like `.../wp-content/../../etc/passwd` would
+	 * still pass the earlier `strpos()` prefix check while pointing outside
+	 * the intended tree. `realpath()` resolves `..`, `.`, and symlinks to the
+	 * true canonical path (returning false if the file does not exist), after
+	 * which we re-verify the canonical path is a descendant of the (also
+	 * canonicalized) allowed base. Defence-in-depth: the src here comes from
+	 * enqueued styles/scripts, but this function is shared by minify.php,
+	 * css.php and ucss.php, and later features may feed it less-trusted input.
+	 *
+	 * @param  string $path Candidate absolute path (already slash-normalized).
+	 * @param  string $base Allowed base directory the path must stay within.
+	 * @return string|false Canonical path on success, false if invalid/outside.
+	 */
+	private static function validate_local_path( $path, $base ) {
+		$real_path = realpath( $path );
+		if ( false === $real_path || ! is_file( $real_path ) ) {
+			return false;
+		}
+
+		$real_base = realpath( $base );
+		if ( false === $real_base ) {
+			return false;
+		}
+
+		$real_path = wp_normalize_path( $real_path );
+		$real_base = trailingslashit( wp_normalize_path( $real_base ) );
+
+		if ( 0 !== strpos( $real_path, $real_base ) ) {
+			return false;
+		}
+
+		return $real_path;
 	}
 
 	// -------------------------------------------------------------------------

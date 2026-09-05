@@ -73,16 +73,20 @@ checking whether it would break the SVN slug binding).
    etc.) that gets turned into a filesystem path MUST be validated with
    `realpath()` + a prefix check against `WP_CONTENT_DIR`/`ABSPATH` before
    `file_exists()`/`file_get_contents()`.** `url_to_path()` in
-   `class-bepluspb-minify.php` does not currently do this (known High-
-   severity gap from the 2026-09 security review, not yet fixed) — don't
-   copy this pattern into new code, and fix it here if you're touching this
-   function for any other reason.
+   `class-bepluspb-minify.php` now does this (fixed v1.0.7): it gates on a
+   `.css`/`.js` extension allowlist first, then canonicalizes via the private
+   `validate_local_path()` helper. Keep BOTH guards — the extension allowlist
+   is what stops a URL resolving to `wp-config.php` (which lives inside
+   ABSPATH and passes a realpath-only check). Don't copy the old
+   normalize-only pattern into new code; route any new URL→path resolution
+   through `validate_local_path()`.
 
 4. **`.htaccess` writes go through `insert_with_markers()` only** — never
    hand-roll regex-based file editing for `.htaccess`. Always check
-   `wp_is_writable()` first. Consider backing up the file before the first
-   write in a session (not yet implemented — Medium-severity gap from the
-   security review).
+   `wp_is_writable()` first. `add_rules()` takes a one-time backup
+   (`.htaccess.bepluspb-bak`) before its first write (added v1.0.7); keep
+   that call, and don't overwrite an existing backup (it holds the pristine
+   pre-plugin original).
 
 5. **Every AJAX handler needs nonce check BEFORE capability check**, and
    `current_user_can('manage_options')` (this plugin is admin-only, no

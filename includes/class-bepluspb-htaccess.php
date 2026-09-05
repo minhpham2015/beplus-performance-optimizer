@@ -46,6 +46,8 @@ class BEPLUSPB_Htaccess {
 			return false;
 		}
 
+		self::maybe_backup( $htaccess );
+
 		return insert_with_markers( $htaccess, self::MARKER, self::get_rules() );
 	}
 
@@ -78,6 +80,36 @@ class BEPLUSPB_Htaccess {
 	// -------------------------------------------------------------------------
 	// Private helpers
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Create a one-time backup of the .htaccess file before this plugin's
+	 * first modification, so the original can be restored if a later write
+	 * corrupts the file.
+	 *
+	 * Only backs up once per site (guarded by the .bak file's existence) to
+	 * avoid overwriting the pristine original with an already-modified copy
+	 * on subsequent saves. The backup lives next to .htaccess as
+	 * `.htaccess.bepluspb-bak`. Best-effort: a failed copy must never block
+	 * the actual rule write, so the return value is intentionally ignored by
+	 * the caller.
+	 *
+	 * @param  string $htaccess Absolute path to the .htaccess file.
+	 * @return bool True if a backup exists (already or newly created), false on copy failure.
+	 */
+	private static function maybe_backup( $htaccess ) {
+		$backup = $htaccess . '.bepluspb-bak';
+
+		if ( file_exists( $backup ) ) {
+			return true;
+		}
+
+		if ( ! is_readable( $htaccess ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy
+		return @copy( $htaccess, $backup );
+	}
 
 	/**
 	 * Return the absolute path to the root .htaccess file.
