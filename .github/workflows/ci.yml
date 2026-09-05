@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+jobs:
+  php-syntax:
+    name: PHP Syntax Check (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Lint all PHP files
+        run: |
+          find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*" \
+            -print0 | xargs -0 -n1 php -l
+
+  phpcs:
+    name: WordPress Coding Standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('composer.json') }}
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist
+
+      - name: Run PHPCS
+        run: composer run lint
+
+  plugin-check:
+    name: Version Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify readme.txt Stable tag matches plugin header Version
+        run: |
+          README_VER=$(grep -m1 -oP '(?<=Stable tag: )\S+' readme.txt)
+          HEADER_VER=$(grep -m1 -oP '(?<=Version:\s{0,20})\S+' beplus-performance-booster.php)
+          echo "readme.txt Stable tag: $README_VER"
+          echo "Plugin header Version: $HEADER_VER"
+          if [ "$README_VER" != "$HEADER_VER" ]; then
+            echo "::error::Version mismatch — readme.txt says $README_VER, plugin header says $HEADER_VER"
+            exit 1
+          fi
+
+  security-regression-guard:
+    name: Security Regression Guard (v1.0.5 fixes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Object Cache config file must stay .htaccess-protected
+        run: |
+          if ! grep -q "protect_config_file" includes/class-bepluspb-object-cache.php; then
+            echo "::error::write_config() no longer calls protect_config_file() — the .bepluspb_oc.json config file (can contain a plaintext Redis/Memcached password) would be served over HTTP again. Fixed in v1.0.5, see CLAUDE.md rule #1."
+            exit 1
+          fi
+
+      - name: Object cache drop-in unserialize() must restrict allowed_classes
+        run: |
+          if ! grep -q "allowed_classes.*=>.*false" lib/object-cache.php; then
+            echo "::error::unserialize() in lib/object-cache.php no longer passes allowed_classes => false — this re-opens the PHP Object Injection risk fixed in v1.0.5, see CLAUDE.md rule #2."
+            exit 1
+          fi
