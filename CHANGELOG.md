@@ -4,6 +4,33 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.6] - 2026-09-05
+
+### Fixed
+- **Remove Unused CSS: stale cache after content edits.** The used-only CSS
+  cache (`BEPLUSPB_UCSS`) freshness check only compared `filemtime()` of the
+  cached file against the *source stylesheet* — it had no way to detect that
+  the *page content* had changed (e.g. a post edited to add a shortcode/block
+  whose CSS class had previously been stripped from the cached stylesheet
+  because it wasn't in use yet). Verified live: editing a post to add a new
+  class kept serving the old, over-trimmed CSS (missing rules for the new
+  class) until "Clear Cache" was clicked manually.
+  Fixed by adding `BEPLUSPB_UCSS::register_invalidation_hooks()`, which purges
+  every cached `ucss-*.css` file on `save_post` (filtered to real,
+  non-autosave/non-revision saves of a public post type),
+  `transition_post_status` (covers scheduled posts going live via wp-cron,
+  which doesn't otherwise fire `save_post` with the final status),
+  `switch_theme`, and `customize_save_after`. Registered from `plugins_loaded`
+  independently of `BEPLUSPB_UCSS::init()` (which only runs on the front-end
+  and would never see wp-admin's `save_post` fire). Deliberately a blanket
+  purge rather than single-URL, since there's no reliable way to know which
+  other pages (home, archives, widgets) render an excerpt of the changed post.
+- Verified: `php -l` clean on both touched files; full activate/deactivate
+  cycle on a Dockerized WP + MySQL test site with no Fatal/Warning/Notice;
+  reproduced the stale-cache bug pre-fix, confirmed it's gone post-fix
+  (content edit → cache purged immediately → next visit regenerates cache
+  including the new class); confirmed `switch_theme` also purges correctly.
+
 ## [1.0.5] - 2026-09-04
 
 ### Security

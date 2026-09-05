@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION',     '1.0.5' );
+define( 'BEPLUSPB_VERSION',     '1.0.6' );
 define( 'BEPLUSPB_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -262,6 +262,22 @@ function bepluspb_early_embed_cleanup() {
 	if ( ! empty( $opts['remove_embed'] ) ) {
 		BEPLUSPB_Cleanup::remove_embed_early();
 	}
+}
+
+/**
+ * Register cache-invalidation hooks that must fire from BOTH wp-admin and
+ * the front-end (e.g. saving a post from wp-admin must purge the Remove
+ * Unused CSS cache, but bepluspb_boot_frontend() below never runs in
+ * wp-admin because of its is_admin() gate).
+ */
+add_action( 'plugins_loaded', 'bepluspb_register_invalidation_hooks', 20 );
+
+function bepluspb_register_invalidation_hooks() {
+	$opts = bepluspb_get_options();
+	if ( empty( $opts['cache_enabled'] ) ) {
+		return;
+	}
+	BEPLUSPB_UCSS::register_invalidation_hooks( $opts );
 }
 
 /**

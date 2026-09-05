@@ -35,6 +35,10 @@ checking whether it would break the SVN slug binding).
 - `includes/class-bepluspb-minify.php`, `-css.php`, `-js.php`, `-html.php`,
   `-ucss.php` — asset processing pipeline; `url_to_path()` in minify.php
   resolves enqueued URLs to filesystem paths and is shared by css.php/ucss.php.
+  `-ucss.php` (`BEPLUSPB_UCSS`) implements "Remove Unused CSS": a pure-PHP
+  static-text match against rendered HTML (not a real browser render), cached
+  per page URL + per stylesheet in `wp-content/uploads/bepluspb-cache/`. See
+  Hard Rule #7 for its cache-invalidation requirements.
 - `includes/class-bepluspb-cdn.php` — rewrites enqueued/media/content URLs
   to a configured CDN domain. Does NOT make outbound HTTP requests itself
   (string rewrite only) — keep it that way, don't add a "verify CDN URL is
@@ -90,6 +94,20 @@ checking whether it would break the SVN slug binding).
    codebase (`uninstall.php`), using the safe array-condition form. Keep
    database access surface minimal — this plugin's job is front-end asset
    optimization, not data management.
+
+7. **Any per-page/per-content cache (Remove Unused CSS, and any future
+   similar feature) must invalidate on content-changing events, not just on
+   the cached asset's own `filemtime()`.** `BEPLUSPB_UCSS`'s freshness check
+   only ever compared the cache file's mtime against the *source stylesheet*
+   mtime — it had no way to notice that *page content* changed (fixed
+   v1.0.6, see `CHANGELOG.md`). If you add another per-URL content-derived
+   cache, register its invalidation hooks (`save_post`,
+   `transition_post_status`, `switch_theme`, `customize_save_after` at
+   minimum) from `plugins_loaded` — NOT from inside a class's `init()` that
+   only runs on the front-end (`is_admin() === false` gate in
+   `bepluspb_boot_frontend()`), or wp-admin edits will never trigger the
+   purge. See `BEPLUSPB_UCSS::register_invalidation_hooks()` for the
+   reference pattern.
 
 ## Testing before every PR
 
