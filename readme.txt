@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -404,6 +404,21 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.7 =
+* Security (hardening): the internal URL-to-path resolver used by CSS/JS
+  minification and Remove Unused CSS now canonicalizes candidate paths with
+  `realpath()` and verifies they stay inside `wp-content`/site root, and only
+  ever resolves genuine `.css`/`.js` asset URLs. Previously a crafted asset
+  URL containing `../` could point the resolver at files outside the intended
+  directory, or at a non-asset file inside the site root (e.g. `wp-config.php`)
+  that could then be read and cached. Defence-in-depth: asset URLs come from
+  registered themes/plugins, so exploitation required elevated access, but the
+  resolver is now strict regardless.
+* Reliability: the root `.htaccess` file is now backed up once
+  (`.htaccess.bepluspb-bak`) before this plugin first inserts its
+  browser-cache/compression rules, so the original can be restored if a write
+  is ever interrupted.
+
 = 1.0.6 =
 * Fixed: Remove Unused CSS cache was not invalidated when a page's content
   changed (e.g. editing a post to add a shortcode/block whose CSS class was
@@ -467,6 +482,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.7 =
+Security hardening for the CSS/JS path resolver (realpath + extension
+allowlist) and automatic .htaccess backup before first write. Recommended.
 
 = 1.0.6 =
 Fixes stale CSS after editing content when "Remove Unused CSS" is enabled.

@@ -4,6 +4,39 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.7] - 2026-09-05
+
+### Security
+- **Path traversal hardening in `BEPLUSPB_Minify::url_to_path()`** (Hard Rule
+  #3, previously a known unfixed High-severity gap). The resolver used only
+  `wp_normalize_path()` (slash unification) plus a `strpos()` prefix check —
+  neither collapses `../`, so a crafted asset URL could resolve outside the
+  intended tree. Two-part fix:
+  1. **Extension allowlist:** the function now returns `false` immediately for
+     any URL that isn't a `.css`/`.js` file, before touching the filesystem.
+     This is the critical part — every caller (`maybe_minify_css/js`,
+     `css.php` inline, `ucss.php`) only ever passes stylesheet/script URLs, so
+     nothing else has a legitimate reason to be read. Without it, a URL like
+     `content_url() . '/../wp-config.php'` resolved to a real path *inside*
+     ABSPATH and would have survived a realpath-only check — verified live on
+     a Docker WP site that pre-fix it returned `/var/www/html/wp-config.php`.
+  2. **`realpath()` canonicalization:** new private `validate_local_path(
+     $path, $base )` resolves `..`/symlinks and re-verifies the canonical path
+     is a descendant of the (also canonicalized) allowed base
+     (`WP_CONTENT_DIR` or `ABSPATH`), catching traversal that escapes the tree
+     entirely (e.g. `/etc/passwd`).
+  Verified: legit `.css`/`.js` still resolve correctly (minify/UCSS unaffected);
+  `/etc/passwd`, `wp-config.php`, and `../`-escaping `.css` URLs all return
+  `false`.
+
+### Reliability
+- `BEPLUSPB_Htaccess::add_rules()` now creates a one-time backup
+  (`.htaccess.bepluspb-bak`) before the first `insert_with_markers()` write
+  (Hard Rule #4 Medium gap). Guarded by the backup file's existence so
+  repeated saves never overwrite the pristine original with an
+  already-modified copy. Verified: first write creates the backup with the
+  untouched original; second write leaves the backup unchanged.
+
 ## [1.0.6] - 2026-09-05
 
 ### Fixed
