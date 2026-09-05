@@ -39,7 +39,19 @@ git clone https://github.com/minhpham2015/beplus-performance-optimizer.git /tmp/
 svn co --depth immediates https://plugins.svn.wordpress.org/beplus-performance-optimizer/ /tmp/release-svn
 cd /tmp/release-svn && svn up --set-depth infinity trunk
 
-rsync -av --exclude='.git' --exclude='.svn' /tmp/release-src/ trunk/ --delete-excluded
+# Mirror git -> svn trunk (this deletes anything in trunk not in the git repo).
+# Dev-only files (CI config, AI/contributor docs, linter config) must NEVER
+# ship in the WordPress.org package — exclude them explicitly.
+rsync -av \
+  --exclude='.git' --exclude='.svn' \
+  --exclude='.github' \
+  --exclude='CLAUDE.md' \
+  --exclude='CHANGELOG.md' \
+  --exclude='docs' \
+  --exclude='composer.json' --exclude='composer.lock' \
+  --exclude='phpcs.xml.dist' \
+  --exclude='.gitignore' \
+  /tmp/release-src/ trunk/ --delete-excluded
 svn status
 svn add <new files>
 svn rm --keep-local <removed files>
