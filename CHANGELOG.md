@@ -4,6 +4,38 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.9] - 2026-09-06
+
+### Added
+- **Optional WebP/AVIF image serving** (`cdn_webp_avif` option, CDN tab).
+  `BEPLUSPB_CDN::rewrite_url()` (and the two HTML-scanning rewrite paths,
+  `rewrite_absolute_urls()`/`rewrite_relative_urls()`) now call new
+  `maybe_swap_image_format()` for `.jpg`/`.jpeg`/`.png` paths when the option
+  is on: if the visitor's browser declares AVIF/WebP support via the
+  `Accept` header (new `accepted_image_formats()`, cached once per request)
+  AND a same-named sibling `.avif`/`.webp` file already exists on disk
+  (new `sibling_file_exists()`), the sibling path is substituted before the
+  CDN domain is applied. AVIF is preferred over WebP when the browser
+  accepts both and both files exist (typically 20-30% smaller at
+  equivalent quality). Off by default; the plugin never generates or
+  converts any image itself — this is a pure URL substitution that only
+  fires when the target file is already present.
+- `sibling_file_exists()` follows the same realpath()-canonicalize-then-
+  prefix-check pattern as `BEPLUSPB_Minify::validate_local_path()` (Hard
+  Rule #3) even though its only caller builds the candidate path itself
+  (same directory as an already-CDN-eligible URL, swapped extension) —
+  defence-in-depth rather than assuming that's sufficient. Verified this
+  actually blocks a crafted out-of-ABSPATH path via `realpath()`
+  returning a path outside the canonicalized base.
+- UI note in the CDN tab's WebP/AVIF checkbox description: full-page
+  caching plugins/proxies could serve a cached page's baked-in image URL
+  to a visitor whose browser doesn't support that format, since the
+  choice is made at render time based on that request's Accept header.
+
+### Removed
+- "Known future improvements" note in `CLAUDE.md` for this feature (was
+  added 2026-09-06, now implemented — see above).
+
 ## [1.0.8] - 2026-09-06
 
 ### Changed

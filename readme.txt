@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.8
+Stable tag: 1.0.9
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -404,6 +404,16 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.9 =
+* New: optional "Serve WebP/AVIF Images" toggle in the CDN tab. When
+  enabled, JPG/PNG image URLs are swapped for a same-named .avif or .webp
+  file when one already exists next to it and the visitor's browser
+  declares support for that format. Prefers AVIF over WebP when both are
+  supported and both files exist. This plugin does not generate or convert
+  any images itself — it only rewrites the URL when a matching file is
+  already present on disk (e.g. created by WordPress core, a theme build
+  step, or another optimization tool). Off by default.
+
 = 1.0.8 =
 * Maintenance: `Requires PHP` raised to 8.1 (7.4 reached end-of-life in
   November 2022 and no longer receives security patches). No functional
@@ -487,6 +497,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.9 =
+Optional WebP/AVIF image serving added to the CDN tab (off by default, only
+uses images that already exist — never generates any). No breaking changes.
 
 = 1.0.8 =
 Requires PHP 8.1+ now (was 7.4, now end-of-life). No functional changes.
