@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+        php: ['8.1', '8.2', '8.3']
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +62,7 @@ jobs:
       - name: Verify readme.txt Stable tag matches plugin header Version
         run: |
           README_VER=$(grep -m1 -oP '(?<=Stable tag: )\S+' readme.txt)
-          HEADER_VER=$(grep -m1 -oP '(?<=Version:\s{0,20})\S+' beplus-performance-booster.php)
+          HEADER_VER=$(grep -m1 -oP 'Version:\s*\K\S+' beplus-performance-booster.php)
           echo "readme.txt Stable tag: $README_VER"
           echo "Plugin header Version: $HEADER_VER"
           if [ "$README_VER" != "$HEADER_VER" ]; then

@@ -3,8 +3,8 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 1.0.7
-Requires PHP: 7.4
+Stable tag: 1.0.8
+Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -404,6 +404,11 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.0.8 =
+* Maintenance: `Requires PHP` raised to 8.1 (7.4 reached end-of-life in
+  November 2022 and no longer receives security patches). No functional
+  changes.
+
 = 1.0.7 =
 * Security (hardening): the internal URL-to-path resolver used by CSS/JS
   minification and Remove Unused CSS now canonicalizes candidate paths with
@@ -482,6 +487,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.0.8 =
+Requires PHP 8.1+ now (was 7.4, now end-of-life). No functional changes.
 
 = 1.0.7 =
 Security hardening for the CSS/JS path resolver (realpath + extension

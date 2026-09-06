@@ -4,6 +4,28 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.8] - 2026-09-06
+
+### Changed
+- `Requires PHP` raised 7.4 → 8.1. 7.4 reached end-of-life 2022-11-28 (no
+  security patches for ~4 years); CI matrix now tests 8.1/8.2/8.3 only.
+  `phpcs.xml.dist` `testVersion` updated to match. No functional/behavioral
+  changes in this release.
+- Fixed a CI bug (not a plugin bug), identical to the sibling
+  beplus-metadata-ai-analyzer fix: the "Version Consistency Check" job's
+  `grep -oP '(?<=Version:\s{0,20})\S+'` used a variable-length lookbehind,
+  which GNU grep 3.11 (current Ubuntu Actions runner) rejects outright
+  ("lookbehind assertion is not fixed length"), failing the job on every run
+  regardless of whether versions actually matched. Replaced with the
+  fixed-width `Version:\s*\K\S+`. Verified readme.txt/plugin-header versions
+  were already in sync before this fix (1.0.7/1.0.7) — CI false-negative,
+  not a real mismatch.
+
+### Deferred (not in this release)
+- WebP/AVIF auto-serve via CDN rewrite — flagged in the 2026-09-06
+  maintenance review, deliberately deferred (scope/complexity). See
+  "Known future improvements" in `CLAUDE.md`.
+
 ## [1.0.7] - 2026-09-05
 
 ### Security
