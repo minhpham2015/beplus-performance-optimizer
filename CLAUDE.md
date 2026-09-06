@@ -148,6 +148,19 @@ dev-only file/folder at the repo root, add it to that exclude list too, or
 it will accidentally get published to every WordPress site running this
 plugin.
 
+## Known future improvements (not scheduled)
+
+- **WebP/AVIF auto-serve via CDN rewrite.** `class-bepluspb-cdn.php` currently
+  only rewrites the domain of enqueued/media/content URLs — it does not
+  negotiate image format (e.g. serving `.webp`/`.avif` to browsers that
+  accept them via `Accept` header sniffing or `<picture>` rewriting). Flagged
+  in the 2026-09-06 maintenance review as a Core Web Vitals/LCP-relevant gap
+  worth considering for a future release; deliberately deferred this round
+  (scope/complexity — needs format negotiation logic and either server-side
+  conversion or CDN-side format transform, neither of which exists yet in
+  this codebase) in favor of the CI/PHP-baseline maintenance batch. Revisit
+  when there's dedicated time for it, not as a quick add-on.
+
 ## Things NOT to do
 
 - Don't let the "Cleanup" module grow into real database cleanup (revision/
