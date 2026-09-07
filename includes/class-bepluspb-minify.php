@@ -88,12 +88,12 @@ class BEPLUSPB_Minify {
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 			$css_on = $opts['minify_css_files'] ? 'ON' : 'OFF';
-			$js_on  = $opts['minify_js_files']  ? 'ON' : 'OFF';
+			$js_on  = $opts['minify_js_files'] ? 'ON' : 'OFF';
 			error_log( "[BEPLUSPB] Minify::init() -- CSS:{$css_on} JS:{$js_on} CACHE_DIR:" . BEPLUSPB_CACHE_DIR ); // phpcs:ignore
 		}
 
 		if ( $opts['minify_css_files'] ) {
-			add_filter( 'style_loader_src',  array( __CLASS__, 'maybe_minify_css' ), 10, 2 );
+			add_filter( 'style_loader_src', array( __CLASS__, 'maybe_minify_css' ), 10, 2 );
 		}
 
 		if ( $opts['minify_js_files'] ) {
@@ -172,10 +172,9 @@ class BEPLUSPB_Minify {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 				error_log( "[BEPLUSPB] CSS cached: {$handle} -> {$cache_file} ({$written} bytes)" ); // phpcs:ignore
 			}
-		} else {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+		} elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 				error_log( "[BEPLUSPB] CSS cache hit: {$handle} -> {$cache_name}" ); // phpcs:ignore
-			}
+
 		}
 
 		$opts = bepluspb_get_options();
@@ -251,10 +250,9 @@ class BEPLUSPB_Minify {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 				error_log( "[BEPLUSPB] JS cached: {$handle} -> {$cache_file} ({$written} bytes)" ); // phpcs:ignore
 			}
-		} else {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+		} elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 				error_log( "[BEPLUSPB] JS cache hit: {$handle} -> {$cache_name}" ); // phpcs:ignore
-			}
+
 		}
 
 		$opts = bepluspb_get_options();
@@ -301,7 +299,7 @@ class BEPLUSPB_Minify {
 			$current_url = isset( $_SERVER['REQUEST_URI'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 				? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
 				: '';
-			$full_url = home_url( $current_url );
+			$full_url    = home_url( $current_url );
 
 			foreach ( $patterns as $pattern ) {
 				if ( empty( $pattern ) ) {
@@ -348,7 +346,7 @@ class BEPLUSPB_Minify {
 			$current_url = isset( $_SERVER['REQUEST_URI'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 				? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
 				: '';
-			$full_url = home_url( $current_url );
+			$full_url    = home_url( $current_url );
 
 			foreach ( $patterns as $pattern ) {
 				if ( empty( $pattern ) ) {
@@ -503,7 +501,7 @@ class BEPLUSPB_Minify {
 	public static function minify_css( $css ) {
 		$license_tokens = array();
 		$lic_idx        = 0;
-		$css = preg_replace_callback(
+		$css            = preg_replace_callback(
 			'/\/\*![\s\S]*?\*\//',
 			function ( $m ) use ( &$license_tokens, &$lic_idx ) {
 				$token                    = 'BEPLUSPBLIC' . $lic_idx . 'END';
@@ -605,7 +603,7 @@ class BEPLUSPB_Minify {
 				if ( is_file( $file ) ) {
 					wp_delete_file( $file );
 					if ( ! file_exists( $file ) ) {
-						$count++;
+						++$count;
 					}
 				}
 			}
@@ -624,7 +622,7 @@ class BEPLUSPB_Minify {
 	public static function get_cache_stats() {
 		$cached = get_transient( 'bepluspb_cache_stats' );
 		if ( is_array( $cached ) ) {
-			$dir             = BEPLUSPB_CACHE_DIR;
+			$dir                = BEPLUSPB_CACHE_DIR;
 			$cached['exists']   = file_exists( $dir ) && is_dir( $dir );
 			$cached['writable'] = ( $cached['exists'] && wp_is_writable( $dir ) );
 			return $cached;

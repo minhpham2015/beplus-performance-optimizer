@@ -194,7 +194,7 @@ class BEPLUSPB_JS {
 	 *
 	 * @param array $opts Plugin options.
 	 */
-	public static function init_advanced_delay( $opts ) {
+	public static function init_advanced_delay( $opts ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- kept for call-site symmetry with the other init_*($opts) registration methods; this one doesn't need $opts itself.
 		add_action( 'template_redirect', array( __CLASS__, 'advanced_buffer_start' ), PHP_INT_MAX );
 	}
 
@@ -261,17 +261,17 @@ class BEPLUSPB_JS {
 		// Rewrite all <script> tags to block execution until first interaction.
 		// -----------------------------------------------------------------
 
-		$exclude   = bepluspb_parse_exclude_list( $opts['js_exclude'] );
-		$delimiter = 'BEPLUSPB' . wp_generate_password( 16, false );
+		$exclude      = bepluspb_parse_exclude_list( $opts['js_exclude'] );
+		$delimiter    = 'BEPLUSPB' . wp_generate_password( 16, false );
 		$replacements = array();
 
 		// ------------------------------------------------------------------
 		// Pass 1 — walk every <script>…</script> block.
-		//   • Inline scripts: stash their content behind a placeholder so the
-		//     regex in Pass 2 doesn't accidentally mangle it.  Mark excluded
-		//     inline scripts with data-bepluspb-nooptimize="true" so Pass 2
-		//     leaves their opening tag alone.
-		//   • External scripts (have src=): left for Pass 2 to handle.
+		// • Inline scripts: stash their content behind a placeholder so the
+		// regex in Pass 2 doesn't accidentally mangle it.  Mark excluded
+		// inline scripts with data-bepluspb-nooptimize="true" so Pass 2
+		// leaves their opening tag alone.
+		// • External scripts (have src=): left for Pass 2 to handle.
 		// ------------------------------------------------------------------
 		$search_offset = 0;
 		while ( preg_match( '/<script\b[^>]*?>/is', $buffer, $matches, PREG_OFFSET_CAPTURE, $search_offset ) ) {
@@ -286,13 +286,13 @@ class BEPLUSPB_JS {
 			$closing_str = $end_matches[0][0];
 			$block_len   = $end_matches[0][1] - $offset + strlen( $closing_str );
 
-			$has_src        = (bool) preg_match( '/\s+src=/i', $tag_str );
-			$has_type       = (bool) preg_match( '/\s+type=/i', $tag_str );
-			$is_js_type     = ! $has_type || (bool) preg_match(
+			$has_src       = (bool) preg_match( '/\s+src=/i', $tag_str );
+			$has_type      = (bool) preg_match( '/\s+type=/i', $tag_str );
+			$is_js_type    = ! $has_type || (bool) preg_match(
 				'/\s+type=([\'"])((application|text)\/(javascript|ecmascript|html|template)|module)\1/i',
 				$tag_str
 			);
-			$is_nooptimize  = (bool) preg_match( '/data-bepluspb-nooptimize="true"/i', $tag_str );
+			$is_nooptimize = (bool) preg_match( '/data-bepluspb-nooptimize="true"/i', $tag_str );
 
 			// Only stash inline JS blocks (no src, valid JS type).
 			if ( $is_js_type && ! $has_src ) {
@@ -305,25 +305,25 @@ class BEPLUSPB_JS {
 					foreach ( $exclude as $keyword ) {
 						if ( ! empty( $keyword ) && false !== strpos( $content, $keyword ) ) {
 							// Exclude: mark the opening tag so Pass 2 skips it.
-							$tag_str      = preg_replace( '/^<script/i', '<script data-bepluspb-nooptimize="true"', $tag_str );
+							$tag_str       = preg_replace( '/^<script/i', '<script data-bepluspb-nooptimize="true"', $tag_str );
 							$is_nooptimize = true;
 							break;
 						}
 					}
 				}
 
-				$placeholder = $tag_str . $delimiter . '[' . count( $replacements ) . ']' . $delimiter . $closing_str;
+				$placeholder    = $tag_str . $delimiter . '[' . count( $replacements ) . ']' . $delimiter . $closing_str;
 				$replacements[] = $content;
-				$buffer = substr_replace( $buffer, $placeholder, $offset, $block_len );
+				$buffer         = substr_replace( $buffer, $placeholder, $offset, $block_len );
 			}
 		}
 
 		// ------------------------------------------------------------------
 		// Pass 2 — transform every <script …> opening tag.
-		//   • Skip our own injected runtime (data-bepluspb-nooptimize="true").
-		//   • Skip non-JS type attributes (type="text/template", etc.).
-		//   • Rename src → data-bepluspb-src.
-		//   • Change type → javascript/blocked, store original in data-bepluspb-type.
+		// • Skip our own injected runtime (data-bepluspb-nooptimize="true").
+		// • Skip non-JS type attributes (type="text/template", etc.).
+		// • Rename src → data-bepluspb-src.
+		// • Change type → javascript/blocked, store original in data-bepluspb-type.
 		// ------------------------------------------------------------------
 		$buffer = preg_replace_callback(
 			'/<script\b[^>]*?>/is',

@@ -1,5 +1,4 @@
 <?php
-// Beplus Performance Booster Object Cache Drop-in
 /**
  * WordPress Object Cache Drop-in — powered by Beplus Performance Booster.
  *
@@ -19,14 +18,14 @@ defined( 'WPINC' ) || exit;
 // ---------------------------------------------------------------------------
 
 $_bepluspb_oc_cfg = array(
-	'enabled'              => false,
-	'driver'               => 'redis',
-	'host'                 => '127.0.0.1',
-	'port'                 => 6379,
-	'password'             => '',
-	'db'                   => 0,
-	'persistent'           => true,
-	'global_groups'        => array( 'users', 'userlogins', 'useremail', 'usermeta', 'site-transient', 'site-options' ),
+	'enabled'               => false,
+	'driver'                => 'redis',
+	'host'                  => '127.0.0.1',
+	'port'                  => 6379,
+	'password'              => '',
+	'db'                    => 0,
+	'persistent'            => true,
+	'global_groups'         => array( 'users', 'userlogins', 'useremail', 'usermeta', 'site-transient', 'site-options' ),
 	'non_persistent_groups' => array( 'comment', 'counts', 'plugins' ),
 );
 
@@ -54,498 +53,498 @@ if ( empty( $_bepluspb_oc_cfg['enabled'] ) ) {
 
 if ( ! class_exists( 'WP_Object_Cache' ) ) :
 
-/**
- * Core class that implements an object cache backed by Redis or Memcached.
- *
- * @since 1.1.0
- */
-class WP_Object_Cache {
-
 	/**
-	 * Backend client (Redis|Memcached|null).
+	 * Core class that implements an object cache backed by Redis or Memcached.
 	 *
-	 * @var object|null
+	 * @since 1.1.0
 	 */
-	private $client = null;
+	class WP_Object_Cache {
 
-	/**
-	 * Driver name: 'redis' or 'memcached'.
-	 *
-	 * @var string
-	 */
-	private $driver;
+		/**
+		 * Backend client (Redis|Memcached|null).
+		 *
+		 * @var object|null
+		 */
+		private $client = null;
 
-	/**
-	 * Whether the backend connection is alive.
-	 *
-	 * @var bool
-	 */
-	private $connected = false;
+		/**
+		 * Driver name: 'redis' or 'memcached'.
+		 *
+		 * @var string
+		 */
+		private $driver;
 
-	/**
-	 * In-memory cache for the current request.
-	 *
-	 * @var array
-	 */
-	private $cache = array();
+		/**
+		 * Whether the backend connection is alive.
+		 *
+		 * @var bool
+		 */
+		private $connected = false;
 
-	/**
-	 * Groups stored globally across blog IDs (Multisite).
-	 *
-	 * @var array
-	 */
-	private $global_groups = array();
+		/**
+		 * In-memory cache for the current request.
+		 *
+		 * @var array
+		 */
+		private $cache = array();
 
-	/**
-	 * Groups that are never persisted to the backend.
-	 *
-	 * @var array
-	 */
-	private $non_persistent_groups = array();
+		/**
+		 * Groups stored globally across blog IDs (Multisite).
+		 *
+		 * @var array
+		 */
+		private $global_groups = array();
 
-	/**
-	 * Current blog ID prefix for cache keys.
-	 *
-	 * @var string
-	 */
-	private $blog_prefix;
+		/**
+		 * Groups that are never persisted to the backend.
+		 *
+		 * @var array
+		 */
+		private $non_persistent_groups = array();
 
-	/**
-	 * Site-wide cache key salt (from WP_CACHE_KEY_SALT constant if defined).
-	 *
-	 * @var string
-	 */
-	private $salt;
+		/**
+		 * Current blog ID prefix for cache keys.
+		 *
+		 * @var string
+		 */
+		private $blog_prefix;
 
-	/**
-	 * Cache hits counter.
-	 *
-	 * @var int
-	 */
-	public $cache_hits = 0;
+		/**
+		 * Site-wide cache key salt (from WP_CACHE_KEY_SALT constant if defined).
+		 *
+		 * @var string
+		 */
+		private $salt;
 
-	/**
-	 * Cache misses counter.
-	 *
-	 * @var int
-	 */
-	public $cache_misses = 0;
+		/**
+		 * Cache hits counter.
+		 *
+		 * @var int
+		 */
+		public $cache_hits = 0;
 
-	/**
-	 * Constructor.
-	 *
-	 * @param array $cfg Configuration from .bepluspb_oc.json.
-	 */
-	public function __construct( $cfg ) {
-		global $blog_id;
+		/**
+		 * Cache misses counter.
+		 *
+		 * @var int
+		 */
+		public $cache_misses = 0;
 
-		$this->driver               = isset( $cfg['driver'] ) ? $cfg['driver'] : 'redis';
-		$this->blog_prefix          = is_multisite() ? (int) $blog_id . ':' : '';
-		$this->salt                 = defined( 'WP_CACHE_KEY_SALT' ) ? WP_CACHE_KEY_SALT : 'bepluspb';
-		$this->global_groups        = ! empty( $cfg['global_groups'] ) ? (array) $cfg['global_groups'] : array();
-		$this->non_persistent_groups = ! empty( $cfg['non_persistent_groups'] ) ? (array) $cfg['non_persistent_groups'] : array();
+		/**
+		 * Constructor.
+		 *
+		 * @param array $cfg Configuration from .bepluspb_oc.json.
+		 */
+		public function __construct( $cfg ) {
+			global $blog_id;
 
-		$this->_connect( $cfg );
-	}
+			$this->driver                = isset( $cfg['driver'] ) ? $cfg['driver'] : 'redis';
+			$this->blog_prefix           = is_multisite() ? (int) $blog_id . ':' : '';
+			$this->salt                  = defined( 'WP_CACHE_KEY_SALT' ) ? WP_CACHE_KEY_SALT : 'bepluspb';
+			$this->global_groups         = ! empty( $cfg['global_groups'] ) ? (array) $cfg['global_groups'] : array();
+			$this->non_persistent_groups = ! empty( $cfg['non_persistent_groups'] ) ? (array) $cfg['non_persistent_groups'] : array();
 
-	// -------------------------------------------------------------------------
-	// Connection
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Establish connection to Redis or Memcached.
-	 *
-	 * @param array $cfg Configuration array.
-	 */
-	private function _connect( $cfg ) {
-		$host       = isset( $cfg['host'] ) ? $cfg['host'] : '127.0.0.1';
-		$port       = isset( $cfg['port'] ) ? (int) $cfg['port'] : 6379;
-		$password   = isset( $cfg['password'] ) ? $cfg['password'] : '';
-		$db         = isset( $cfg['db'] ) ? (int) $cfg['db'] : 0;
-		$persistent = ! empty( $cfg['persistent'] );
-
-		try {
-			if ( 'redis' === $this->driver ) {
-				if ( ! class_exists( 'Redis' ) ) {
-					return;
-				}
-				$this->client = new Redis();
-				if ( $persistent ) {
-					$this->client->pconnect( $host, $port );
-				} else {
-					$this->client->connect( $host, $port );
-				}
-				if ( $password ) {
-					$this->client->auth( $password );
-				}
-				if ( $db ) {
-					$this->client->select( $db );
-				}
-				$this->client->ping();
-				$this->connected = true;
-
-			} elseif ( 'memcached' === $this->driver ) {
-				if ( ! class_exists( 'Memcached' ) ) {
-					return;
-				}
-				$pid          = $persistent ? 'bepluspb' : null;
-				$this->client = new Memcached( $pid );
-				if ( empty( $this->client->getServerList() ) ) {
-					$this->client->addServer( $host, $port );
-				}
-				$this->connected = true;
-			}
-		} catch ( Exception $e ) {
-			$this->connected = false;
-			$this->client    = null;
-		}
-	}
-
-	// -------------------------------------------------------------------------
-	// Key helpers
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Build a backend cache key.
-	 *
-	 * @param  string $key   Cache key.
-	 * @param  string $group Cache group.
-	 * @return string
-	 */
-	private function _key( $key, $group ) {
-		$prefix = $this->_is_global( $group ) ? '' : $this->blog_prefix;
-		return $this->salt . ':' . $prefix . $group . ':' . $key;
-	}
-
-	/**
-	 * Whether a group should not be persisted.
-	 *
-	 * @param  string $group Group name.
-	 * @return bool
-	 */
-	private function _is_non_persistent( $group ) {
-		return in_array( $group, $this->non_persistent_groups, true );
-	}
-
-	/**
-	 * Whether a group is global (not blog-prefixed).
-	 *
-	 * @param  string $group Group name.
-	 * @return bool
-	 */
-	private function _is_global( $group ) {
-		return in_array( $group, $this->global_groups, true );
-	}
-
-	// -------------------------------------------------------------------------
-	// Cache API
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Adds data to the cache if the key doesn't already exist.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  mixed  $data   Data to cache.
-	 * @param  string $group  Cache group.
-	 * @param  int    $expire Expiry in seconds (0 = no expiry).
-	 * @return bool
-	 */
-	public function add( $key, $data, $group = 'default', $expire = 0 ) {
-		if ( $this->_get_from_memory( $key, $group ) !== false ) {
-			return false;
-		}
-		return $this->set( $key, $data, $group, $expire );
-	}
-
-	/**
-	 * Sets data in the cache.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  mixed  $data   Data to cache.
-	 * @param  string $group  Cache group.
-	 * @param  int    $expire Expiry in seconds (0 = no expiry).
-	 * @return bool
-	 */
-	public function set( $key, $data, $group = 'default', $expire = 0 ) {
-		$this->_store_in_memory( $key, $data, $group );
-
-		if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-			return true;
+			$this->_connect( $cfg );
 		}
 
-		$backend_key = $this->_key( $key, $group );
-		$payload     = serialize( $data ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
+		// -------------------------------------------------------------------------
+		// Connection
+		// -------------------------------------------------------------------------
 
-		try {
-			if ( 'redis' === $this->driver ) {
-				if ( $expire ) {
-					return (bool) $this->client->setEx( $backend_key, $expire, $payload );
+		/**
+		 * Establish connection to Redis or Memcached.
+		 *
+		 * @param array $cfg Configuration array.
+		 */
+		private function _connect( $cfg ) {
+			$host       = isset( $cfg['host'] ) ? $cfg['host'] : '127.0.0.1';
+			$port       = isset( $cfg['port'] ) ? (int) $cfg['port'] : 6379;
+			$password   = isset( $cfg['password'] ) ? $cfg['password'] : '';
+			$db         = isset( $cfg['db'] ) ? (int) $cfg['db'] : 0;
+			$persistent = ! empty( $cfg['persistent'] );
+
+			try {
+				if ( 'redis' === $this->driver ) {
+					if ( ! class_exists( 'Redis' ) ) {
+						return;
+					}
+					$this->client = new Redis();
+					if ( $persistent ) {
+						$this->client->pconnect( $host, $port );
+					} else {
+						$this->client->connect( $host, $port );
+					}
+					if ( $password ) {
+						$this->client->auth( $password );
+					}
+					if ( $db ) {
+						$this->client->select( $db );
+					}
+					$this->client->ping();
+					$this->connected = true;
+
+				} elseif ( 'memcached' === $this->driver ) {
+					if ( ! class_exists( 'Memcached' ) ) {
+						return;
+					}
+					$pid          = $persistent ? 'bepluspb' : null;
+					$this->client = new Memcached( $pid );
+					if ( empty( $this->client->getServerList() ) ) {
+						$this->client->addServer( $host, $port );
+					}
+					$this->connected = true;
 				}
-				return (bool) $this->client->set( $backend_key, $payload );
-			} else {
-				return (bool) $this->client->set( $backend_key, $payload, $expire );
-			}
-		} catch ( Exception $e ) {
-			return true; // Return true — in-memory set succeeded.
-		}
-	}
-
-	/**
-	 * Retrieves data from the cache.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  string $group  Cache group.
-	 * @param  bool   $force  Whether to force an update of the local cache.
-	 * @param  bool  &$found  Whether the key was found.
-	 * @return mixed|false Data on success, false on failure.
-	 */
-	public function get( $key, $group = 'default', $force = false, &$found = null ) {
-		if ( ! $force ) {
-			$from_memory = $this->_get_from_memory( $key, $group );
-			if ( false !== $from_memory ) {
-				++$this->cache_hits;
-				$found = true;
-				return $from_memory;
+			} catch ( Exception $e ) {
+				$this->connected = false;
+				$this->client    = null;
 			}
 		}
 
-		if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-			++$this->cache_misses;
-			$found = false;
-			return false;
+		// -------------------------------------------------------------------------
+		// Key helpers
+		// -------------------------------------------------------------------------
+
+		/**
+		 * Build a backend cache key.
+		 *
+		 * @param  string $key   Cache key.
+		 * @param  string $group Cache group.
+		 * @return string
+		 */
+		private function _key( $key, $group ) {
+			$prefix = $this->_is_global( $group ) ? '' : $this->blog_prefix;
+			return $this->salt . ':' . $prefix . $group . ':' . $key;
 		}
 
-		try {
+		/**
+		 * Whether a group should not be persisted.
+		 *
+		 * @param  string $group Group name.
+		 * @return bool
+		 */
+		private function _is_non_persistent( $group ) {
+			return in_array( $group, $this->non_persistent_groups, true );
+		}
+
+		/**
+		 * Whether a group is global (not blog-prefixed).
+		 *
+		 * @param  string $group Group name.
+		 * @return bool
+		 */
+		private function _is_global( $group ) {
+			return in_array( $group, $this->global_groups, true );
+		}
+
+		// -------------------------------------------------------------------------
+		// Cache API
+		// -------------------------------------------------------------------------
+
+		/**
+		 * Adds data to the cache if the key doesn't already exist.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  mixed  $data   Data to cache.
+		 * @param  string $group  Cache group.
+		 * @param  int    $expire Expiry in seconds (0 = no expiry).
+		 * @return bool
+		 */
+		public function add( $key, $data, $group = 'default', $expire = 0 ) {
+			if ( $this->_get_from_memory( $key, $group ) !== false ) {
+				return false;
+			}
+			return $this->set( $key, $data, $group, $expire );
+		}
+
+		/**
+		 * Sets data in the cache.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  mixed  $data   Data to cache.
+		 * @param  string $group  Cache group.
+		 * @param  int    $expire Expiry in seconds (0 = no expiry).
+		 * @return bool
+		 */
+		public function set( $key, $data, $group = 'default', $expire = 0 ) {
+			$this->_store_in_memory( $key, $data, $group );
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return true;
+			}
+
 			$backend_key = $this->_key( $key, $group );
-			$raw         = ( 'redis' === $this->driver )
-				? $this->client->get( $backend_key )
-				: $this->client->get( $backend_key );
+			$payload     = serialize( $data ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
 
-			if ( false === $raw || null === $raw ) {
+			try {
+				if ( 'redis' === $this->driver ) {
+					if ( $expire ) {
+						return (bool) $this->client->setEx( $backend_key, $expire, $payload );
+					}
+					return (bool) $this->client->set( $backend_key, $payload );
+				} else {
+					return (bool) $this->client->set( $backend_key, $payload, $expire );
+				}
+			} catch ( Exception $e ) {
+				return true; // Return true — in-memory set succeeded.
+			}
+		}
+
+		/**
+		 * Retrieves data from the cache.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  string $group  Cache group.
+		 * @param  bool   $force  Whether to force an update of the local cache.
+		 * @param  bool   &$found  Whether the key was found.
+		 * @return mixed|false Data on success, false on failure.
+		 */
+		public function get( $key, $group = 'default', $force = false, &$found = null ) {
+			if ( ! $force ) {
+				$from_memory = $this->_get_from_memory( $key, $group );
+				if ( false !== $from_memory ) {
+					++$this->cache_hits;
+					$found = true;
+					return $from_memory;
+				}
+			}
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
 				++$this->cache_misses;
 				$found = false;
 				return false;
 			}
 
-			// Restrict unserialize() to scalars/arrays only (allowed_classes => false).
-			// This blocks PHP Object Injection if a stored value is ever tampered with
-			// (e.g. Redis reachable by another tenant, or credentials leaked) — the cost
-			// is that any previously-cached PHP object comes back as an
-			// __PHP_Incomplete_Class stub instead of a real object. WordPress core only
-			// caches arrays/scalars in the groups this drop-in treats specially, so this
-			// is safe for normal WP usage; a plugin caching objects directly should
-			// serialize them to an array itself before calling wp_cache_set().
-			$data = unserialize( $raw, array( 'allowed_classes' => false ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
-			$this->_store_in_memory( $key, $data, $group );
-			++$this->cache_hits;
-			$found = true;
-			return $data;
-		} catch ( Exception $e ) {
-			++$this->cache_misses;
-			$found = false;
-			return false;
-		}
-	}
+			try {
+				$backend_key = $this->_key( $key, $group );
+				$raw         = ( 'redis' === $this->driver )
+				? $this->client->get( $backend_key )
+				: $this->client->get( $backend_key );
 
-	/**
-	 * Deletes data from the cache.
-	 *
-	 * @param  string $key   Cache key.
-	 * @param  string $group Cache group.
-	 * @return bool
-	 */
-	public function delete( $key, $group = 'default' ) {
-		$this->_delete_from_memory( $key, $group );
+				if ( false === $raw || null === $raw ) {
+					++$this->cache_misses;
+					$found = false;
+					return false;
+				}
 
-		if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-			return true;
-		}
-
-		try {
-			$backend_key = $this->_key( $key, $group );
-			if ( 'redis' === $this->driver ) {
-				return (bool) $this->client->del( $backend_key );
-			} else {
-				return (bool) $this->client->delete( $backend_key );
+				// Restrict unserialize() to scalars/arrays only (allowed_classes => false).
+				// This blocks PHP Object Injection if a stored value is ever tampered with
+				// (e.g. Redis reachable by another tenant, or credentials leaked) — the cost
+				// is that any previously-cached PHP object comes back as an
+				// __PHP_Incomplete_Class stub instead of a real object. WordPress core only
+				// caches arrays/scalars in the groups this drop-in treats specially, so this
+				// is safe for normal WP usage; a plugin caching objects directly should
+				// serialize them to an array itself before calling wp_cache_set().
+				$data = unserialize( $raw, array( 'allowed_classes' => false ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
+				$this->_store_in_memory( $key, $data, $group );
+				++$this->cache_hits;
+				$found = true;
+				return $data;
+			} catch ( Exception $e ) {
+				++$this->cache_misses;
+				$found = false;
+				return false;
 			}
-		} catch ( Exception $e ) {
-			return false;
 		}
-	}
 
-	/**
-	 * Increments a numeric item's value.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  int    $offset Increment amount.
-	 * @param  string $group  Cache group.
-	 * @return int|false
-	 */
-	public function incr( $key, $offset = 1, $group = 'default' ) {
-		if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-			return false;
-		}
-		try {
-			$backend_key = $this->_key( $key, $group );
-			if ( 'redis' === $this->driver ) {
-				return $this->client->incrBy( $backend_key, $offset );
-			} else {
-				return $this->client->increment( $backend_key, $offset );
+		/**
+		 * Deletes data from the cache.
+		 *
+		 * @param  string $key   Cache key.
+		 * @param  string $group Cache group.
+		 * @return bool
+		 */
+		public function delete( $key, $group = 'default' ) {
+			$this->_delete_from_memory( $key, $group );
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return true;
 			}
-		} catch ( Exception $e ) {
-			return false;
-		}
-	}
 
-	/**
-	 * Decrements a numeric item's value.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  int    $offset Decrement amount.
-	 * @param  string $group  Cache group.
-	 * @return int|false
-	 */
-	public function decr( $key, $offset = 1, $group = 'default' ) {
-		if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-			return false;
-		}
-		try {
-			$backend_key = $this->_key( $key, $group );
-			if ( 'redis' === $this->driver ) {
-				return $this->client->decrBy( $backend_key, $offset );
-			} else {
-				return $this->client->decrement( $backend_key, $offset );
+			try {
+				$backend_key = $this->_key( $key, $group );
+				if ( 'redis' === $this->driver ) {
+					return (bool) $this->client->del( $backend_key );
+				} else {
+					return (bool) $this->client->delete( $backend_key );
+				}
+			} catch ( Exception $e ) {
+				return false;
 			}
-		} catch ( Exception $e ) {
-			return false;
-		}
-	}
-
-	/**
-	 * Flushes the entire object cache.
-	 *
-	 * @return bool
-	 */
-	public function flush() {
-		$this->cache = array();
-
-		if ( ! $this->connected ) {
-			return true;
 		}
 
-		try {
-			if ( 'redis' === $this->driver ) {
-				return (bool) $this->client->flushDB();
-			} else {
-				return (bool) $this->client->flush();
+		/**
+		 * Increments a numeric item's value.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  int    $offset Increment amount.
+		 * @param  string $group  Cache group.
+		 * @return int|false
+		 */
+		public function incr( $key, $offset = 1, $group = 'default' ) {
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return false;
 			}
-		} catch ( Exception $e ) {
+			try {
+				$backend_key = $this->_key( $key, $group );
+				if ( 'redis' === $this->driver ) {
+					return $this->client->incrBy( $backend_key, $offset );
+				} else {
+					return $this->client->increment( $backend_key, $offset );
+				}
+			} catch ( Exception $e ) {
+				return false;
+			}
+		}
+
+		/**
+		 * Decrements a numeric item's value.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  int    $offset Decrement amount.
+		 * @param  string $group  Cache group.
+		 * @return int|false
+		 */
+		public function decr( $key, $offset = 1, $group = 'default' ) {
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return false;
+			}
+			try {
+				$backend_key = $this->_key( $key, $group );
+				if ( 'redis' === $this->driver ) {
+					return $this->client->decrBy( $backend_key, $offset );
+				} else {
+					return $this->client->decrement( $backend_key, $offset );
+				}
+			} catch ( Exception $e ) {
+				return false;
+			}
+		}
+
+		/**
+		 * Flushes the entire object cache.
+		 *
+		 * @return bool
+		 */
+		public function flush() {
+			$this->cache = array();
+
+			if ( ! $this->connected ) {
+				return true;
+			}
+
+			try {
+				if ( 'redis' === $this->driver ) {
+					return (bool) $this->client->flushDB();
+				} else {
+					return (bool) $this->client->flush();
+				}
+			} catch ( Exception $e ) {
+				return false;
+			}
+		}
+
+		/**
+		 * Replaces data in the cache only if the key already exists.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  mixed  $data   Data to cache.
+		 * @param  string $group  Cache group.
+		 * @param  int    $expire Expiry in seconds.
+		 * @return bool
+		 */
+		public function replace( $key, $data, $group = 'default', $expire = 0 ) {
+			if ( false === $this->get( $key, $group ) ) {
+				return false;
+			}
+			return $this->set( $key, $data, $group, $expire );
+		}
+
+		/**
+		 * Adds one or more groups to the list of global groups.
+		 *
+		 * @param string|array $groups Group name(s).
+		 */
+		public function add_global_groups( $groups ) {
+			$this->global_groups = array_unique( array_merge( $this->global_groups, (array) $groups ) );
+		}
+
+		/**
+		 * Adds one or more groups to the list of non-persistent groups.
+		 *
+		 * @param string|array $groups Group name(s).
+		 */
+		public function add_non_persistent_groups( $groups ) {
+			$this->non_persistent_groups = array_unique( array_merge( $this->non_persistent_groups, (array) $groups ) );
+		}
+
+		/**
+		 * Switches internal blog prefix on Multisite.
+		 *
+		 * @param int $blog_id New blog ID.
+		 */
+		public function switch_to_blog( $blog_id ) {
+			$this->blog_prefix = is_multisite() ? (int) $blog_id . ':' : '';
+		}
+
+		/**
+		 * Returns cache stats for display.
+		 *
+		 * @return array
+		 */
+		public function get_stats() {
+			return array(
+				'connected' => $this->connected,
+				'driver'    => $this->driver,
+				'hits'      => $this->cache_hits,
+				'misses'    => $this->cache_misses,
+			);
+		}
+
+		// -------------------------------------------------------------------------
+		// In-memory helpers
+		// -------------------------------------------------------------------------
+
+		/**
+		 * Store value in local in-memory cache.
+		 *
+		 * @param string $key   Cache key.
+		 * @param mixed  $value Value.
+		 * @param string $group Group.
+		 */
+		private function _store_in_memory( $key, $value, $group ) {
+			if ( ! isset( $this->cache[ $group ] ) ) {
+				$this->cache[ $group ] = array();
+			}
+			$this->cache[ $group ][ $key ] = is_object( $value ) ? clone $value : $value;
+		}
+
+		/**
+		 * Retrieve value from local in-memory cache.
+		 *
+		 * @param  string $key   Cache key.
+		 * @param  string $group Group.
+		 * @return mixed|false
+		 */
+		private function _get_from_memory( $key, $group ) {
+			if ( isset( $this->cache[ $group ][ $key ] ) ) {
+				$val = $this->cache[ $group ][ $key ];
+				return is_object( $val ) ? clone $val : $val;
+			}
 			return false;
 		}
-	}
 
-	/**
-	 * Replaces data in the cache only if the key already exists.
-	 *
-	 * @param  string $key    Cache key.
-	 * @param  mixed  $data   Data to cache.
-	 * @param  string $group  Cache group.
-	 * @param  int    $expire Expiry in seconds.
-	 * @return bool
-	 */
-	public function replace( $key, $data, $group = 'default', $expire = 0 ) {
-		if ( false === $this->get( $key, $group ) ) {
-			return false;
+		/**
+		 * Delete value from local in-memory cache.
+		 *
+		 * @param string $key   Cache key.
+		 * @param string $group Group.
+		 */
+		private function _delete_from_memory( $key, $group ) {
+			unset( $this->cache[ $group ][ $key ] );
 		}
-		return $this->set( $key, $data, $group, $expire );
 	}
 
-	/**
-	 * Adds one or more groups to the list of global groups.
-	 *
-	 * @param string|array $groups Group name(s).
-	 */
-	public function add_global_groups( $groups ) {
-		$this->global_groups = array_unique( array_merge( $this->global_groups, (array) $groups ) );
-	}
-
-	/**
-	 * Adds one or more groups to the list of non-persistent groups.
-	 *
-	 * @param string|array $groups Group name(s).
-	 */
-	public function add_non_persistent_groups( $groups ) {
-		$this->non_persistent_groups = array_unique( array_merge( $this->non_persistent_groups, (array) $groups ) );
-	}
-
-	/**
-	 * Switches internal blog prefix on Multisite.
-	 *
-	 * @param int $blog_id New blog ID.
-	 */
-	public function switch_to_blog( $blog_id ) {
-		$this->blog_prefix = is_multisite() ? (int) $blog_id . ':' : '';
-	}
-
-	/**
-	 * Returns cache stats for display.
-	 *
-	 * @return array
-	 */
-	public function get_stats() {
-		return array(
-			'connected' => $this->connected,
-			'driver'    => $this->driver,
-			'hits'      => $this->cache_hits,
-			'misses'    => $this->cache_misses,
-		);
-	}
-
-	// -------------------------------------------------------------------------
-	// In-memory helpers
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Store value in local in-memory cache.
-	 *
-	 * @param string $key   Cache key.
-	 * @param mixed  $value Value.
-	 * @param string $group Group.
-	 */
-	private function _store_in_memory( $key, $value, $group ) {
-		if ( ! isset( $this->cache[ $group ] ) ) {
-			$this->cache[ $group ] = array();
-		}
-		$this->cache[ $group ][ $key ] = is_object( $value ) ? clone $value : $value;
-	}
-
-	/**
-	 * Retrieve value from local in-memory cache.
-	 *
-	 * @param  string $key   Cache key.
-	 * @param  string $group Group.
-	 * @return mixed|false
-	 */
-	private function _get_from_memory( $key, $group ) {
-		if ( isset( $this->cache[ $group ][ $key ] ) ) {
-			$val = $this->cache[ $group ][ $key ];
-			return is_object( $val ) ? clone $val : $val;
-		}
-		return false;
-	}
-
-	/**
-	 * Delete value from local in-memory cache.
-	 *
-	 * @param string $key   Cache key.
-	 * @param string $group Group.
-	 */
-	private function _delete_from_memory( $key, $group ) {
-		unset( $this->cache[ $group ][ $key ] );
-	}
-}
-
-endif; // class_exists WP_Object_Cache
+endif; // class_exists( 'WP_Object_Cache' ). phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- referencing the guard condition by name, not commented-out code.
 
 // ---------------------------------------------------------------------------
 // Global WP cache functions (required API surface).
@@ -625,7 +624,7 @@ function wp_cache_get( $key, $group = '', $force = false, &$found = null ) {
  * @param int        $deprecated Deprecated. Not used.
  * @return bool
  */
-function wp_cache_delete( $key, $group = '', $deprecated = 0 ) {
+function wp_cache_delete( $key, $group = '', $deprecated = 0 ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- required by the wp_cache_delete() core API signature.
 	global $wp_object_cache;
 	return $wp_object_cache->delete( $key, $group ? $group : 'default' );
 }

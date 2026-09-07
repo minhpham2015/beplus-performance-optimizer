@@ -259,7 +259,7 @@ class BEPLUSPB_Object_Cache {
 	/**
 	 * Test a connection to Redis or Memcached with the given config.
 	 *
-	 * @param  array $cfg {
+	 * @param  array $cfg {.
 	 *     @type string $driver   'redis' or 'memcached'
 	 *     @type string $host
 	 *     @type int    $port

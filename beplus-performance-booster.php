@@ -11,6 +11,8 @@
  * Domain Path: /languages
  * Requires at least: 5.0
  * Requires PHP: 8.1
+ *
+ * @package Beplus_Performance_Booster
  */
 
 // Prevent direct file access.
@@ -22,9 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION',     '1.0.9' );
-define( 'BEPLUSPB_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
-define( 'BEPLUSPB_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
+define( 'BEPLUSPB_VERSION', '1.0.9' );
+define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
 
 /**
@@ -62,81 +64,81 @@ define( 'BEPLUSPB_CACHE_DIR', wp_upload_dir()['basedir'] . '/bepluspb-cache/' );
 function bepluspb_default_options() {
 	return array(
 		// --- JavaScript Optimization ---
-		'js_delay'               => 0,
-		'js_delay_mode'          => 'simple',   // 'simple' or 'advanced'
-		'js_delay_rdelay'        => 0,           // ms to wait after above-fold images load (advanced mode)
-		'js_defer'               => 0,
-		'js_exclude'             => '',
+		'js_delay'                           => 0,
+		'js_delay_mode'                      => 'simple',   // 'simple' or 'advanced'. phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- not code, just quoting the two valid option values.
+		'js_delay_rdelay'                    => 0,           // ms to wait after above-fold images load (advanced mode).
+		'js_defer'                           => 0,
+		'js_exclude'                         => '',
 
 		// --- CSS Optimization ---
-		'css_minify'             => 0,
-		'css_non_blocking'       => 0,
-		'css_exclude'            => '',
+		'css_minify'                         => 0,
+		'css_non_blocking'                   => 0,
+		'css_exclude'                        => '',
 
 		// --- Remove Unused CSS ---
-		'css_remove_unused'      => 0,   // Strip CSS rules unused on the current page
-		'css_unused_safelist'    => '',  // Selectors to always keep (newline-separated, '*' wildcard supported)
-		'css_unused_exclude'     => '',  // URL keywords to skip (newline-separated)
+		'css_remove_unused'                  => 0,   // Strip CSS rules unused on the current page.
+		'css_unused_safelist'                => '',  // Selectors to always keep (newline-separated, '*' wildcard supported).
+		'css_unused_exclude'                 => '',  // URL keywords to skip (newline-separated).
 
 		// --- Lazy Load Images ---
-		'lazy_load'              => 0,
+		'lazy_load'                          => 0,
 
 		// --- Remove Unused Assets ---
-		'remove_emoji'           => 0,
-		'remove_embed'           => 0,
-		'remove_block_css'       => 0,
-		'remove_woo_scripts'     => 0,
+		'remove_emoji'                       => 0,
+		'remove_embed'                       => 0,
+		'remove_block_css'                   => 0,
+		'remove_woo_scripts'                 => 0,
 
 		// --- HTML Optimization ---
-		'html_minify'            => 0,
-		'html_remove_comments'   => 0,
-		'html_remove_js_comments'  => 0,
-		'html_remove_css_comments' => 0,
+		'html_minify'                        => 0,
+		'html_remove_comments'               => 0,
+		'html_remove_js_comments'            => 0,
+		'html_remove_css_comments'           => 0,
 
 		// --- Browser Cache (.htaccess) ---
-		'cache_headers'          => 0,
+		'cache_headers'                      => 0,
 
 		// --- Lazy Load — Advanced options ---
-		'lazy_skip_first_n'      => 1,   // Skip the first N images (LCP / hero)
-		'lazy_exclude_class'     => '',  // CSS class names to exclude (comma-separated)
-		'lazy_exclude_id'        => '',  // Element IDs to exclude (comma-separated)
-		'lazy_exclude_filename'  => '',  // Partial filename strings to exclude (comma-sep)
+		'lazy_skip_first_n'                  => 1,   // Skip the first N images (LCP / hero).
+		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
+		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
+		'lazy_exclude_filename'              => '',  // Partial filename strings to exclude (comma-sep).
 
 		// --- File Minification ---
-		'minify_css_files'       => 0,   // Minify enqueued CSS files → cache
-		'minify_js_files'        => 0,   // Minify enqueued JS files  → cache
+		'minify_css_files'                   => 0,   // Minify enqueued CSS files → cache.
+		'minify_js_files'                    => 0,   // Minify enqueued JS files  → cache.
 
 		// --- Advanced CSS ---
-		'css_inline_all'         => 0,   // Inline all local CSS files into <head>
-		'css_remove_handles'     => '',  // CSS handles to dequeue (newline-separated)
+		'css_inline_all'                     => 0,   // Inline all local CSS files into <head>.
+		'css_remove_handles'                 => '',  // CSS handles to dequeue (newline-separated).
 
 		// --- Advanced JS ---
-		'remove_js_handles'      => '',  // JS handles to dequeue (newline-separated)
+		'remove_js_handles'                  => '',  // JS handles to dequeue (newline-separated).
 
 		// --- Font Preload ---
-		'font_preload'           => '',  // Font URLs to preload (newline-separated)
+		'font_preload'                       => '',  // Font URLs to preload (newline-separated).
 
 		// --- Cache Exclusions ---
-		'cache_exclude_pages'    => "/checkout/\n/my-account/\n/cart/",
-		'cache_for_logged_in'    => 0,   // Serve cached CSS/JS to logged-in users (default: off)
+		'cache_exclude_pages'                => "/checkout/\n/my-account/\n/cart/",
+		'cache_for_logged_in'                => 0,   // Serve cached CSS/JS to logged-in users (default: off).
 
 		// --- Master Cache Switch ---
-		'cache_enabled'          => 0,
+		'cache_enabled'                      => 0,
 
 		// --- CDN (custom pull-zone rewriter) ---
-		'cdn_enabled'            => 0,
-		'cdn_url'                => '',  // e.g. https://xxxxxxxx.quic.cloud or a CNAME'd custom domain
-		'cdn_file_types'         => BEPLUSPB_CDN::default_file_types(),
-		'cdn_exclude'            => '',
-		'cdn_webp_avif'          => 0,  // Serve a sibling .webp/.avif file instead of .jpg/.jpeg/.png when one exists and the browser supports it.
+		'cdn_enabled'                        => 0,
+		'cdn_url'                            => '',  // e.g. https://xxxxxxxx.quic.cloud or a CNAME'd custom domain.
+		'cdn_file_types'                     => BEPLUSPB_CDN::default_file_types(),
+		'cdn_exclude'                        => '',
+		'cdn_webp_avif'                      => 0,  // Serve a sibling .webp/.avif file instead of .jpg/.jpeg/.png when one exists and the browser supports it.
 
 		// --- Object Cache (Redis / Memcached) ---
 		'object_cache_enabled'               => 0,
-		'object_cache_driver'                => 'redis',   // 'redis' or 'memcached'
+		'object_cache_driver'                => 'redis',   // 'redis' or 'memcached'. phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- not code, just quoting the two valid option values.
 		'object_cache_host'                  => '127.0.0.1',
 		'object_cache_port'                  => 6379,
-		'object_cache_password'              => '',        // Redis AUTH only
-		'object_cache_db'                    => 0,         // Redis DB index only
+		'object_cache_password'              => '',        // Redis AUTH only.
+		'object_cache_db'                    => 0,         // Redis DB index only.
 		'object_cache_persistent'            => 1,
 		'object_cache_global_groups'         => "users\nuserlogins\nuseremail\nusermeta\nsite-transient\nsite-options",
 		'object_cache_non_persistent_groups' => "comment\ncounts\nplugins",
@@ -156,7 +158,7 @@ function bepluspb_get_options() {
 	if ( isset( $bepluspb_options_cache ) && is_array( $bepluspb_options_cache ) ) {
 		return $bepluspb_options_cache;
 	}
-	$saved              = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+	$saved                  = get_option( BEPLUSPB_OPTIONS_KEY, array() );
 	$bepluspb_options_cache = wp_parse_args( $saved, bepluspb_default_options() );
 	return $bepluspb_options_cache;
 }
@@ -256,14 +258,13 @@ add_action(
 /**
  * Early cleanup: remove oEmbed REST route and discovery links.
  */
-add_action( 'plugins_loaded', 'bepluspb_early_embed_cleanup', 20 );
-
 function bepluspb_early_embed_cleanup() {
 	$opts = bepluspb_get_options();
 	if ( ! empty( $opts['remove_embed'] ) ) {
 		BEPLUSPB_Cleanup::remove_embed_early();
 	}
 }
+add_action( 'plugins_loaded', 'bepluspb_early_embed_cleanup', 20 );
 
 /**
  * Register cache-invalidation hooks that must fire from BOTH wp-admin and
@@ -271,8 +272,6 @@ function bepluspb_early_embed_cleanup() {
  * Unused CSS cache, but bepluspb_boot_frontend() below never runs in
  * wp-admin because of its is_admin() gate).
  */
-add_action( 'plugins_loaded', 'bepluspb_register_invalidation_hooks', 20 );
-
 function bepluspb_register_invalidation_hooks() {
 	$opts = bepluspb_get_options();
 	if ( empty( $opts['cache_enabled'] ) ) {

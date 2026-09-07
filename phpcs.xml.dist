@@ -23,6 +23,33 @@
         sniffs (escaping, nonce, SQL) — only structural/file-org sniffs if
         they produce false positives here.
         -->
+        <exclude name="WordPress.WP.GlobalVariablesOverride.Prohibited">
+            <!-- lib/object-cache.php MUST assign $GLOBALS['wp_object_cache'] —
+                 that's WordPress core's own contract for object-cache drop-ins
+                 (wp_cache_init() reads that exact global). Not an accidental
+                 override; there is no alternative API for a drop-in. -->
+        </exclude>
+    </rule>
+    <rule ref="WordPress.Files.FileName">
+        <exclude-pattern>lib/object-cache\.php$</exclude-pattern>
+        <!-- WordPress core loads this drop-in only from the literal path
+             wp-content/object-cache.php — renaming the file to
+             class-wp-object-cache.php would break the drop-in mechanism. -->
+    </rule>
+    <rule ref="PSR2.Methods.MethodDeclaration.Underscore">
+        <exclude-pattern>lib/object-cache\.php$</exclude-pattern>
+        <!-- Underscore-prefixed private helpers (_connect, _key, etc.) match
+             WordPress core's own bundled Redis/Memcached object-cache
+             drop-ins that admins may swap this one for — keeping the same
+             naming convention is intentional, not an oversight. -->
+    </rule>
+    <rule ref="Universal.Files.SeparateFunctionsFromOO">
+        <exclude-pattern>lib/object-cache\.php$</exclude-pattern>
+        <!-- The drop-in file bundles the WP_Object_Cache class with the
+             small set of wp_cache_*() procedural functions WordPress core
+             calls directly — this is the standard shape of every
+             object-cache.php drop-in (core's own included ones do the same),
+             not a file-organization mistake. -->
     </rule>
     <rule ref="PHPCompatibilityWP"/>
 
@@ -31,5 +58,38 @@
              for the cache payload wire format; unserialize() calls MUST use
              allowed_classes => false (see CLAUDE.md rule #2). Sniff stays
              active as a reminder to re-check this on every touch. -->
+    </rule>
+
+    <!-- This plugin's asset cache (minified CSS/JS, Remove-Unused-CSS output)
+         is written directly to wp-content/uploads/bepluspb-cache/ from
+         ordinary front-end page loads — there is no admin/FTP-credentials
+         context available at that point for WP_Filesystem's connection
+         prompt, so raw file_get_contents()/file_put_contents()/unlink() are
+         the only workable approach here (same pattern WP core itself uses
+         for object-cache.php and various early-bootstrap file writes).
+         Every call site already checks the return value or the read/write
+         is fire-and-forget by design (see CLAUDE.md's caching sections) —
+         these sniffs would ask us to either add a fake WP_Filesystem
+         dependency or silence per-call-site, so they're disabled globally
+         instead of sprinkling ~10 phpcs:ignore comments. -->
+    <rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents">
+        <severity>0</severity>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents">
+        <severity>0</severity>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_is_writable">
+        <severity>0</severity>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions.unlink_unlink">
+        <severity>0</severity>
+    </rule>
+    <rule ref="WordPress.PHP.NoSilencedErrors">
+        <severity>0</severity>
+        <!-- Every @-silenced call in this plugin is a filesystem read/write
+             to its own cache directory where a warning-level failure (disk
+             full, race with another process, permissions) must degrade
+             silently to "cache miss, serve unminified" rather than ever
+             surface a PHP warning on a live front-end page. -->
     </rule>
 </ruleset>

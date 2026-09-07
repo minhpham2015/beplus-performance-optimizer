@@ -258,7 +258,7 @@ class BEPLUSPB_UCSS {
 	}
 
 	/**
-	 * save_post fires on every save (including autosave/revision) — filter
+	 * Save_post fires on every save (including autosave/revision) — filter
 	 * down to real, user-triggered saves of a public, viewable post before
 	 * purging.
 	 *
@@ -283,7 +283,7 @@ class BEPLUSPB_UCSS {
 	}
 
 	/**
-	 * transition_post_status catches publish/unpublish transitions that
+	 * Transition_post_status catches publish/unpublish transitions that
 	 * don't necessarily fire save_post with the final status yet visible
 	 * (e.g. scheduled posts going live via wp-cron).
 	 *

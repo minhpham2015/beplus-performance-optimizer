@@ -131,9 +131,9 @@ class BEPLUSPB_CDN {
 		// Respect an explicit scheme in the configured CDN URL; otherwise default
 		// to https. CDN edge domains generally require TLS, and is_ssl() cannot be
 		// trusted to reflect the real origin scheme behind proxies/load balancers.
-		self::$cdn_base  = ( 'http' === $scheme ? 'http://' : 'https://' ) . $host;
-		self::$site_host = wp_parse_url( home_url(), PHP_URL_HOST );
-		self::$excludes  = bepluspb_parse_exclude_list( $opts['cdn_exclude'] );
+		self::$cdn_base          = ( 'http' === $scheme ? 'http://' : 'https://' ) . $host;
+		self::$site_host         = wp_parse_url( home_url(), PHP_URL_HOST );
+		self::$excludes          = bepluspb_parse_exclude_list( $opts['cdn_exclude'] );
 		self::$webp_avif_enabled = ! empty( $opts['cdn_webp_avif'] );
 		self::$accepted_formats  = null; // Reset per-request cache; init() runs once per request.
 
@@ -172,7 +172,7 @@ class BEPLUSPB_CDN {
 	}
 
 	/**
-	 * preg_quote() callback for array_map().
+	 * Preg_quote() callback for array_map().
 	 *
 	 * @param  string $ext File extension or path segment.
 	 * @return string
@@ -472,7 +472,7 @@ class BEPLUSPB_CDN {
 			return;
 		}
 
-		$html = ob_get_clean();
+		$html               = ob_get_clean();
 		self::$buffer_level = null;
 
 		if ( ! empty( $html ) ) {

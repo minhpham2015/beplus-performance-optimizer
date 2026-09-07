@@ -41,16 +41,16 @@ class BEPLUSPB_HTML {
 	 */
 	public static function init( $opts ) {
 		$any_active = $opts['html_minify']
-		           || $opts['html_remove_comments']
-		           || $opts['html_remove_js_comments']
-		           || $opts['html_remove_css_comments'];
+					|| $opts['html_remove_comments']
+					|| $opts['html_remove_js_comments']
+					|| $opts['html_remove_css_comments'];
 
 		if ( ! $any_active ) {
 			return;
 		}
 
 		add_action( 'template_redirect', array( __CLASS__, 'buffer_start' ), 0 );
-		add_action( 'shutdown',          array( __CLASS__, 'buffer_end' ),   0 );
+		add_action( 'shutdown', array( __CLASS__, 'buffer_end' ), 0 );
 	}
 
 	/**
@@ -87,7 +87,7 @@ class BEPLUSPB_HTML {
 			return;
 		}
 
-		$html = ob_get_clean();
+		$html               = ob_get_clean();
 		self::$buffer_level = null;
 
 		if ( empty( $html ) ) {

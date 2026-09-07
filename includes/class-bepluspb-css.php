@@ -46,7 +46,7 @@ class BEPLUSPB_CSS {
 
 		if ( $opts['css_non_blocking'] || $opts['css_minify'] || $opts['css_inline_all'] ) {
 			add_action( 'wp_head', array( __CLASS__, 'buffer_start' ), 1 );
-			add_action( 'wp_head', array( __CLASS__, 'buffer_end' ),   9999 );
+			add_action( 'wp_head', array( __CLASS__, 'buffer_end' ), 9999 );
 		}
 	}
 

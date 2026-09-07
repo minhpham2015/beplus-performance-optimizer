@@ -47,7 +47,7 @@ class BEPLUSPB_Utils {
 			// ----------------------------------------------------------------
 			if ( "'" === $c ) {
 				$out .= $c;
-				$i++;
+				++$i;
 				while ( $i < $len ) {
 					$c    = $js[ $i++ ];
 					$out .= $c;
@@ -67,7 +67,7 @@ class BEPLUSPB_Utils {
 			// ----------------------------------------------------------------
 			if ( '"' === $c ) {
 				$out .= $c;
-				$i++;
+				++$i;
 				while ( $i < $len ) {
 					$c    = $js[ $i++ ];
 					$out .= $c;
@@ -87,7 +87,7 @@ class BEPLUSPB_Utils {
 			// ----------------------------------------------------------------
 			if ( '`' === $c ) {
 				$out .= $c;
-				$i++;
+				++$i;
 				while ( $i < $len ) {
 					$c    = $js[ $i++ ];
 					$out .= $c;
@@ -108,38 +108,38 @@ class BEPLUSPB_Utils {
 			if ( '/' === $c && ( $i + 1 ) < $len ) {
 				$next = $js[ $i + 1 ];
 
-				// Single-line comment //
+				// Single-line comment //.
 				if ( '/' === $next ) {
-					// Preserve URL protocol (e.g. http://, https://)
+					// Preserve URL protocol (e.g. http://, https://).
 					if ( $i >= 1 && ':' === $js[ $i - 1 ] ) {
 						$out .= $c;
-						$i++;
+						++$i;
 						continue;
 					}
 					// Skip to end of line.
 					$i += 2;
 					while ( $i < $len && "\n" !== $js[ $i ] ) {
-						$i++;
+						++$i;
 					}
 					// Keep the newline to preserve line-count.
 					if ( $i < $len ) {
 						$out .= "\n";
-						$i++;
+						++$i;
 					}
 					continue;
 				}
 
-				// Multi-line comment /* … */
+				// Multi-line comment /* … */.
 				if ( '*' === $next ) {
 					$is_license = $preserve_license
 						&& ( $i + 2 ) < $len
 						&& '!' === $js[ $i + 2 ];
 
-					$i += 2; // Skip /*
+					$i      += 2; // Skip /*.
 					$comment = '';
 					while ( $i < $len ) {
 						if ( '*' === $js[ $i ] && ( $i + 1 ) < $len && '/' === $js[ $i + 1 ] ) {
-							$i += 2; // Skip */
+							$i += 2; // Skip */.
 							break;
 						}
 						$comment .= $js[ $i++ ];
@@ -158,7 +158,7 @@ class BEPLUSPB_Utils {
 			// Any other character — copy verbatim.
 			// ----------------------------------------------------------------
 			$out .= $c;
-			$i++;
+			++$i;
 		}
 
 		return $out;
@@ -191,11 +191,24 @@ class BEPLUSPB_Utils {
 
 		// Page-builder editor / preview frames.
 		$builder_params = array(
-			'bricks', 'brizy-edit-iframe', 'builder', 'ct_builder',
-			'elementor-preview', 'et_fb', 'fb-edit', 'fl_builder',
-			'preview', 'tb-preview', 'tve', 'uxb_iframe',
-			'vc_action', 'vc_editable', 'vcv-action', 'wyp_mode',
-			'wyp_page_type', 'zionbuilder-preview',
+			'bricks',
+			'brizy-edit-iframe',
+			'builder',
+			'ct_builder',
+			'elementor-preview',
+			'et_fb',
+			'fb-edit',
+			'fl_builder',
+			'preview',
+			'tb-preview',
+			'tve',
+			'uxb_iframe',
+			'vc_action',
+			'vc_editable',
+			'vcv-action',
+			'wyp_mode',
+			'wyp_page_type',
+			'zionbuilder-preview',
 		);
 		foreach ( $builder_params as $param ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended

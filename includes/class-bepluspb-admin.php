@@ -34,13 +34,13 @@ class BEPLUSPB_Admin {
 	 */
 	public static function init() {
 		// Settings page.
-		add_action( 'admin_menu',            array( __CLASS__, 'add_settings_page' ) );
-		add_action( 'admin_init',            array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
+		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 
 		// Per-page cache-disable meta box.
 		add_action( 'add_meta_boxes', array( __CLASS__, 'register_meta_box' ) );
-		add_action( 'save_post',      array( __CLASS__, 'save_meta_box' ), 10, 2 );
+		add_action( 'save_post', array( __CLASS__, 'save_meta_box' ), 10, 2 );
 
 		// Admin bar "Beplus Performance Booster" menu (visible on frontend + backend for admins).
 		add_action( 'admin_bar_menu', array( __CLASS__, 'add_admin_bar_menu' ), 100 );
@@ -52,20 +52,19 @@ class BEPLUSPB_Admin {
 		add_action( 'admin_post_bepluspb_clear_cache', array( __CLASS__, 'handle_clear_cache' ) );
 
 		// POST handler for quick-enable buttons on the Dashboard tab.
-		add_action( 'admin_post_bepluspb_quick_enable',            array( __CLASS__, 'handle_quick_enable' ) );
-		add_action( 'admin_post_bepluspb_enable_all_recommended',  array( __CLASS__, 'handle_enable_all_recommended' ) );
+		add_action( 'admin_post_bepluspb_quick_enable', array( __CLASS__, 'handle_quick_enable' ) );
+		add_action( 'admin_post_bepluspb_enable_all_recommended', array( __CLASS__, 'handle_enable_all_recommended' ) );
 
 		// AJAX handler for the master cache on/off toggle on the Dashboard tab.
 		add_action( 'wp_ajax_bepluspb_toggle_cache', array( __CLASS__, 'handle_ajax_toggle_cache' ) );
 
 		// Object Cache AJAX handlers.
 		add_action( 'wp_ajax_bepluspb_test_oc_connection', array( __CLASS__, 'handle_ajax_test_oc' ) );
-		add_action( 'wp_ajax_bepluspb_install_oc_dropin',  array( __CLASS__, 'handle_ajax_install_oc' ) );
-		add_action( 'wp_ajax_bepluspb_remove_oc_dropin',   array( __CLASS__, 'handle_ajax_remove_oc' ) );
+		add_action( 'wp_ajax_bepluspb_install_oc_dropin', array( __CLASS__, 'handle_ajax_install_oc' ) );
+		add_action( 'wp_ajax_bepluspb_remove_oc_dropin', array( __CLASS__, 'handle_ajax_remove_oc' ) );
 
 		// Admin notice shown after a successful cache clear.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
-
 	}
 
 	// =========================================================================
@@ -98,7 +97,7 @@ class BEPLUSPB_Admin {
 				BEPLUSPB_PLUGIN_URL . 'assets/js/admin.js',
 				array(),
 				BEPLUSPB_VERSION,
-				true // load in footer
+				true // load in footer.
 			);
 			// Pass AJAX URL, nonce, and translated strings for the master cache toggle.
 			wp_localize_script(
@@ -182,31 +181,43 @@ class BEPLUSPB_Admin {
 
 		// ---- Boolean toggles (checkbox = 1 when present, 0 when absent). ----
 		$booleans = array(
-			// JS
-			'js_delay', 'js_defer',
-			// CSS
-			'css_minify', 'css_non_blocking', 'css_inline_all', 'css_remove_unused',
-			// Lazy load
+			// JS.
+			'js_delay',
+			'js_defer',
+			// CSS.
+			'css_minify',
+			'css_non_blocking',
+			'css_inline_all',
+			'css_remove_unused',
+			// Lazy load.
 			'lazy_load',
-			// Cleanup
-			'remove_emoji', 'remove_embed', 'remove_block_css', 'remove_woo_scripts',
-			// HTML
-			'html_minify', 'html_remove_comments', 'html_remove_js_comments', 'html_remove_css_comments',
-			// Cache
+			// Cleanup.
+			'remove_emoji',
+			'remove_embed',
+			'remove_block_css',
+			'remove_woo_scripts',
+			// HTML.
+			'html_minify',
+			'html_remove_comments',
+			'html_remove_js_comments',
+			'html_remove_css_comments',
+			// Cache.
 			'cache_headers',
-			// File minification
-			'minify_css_files', 'minify_js_files',
-			// Cache exclusions
+			// File minification.
+			'minify_css_files',
+			'minify_js_files',
+			// Cache exclusions.
 			'cache_for_logged_in',
-			// CDN
-			'cdn_enabled', 'cdn_webp_avif',
+			// CDN.
+			'cdn_enabled',
+			'cdn_webp_avif',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
 		}
 
 		// ---- Textarea / text fields. ----
-		$sanitized['js_exclude']  = isset( $input['js_exclude'] )
+		$sanitized['js_exclude'] = isset( $input['js_exclude'] )
 			? sanitize_textarea_field( $input['js_exclude'] )
 			: '';
 
@@ -278,19 +289,19 @@ class BEPLUSPB_Admin {
 			: '';
 
 		// ---- Object Cache settings. ----
-		$sanitized['object_cache_enabled']   = ! empty( $input['object_cache_enabled'] ) ? 1 : 0;
-		$sanitized['object_cache_persistent'] = ! empty( $input['object_cache_persistent'] ) ? 1 : 0;
-		$sanitized['object_cache_driver']    = ( isset( $input['object_cache_driver'] ) && 'memcached' === $input['object_cache_driver'] )
+		$sanitized['object_cache_enabled']               = ! empty( $input['object_cache_enabled'] ) ? 1 : 0;
+		$sanitized['object_cache_persistent']            = ! empty( $input['object_cache_persistent'] ) ? 1 : 0;
+		$sanitized['object_cache_driver']                = ( isset( $input['object_cache_driver'] ) && 'memcached' === $input['object_cache_driver'] )
 			? 'memcached' : 'redis';
-		$sanitized['object_cache_host']      = isset( $input['object_cache_host'] )
+		$sanitized['object_cache_host']                  = isset( $input['object_cache_host'] )
 			? sanitize_text_field( $input['object_cache_host'] ) : '127.0.0.1';
-		$sanitized['object_cache_port']      = isset( $input['object_cache_port'] )
+		$sanitized['object_cache_port']                  = isset( $input['object_cache_port'] )
 			? absint( $input['object_cache_port'] ) : 6379;
-		$sanitized['object_cache_password']  = isset( $input['object_cache_password'] )
+		$sanitized['object_cache_password']              = isset( $input['object_cache_password'] )
 			? sanitize_text_field( $input['object_cache_password'] ) : '';
-		$sanitized['object_cache_db']        = isset( $input['object_cache_db'] )
+		$sanitized['object_cache_db']                    = isset( $input['object_cache_db'] )
 			? absint( $input['object_cache_db'] ) : 0;
-		$sanitized['object_cache_global_groups'] = isset( $input['object_cache_global_groups'] )
+		$sanitized['object_cache_global_groups']         = isset( $input['object_cache_global_groups'] )
 			? sanitize_textarea_field( $input['object_cache_global_groups'] ) : '';
 		$sanitized['object_cache_non_persistent_groups'] = isset( $input['object_cache_non_persistent_groups'] )
 			? sanitize_textarea_field( $input['object_cache_non_persistent_groups'] ) : '';
@@ -441,18 +452,18 @@ class BEPLUSPB_Admin {
 	 * @param string $clear_cache_url    Nonce-signed URL for the clear-cache action.
 	 * @param bool   $cache_dir_writable Whether the cache directory is writable.
 	 */
-	private static function render_section_dashboard( $opts, $clear_cache_url, $cache_dir_writable = true ) {
-		$stats       = BEPLUSPB_Minify::get_cache_stats();
-		$settings_url = admin_url( 'options-general.php?page=beplus-performance-booster' );
+	private static function render_section_dashboard( $opts, $clear_cache_url, $cache_dir_writable = true ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- kept for call-site symmetry with render_section_cache_files() and to match the tab-rendering pattern; not currently read here.
+		$stats             = BEPLUSPB_Minify::get_cache_stats();
+		$settings_url      = admin_url( 'options-general.php?page=beplus-performance-booster' );
 		$htaccess_writable = BEPLUSPB_Htaccess::is_writable();
 
 		// Recommended features for the quick-enable table.
 		$recommended = array(
-			'lazy_load'        => __( 'Lazy Load Images',          'beplus-performance-booster' ),
-			'minify_css_files' => __( 'Minify CSS Files',          'beplus-performance-booster' ),
-			'minify_js_files'  => __( 'Minify JS Files',           'beplus-performance-booster' ),
-			'js_defer'         => __( 'Defer Non-Critical JS',     'beplus-performance-booster' ),
-			'remove_emoji'     => __( 'Remove Emoji Scripts',      'beplus-performance-booster' ),
+			'lazy_load'        => __( 'Lazy Load Images', 'beplus-performance-booster' ),
+			'minify_css_files' => __( 'Minify CSS Files', 'beplus-performance-booster' ),
+			'minify_js_files'  => __( 'Minify JS Files', 'beplus-performance-booster' ),
+			'js_defer'         => __( 'Defer Non-Critical JS', 'beplus-performance-booster' ),
+			'remove_emoji'     => __( 'Remove Emoji Scripts', 'beplus-performance-booster' ),
 			'cache_headers'    => __( 'Browser Cache (.htaccess)', 'beplus-performance-booster' ),
 		);
 		?>
@@ -550,9 +561,9 @@ class BEPLUSPB_Admin {
 
 					<div class="bepluspb-cache-actions-row">
 						<a href="<?php echo $cache_on ? esc_url( $clear_cache_url ) : '#'; ?>"
-						   id="bepluspb-clear-cache-btn"
-						   class="button <?php echo esc_attr( ! $cache_on || 0 === $stats['count'] ? 'bepluspb-clear-btn bepluspb-clear-btn--empty' : 'bepluspb-clear-btn' ); ?>"
-						   <?php echo ! $cache_on ? 'aria-disabled="true" tabindex="-1"' : ''; ?>>
+							id="bepluspb-clear-cache-btn"
+							class="button <?php echo esc_attr( ! $cache_on || 0 === $stats['count'] ? 'bepluspb-clear-btn bepluspb-clear-btn--empty' : 'bepluspb-clear-btn' ); ?>"
+							<?php echo ! $cache_on ? 'aria-disabled="true" tabindex="-1"' : ''; ?>>
 							<?php esc_html_e( 'Clear CSS/JS Cache', 'beplus-performance-booster' ); ?>
 						</a>
 					</div>
@@ -601,7 +612,7 @@ class BEPLUSPB_Admin {
 							admin_url( 'admin-post.php?action=bepluspb_enable_all_recommended' ),
 							'bepluspb_enable_all_recommended'
 						);
-					?>
+						?>
 					<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;">
 						<a href="<?php echo esc_url( $enable_all_url ); ?>" class="button button-primary">
 							⚡ <?php esc_html_e( 'Enable All Recommended', 'beplus-performance-booster' ); ?>
@@ -620,10 +631,11 @@ class BEPLUSPB_Admin {
 							</tr>
 						</thead>
 						<tbody>
-							<?php foreach ( $recommended as $key => $label ) :
-								$is_on = ! empty( $opts[ $key ] );
+							<?php
+							foreach ( $recommended as $key => $label ) :
+								$is_on  = ! empty( $opts[ $key ] );
 								$locked = ( 'cache_headers' === $key && ! $htaccess_writable );
-							?>
+								?>
 							<tr>
 								<td><?php echo esc_html( $label ); ?></td>
 								<td>
@@ -1434,10 +1446,10 @@ class BEPLUSPB_Admin {
 			switch ( $last ) {
 				case 'g':
 					$num *= 1024;
-					// fall through
+					// fall through.
 				case 'm':
 					$num *= 1024;
-					// fall through
+					// fall through.
 				case 'k':
 					$num *= 1024;
 			}
@@ -1587,7 +1599,6 @@ class BEPLUSPB_Admin {
 			? $badge( 'ok', $t_ok )
 			: $badge( 'warn', $t_warning );
 
-
 		// ---- WordPress ----
 		$wp_ver     = get_bloginfo( 'version' );
 		$theme      = wp_get_theme();
@@ -1617,13 +1628,12 @@ class BEPLUSPB_Admin {
 		$cache_size   = $cache_stats['size'] > 0 ? BEPLUSPB_Minify::human_filesize( $cache_stats['size'] ) : '0 B';
 		$cache_count  = (int) $cache_stats['count'];
 
-
 		// ---- Active plugins ----
 		if ( ! function_exists( 'get_plugins' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
-		$all_plugins   = get_plugins();
-		$active_slugs  = get_option( 'active_plugins', array() );
+		$all_plugins    = get_plugins();
+		$active_slugs   = get_option( 'active_plugins', array() );
 		$active_plugins = array();
 		foreach ( $active_slugs as $slug ) {
 			if ( isset( $all_plugins[ $slug ] ) ) {
@@ -1634,20 +1644,56 @@ class BEPLUSPB_Admin {
 		// Known potential conflicts keyed by plugin file (folder/file.php).
 		$known_conflicts = array(
 			// Caching plugins.
-			'w3-total-cache/w3-total-cache.php'          => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
-			'wp-super-cache/wp-cache.php'                => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
-			'wp-rocket/wp-rocket.php'                    => array( 'type' => 'warn', 'note' => __( 'May conflict — caching and minification', 'beplus-performance-booster' ) ),
-			'litespeed-cache/litespeed-cache.php'        => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
-			'autoptimize/autoptimize.php'                => array( 'type' => 'warn', 'note' => __( 'May conflict — minification', 'beplus-performance-booster' ) ),
-			'hummingbird-performance/wp-hummingbird.php' => array( 'type' => 'warn', 'note' => __( 'May conflict — caching', 'beplus-performance-booster' ) ),
+			'w3-total-cache/w3-total-cache.php'          => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — caching', 'beplus-performance-booster' ),
+			),
+			'wp-super-cache/wp-cache.php'                => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — caching', 'beplus-performance-booster' ),
+			),
+			'wp-rocket/wp-rocket.php'                    => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — caching and minification', 'beplus-performance-booster' ),
+			),
+			'litespeed-cache/litespeed-cache.php'        => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — caching', 'beplus-performance-booster' ),
+			),
+			'autoptimize/autoptimize.php'                => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — minification', 'beplus-performance-booster' ),
+			),
+			'hummingbird-performance/wp-hummingbird.php' => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — caching', 'beplus-performance-booster' ),
+			),
 			// Minification plugins.
-			'fast-velocity-minify/fvm.php'               => array( 'type' => 'warn', 'note' => __( 'May conflict — minification', 'beplus-performance-booster' ) ),
-			'asset-cleanup/asset-cleanup.php'            => array( 'type' => 'warn', 'note' => __( 'May conflict — asset management', 'beplus-performance-booster' ) ),
+			'fast-velocity-minify/fvm.php'               => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — minification', 'beplus-performance-booster' ),
+			),
+			'asset-cleanup/asset-cleanup.php'            => array(
+				'type' => 'warn',
+				'note' => __( 'May conflict — asset management', 'beplus-performance-booster' ),
+			),
 			// Page builders.
-			'elementor/elementor.php'                    => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
-			'divi-builder/divi-builder.php'              => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
-			'bb-plugin/fl-builder.php'                   => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
-			'beaver-builder-lite-version/fl-builder.php' => array( 'type' => 'info', 'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ) ),
+			'elementor/elementor.php'                    => array(
+				'type' => 'info',
+				'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ),
+			),
+			'divi-builder/divi-builder.php'              => array(
+				'type' => 'info',
+				'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ),
+			),
+			'bb-plugin/fl-builder.php'                   => array(
+				'type' => 'info',
+				'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ),
+			),
+			'beaver-builder-lite-version/fl-builder.php' => array(
+				'type' => 'info',
+				'note' => __( 'Test output buffering with this plugin', 'beplus-performance-booster' ),
+			),
 		);
 
 		$flagged_plugins = array();
@@ -1662,21 +1708,17 @@ class BEPLUSPB_Admin {
 
 		// ---- Server environment ----
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-		$server_soft    = isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : 'N/A';
-		$doc_root       = isset( $_SERVER['DOCUMENT_ROOT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['DOCUMENT_ROOT'] ) ) : 'N/A';
+		$server_soft = isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : 'N/A';
+		$doc_root    = isset( $_SERVER['DOCUMENT_ROOT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['DOCUMENT_ROOT'] ) ) : 'N/A';
 		// phpcs:enable
 		$server_os      = PHP_OS;
 		$max_input_vars = ini_get( 'max_input_vars' );
 		$has_curl       = function_exists( 'curl_version' );
 		$openssl_ver    = defined( 'OPENSSL_VERSION_TEXT' ) ? OPENSSL_VERSION_TEXT : 'N/A';
 
-
 		// ---- Plugin info ----
 		$opts      = bepluspb_get_options();
 		$cache_url = BEPLUSPB_Minify::cache_url();
-
-
-
 
 		// =========================================================================
 		// Output HTML
@@ -1771,10 +1813,11 @@ class BEPLUSPB_Admin {
 
 						<?php if ( ! empty( $flagged_plugins ) ) : ?>
 						<div class="bepluspb-plugins-flagged">
-							<?php foreach ( $flagged_plugins as $slug => $data ) :
+							<?php
+							foreach ( $flagged_plugins as $slug => $data ) :
 								$c_type = $data['type'];
 								$c_icon = 'warn' === $c_type ? '⚠️' : 'ℹ️';
-							?>
+								?>
 							<div class="bepluspb-plugin-row bepluspb-plugin-row--flagged">
 								<span class="bepluspb-plugin-info">
 									<strong><?php echo esc_html( $data['Name'] ); ?></strong>
@@ -1858,9 +1901,11 @@ class BEPLUSPB_Admin {
 					$row( __( 'JS Delay Mode', 'beplus-performance-booster' ), $delay_mode_label, $badge( ! empty( $opts['js_delay'] ) ? 'ok' : 'error', ! empty( $opts['js_delay'] ) ? $t_on : $t_off ) );
 					if ( ! empty( $opts['js_delay'] ) && isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ) {
 						$rdelay = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0;
-						/* translators: %d: millisecond delay value */
+						/* translators: %d: millisecond delay value. */
 						$rdelay_label = 0 === $rdelay
+							/* translators: %d: millisecond delay value. */
 							? sprintf( __( '%d ms (wait for DOMContentLoaded)', 'beplus-performance-booster' ), $rdelay )
+							/* translators: %d: millisecond delay value. */
 							: sprintf( __( '%d ms', 'beplus-performance-booster' ), $rdelay );
 						$row( __( 'JS Delay rdelay', 'beplus-performance-booster' ), $rdelay_label );
 					}
@@ -1906,19 +1951,19 @@ class BEPLUSPB_Admin {
 	 * Each item has a one-line "what" + "why/how" message and, when relevant,
 	 * a link that jumps to the right tab so the user can act immediately.
 	 *
-	 * @param array $opts            Current option values.
-	 * @param bool  $dir_writable    Whether the cache directory (or its parent) is writable.
-	 * @param bool  $dir_exists      Whether the cache directory exists.
-	 * @param bool  $ht_writable     Whether the .htaccess file (or its parent) is writable.
-	 * @param bool  $ht_exists       Whether the .htaccess file exists.
-	 * @param bool  $wc_writable     Whether wp-content is writable.
+	 * @param array  $opts            Current option values.
+	 * @param bool   $dir_writable    Whether the cache directory (or its parent) is writable.
+	 * @param bool   $dir_exists      Whether the cache directory exists.
+	 * @param bool   $ht_writable     Whether the .htaccess file (or its parent) is writable.
+	 * @param bool   $ht_exists       Whether the .htaccess file exists.
+	 * @param bool   $wc_writable     Whether wp-content is writable.
 	 * @param string $php_ver        Current PHP version string.
 	 * @param string $wp_ver         Current WordPress version string.
-	 * @param bool  $wp_debug        Whether WP_DEBUG is on.
-	 * @param bool  $is_multi        Whether this is a multisite install.
-	 * @param bool  $has_zlib        Whether the Zlib PHP extension is loaded.
-	 * @param int   $mem_bytes       PHP memory limit in bytes (-1 = unlimited).
-	 * @param array $flagged_plugins Detected potentially-conflicting active plugins.
+	 * @param bool   $wp_debug        Whether WP_DEBUG is on.
+	 * @param bool   $is_multi        Whether this is a multisite install.
+	 * @param bool   $has_zlib        Whether the Zlib PHP extension is loaded.
+	 * @param int    $mem_bytes       PHP memory limit in bytes (-1 = unlimited).
+	 * @param array  $flagged_plugins Detected potentially-conflicting active plugins.
 	 */
 	private static function render_status_recommendations(
 		$opts,
@@ -1936,7 +1981,7 @@ class BEPLUSPB_Admin {
 		$flagged_plugins
 	) {
 		$settings_url = admin_url( 'options-general.php?page=beplus-performance-booster' );
-		$tab_link = static function ( $tab, $label ) use ( $settings_url ) {
+		$tab_link     = static function ( $tab, $label ) use ( $settings_url ) {
 			return '<a href="' . esc_url( $settings_url . '#bepluspb-tab-' . $tab ) . '" class="bepluspb-rec-link">' . esc_html( $label ) . ' →</a>';
 		};
 
@@ -2144,15 +2189,25 @@ class BEPLUSPB_Admin {
 								echo wp_kses(
 									$item['detail'],
 									array(
-										'code' => array(),
-										'em'   => array(),
+										'code'   => array(),
+										'em'     => array(),
 										'strong' => array(),
 									)
 								);
 								?>
 							</p>
 							<?php if ( ! empty( $item['action'] ) ) : ?>
-								<?php echo wp_kses( $item['action'], array( 'a' => array( 'href' => array(), 'class' => array() ) ) ); ?>
+								<?php
+								echo wp_kses(
+									$item['action'],
+									array(
+										'a' => array(
+											'href'  => array(),
+											'class' => array(),
+										),
+									)
+								);
+								?>
 							<?php endif; ?>
 						</div>
 					</div>
@@ -2176,7 +2231,17 @@ class BEPLUSPB_Admin {
 								?>
 							</p>
 							<?php if ( ! empty( $item['action'] ) ) : ?>
-								<?php echo wp_kses( $item['action'], array( 'a' => array( 'href' => array(), 'class' => array() ) ) ); ?>
+								<?php
+								echo wp_kses(
+									$item['action'],
+									array(
+										'a' => array(
+											'href'  => array(),
+											'class' => array(),
+										),
+									)
+								);
+								?>
 							<?php endif; ?>
 						</div>
 					</div>
@@ -2189,7 +2254,17 @@ class BEPLUSPB_Admin {
 							<strong><?php echo esc_html( $item['title'] ); ?></strong>
 							<p><?php echo esc_html( $item['detail'] ); ?></p>
 							<?php if ( ! empty( $item['action'] ) ) : ?>
-								<?php echo wp_kses( $item['action'], array( 'a' => array( 'href' => array(), 'class' => array() ) ) ); ?>
+								<?php
+								echo wp_kses(
+									$item['action'],
+									array(
+										'a' => array(
+											'href'  => array(),
+											'class' => array(),
+										),
+									)
+								);
+								?>
 							<?php endif; ?>
 						</div>
 					</div>
@@ -2324,7 +2399,7 @@ class BEPLUSPB_Admin {
 		$server_software = isset( $_SERVER['SERVER_SOFTWARE'] )
 			? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) )
 			: '';
-		$is_nginx = ( false !== stripos( $server_software, 'nginx' ) );
+		$is_nginx        = ( false !== stripos( $server_software, 'nginx' ) );
 		?>
 		<div class="bepluspb-card">
 			<div class="bepluspb-card-header">
@@ -2343,8 +2418,10 @@ class BEPLUSPB_Admin {
 				<div class="notice notice-info bepluspb-notice-warning inline">
 					<p><strong><?php esc_html_e( 'Nginx server detected.', 'beplus-performance-booster' ); ?></strong> <?php esc_html_e( 'The .htaccess option below has no effect on Nginx. Ask your hosting provider or server administrator to add the following block to your nginx.conf or site configuration:', 'beplus-performance-booster' ); ?></p>
 				</div>
-				<pre style="background:#f6f7f7;border:1px solid #dcdcde;padding:12px 16px;overflow-x:auto;font-size:12px;margin:12px 0;border-radius:4px;"><?php echo esc_html(
-'# Browser cache — static assets (1 year)
+				<pre style="background:#f6f7f7;border:1px solid #dcdcde;padding:12px 16px;overflow-x:auto;font-size:12px;margin:12px 0;border-radius:4px;">
+					<?php
+					echo esc_html(
+						'# Browser cache — static assets (1 year)
 location ~* \.(ico|jpg|jpeg|png|gif|webp|avif|svg|woff|woff2|ttf|otf|eot)$ {
     expires 1y;
     add_header Cache-Control "public, immutable";
@@ -2365,10 +2442,12 @@ gzip on;
 gzip_types text/plain text/css text/javascript application/javascript
            application/json image/svg+xml font/woff2;
 gzip_min_length 1024;'
-				); ?></pre>
+					);
+					?>
+				</pre>
 				<?php else : ?>
 
-				<?php if ( ! $htaccess_writable ) : ?>
+					<?php if ( ! $htaccess_writable ) : ?>
 				<div class="notice notice-warning bepluspb-notice-warning inline">
 					<p><?php esc_html_e( 'Your .htaccess file is not writable. Browser caching rules cannot be injected automatically. Set the file to 644 permissions (or ask your host) and try again, or add the rules manually.', 'beplus-performance-booster' ); ?></p>
 				</div>
@@ -2821,6 +2900,7 @@ gzip_min_length 1024;'
 	 *
 	 * @param  array  $stats           Result of BEPLUSPB_Minify::get_cache_stats().
 	 * @param  string $clear_cache_url Nonce-signed URL for the clear-cache action.
+	 * @param  string $dot_color       Hex color for the status dot in the panel header.
 	 * @return string HTML markup (output raw as WP_Admin_Bar node title).
 	 */
 	private static function build_adminbar_panel( $stats, $clear_cache_url, $dot_color = '#00a32a' ) {
@@ -2865,14 +2945,14 @@ gzip_min_length 1024;'
 
 		// ── Panel HTML ───────────────────────────────────────────────────────
 		// Structure:
-		//   .bepluspb-ab-panel
-		//     .bepluspb-ab-info          ← padded area (header + ring/stats row)
-		//       .bepluspb-ab-header      ← green dot + "CSS / JS Cache Info"
-		//       .bepluspb-ab-content     ← flex row: ring left, stats right
-		//     .bepluspb-ab-sep           ← 1px separator
-		//     a.bepluspb-ab-clear-btn    ← full-width flush dark button
+		// .bepluspb-ab-panel
+		// .bepluspb-ab-info          ← padded area (header + ring/stats row)
+		// .bepluspb-ab-header      ← green dot + "CSS / JS Cache Info"
+		// .bepluspb-ab-content     ← flex row: ring left, stats right
+		// .bepluspb-ab-sep           ← 1px separator
+		// a.bepluspb-ab-clear-btn    ← full-width flush dark button
 
-		$html  = '<div class="bepluspb-ab-panel">';
+		$html = '<div class="bepluspb-ab-panel">';
 
 		// Padded info area.
 		$html .= '<div class="bepluspb-ab-info">';
@@ -2967,7 +3047,7 @@ gzip_min_length 1024;'
 
 		$redirect = add_query_arg(
 			array(
-				'page'              => 'beplus-performance-booster',
+				'page'                   => 'beplus-performance-booster',
 				'bepluspb_quick_enabled' => $option,
 			),
 			admin_url( 'options-general.php' )
@@ -2987,7 +3067,7 @@ gzip_min_length 1024;'
 		}
 
 		$htaccess_writable = BEPLUSPB_Htaccess::is_writable();
-		$allowed = array( 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'remove_emoji', 'cache_headers' );
+		$allowed           = array( 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'remove_emoji', 'cache_headers' );
 
 		$saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
 		if ( ! is_array( $saved ) ) {
@@ -2996,7 +3076,7 @@ gzip_min_length 1024;'
 
 		foreach ( $allowed as $key ) {
 			if ( 'cache_headers' === $key && ! $htaccess_writable ) {
-				continue; // skip locked options
+				continue; // skip locked options.
 			}
 			$saved[ $key ] = 1;
 		}
@@ -3111,13 +3191,15 @@ gzip_min_length 1024;'
 			<p>
 				<?php
 				printf(
-					/* translators: %d = number of deleted files */
-					esc_html( _n(
-						'Beplus Performance Booster: %d cached file cleared successfully.',
-						'Beplus Performance Booster: %d cached files cleared successfully.',
-						$count,
-						'beplus-performance-booster'
-					) ),
+					esc_html(
+						/* translators: %d = number of deleted files. */
+						_n(
+							'Beplus Performance Booster: %d cached file cleared successfully.',
+							'Beplus Performance Booster: %d cached files cleared successfully.',
+							$count,
+							'beplus-performance-booster'
+						)
+					),
 					absint( $count )
 				);
 				?>
@@ -3179,7 +3261,7 @@ gzip_min_length 1024;'
 	 * @param int     $post_id Post ID being saved.
 	 * @param WP_Post $post    Post object.
 	 */
-	public static function save_meta_box( $post_id, $post ) {
+	public static function save_meta_box( $post_id, $post ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- required by the save_post hook signature.
 		// Skip autosaves, revisions, and posts without our nonce field.
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;

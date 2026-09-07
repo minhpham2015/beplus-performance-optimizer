@@ -48,7 +48,7 @@ class BEPLUSPB_Images {
 		}
 
 		add_filter( 'post_thumbnail_html', array( __CLASS__, 'process_html' ), 20 );
-		add_filter( 'widget_text',         array( __CLASS__, 'process_html' ), 20 );
+		add_filter( 'widget_text', array( __CLASS__, 'process_html' ), 20 );
 
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_fallback_script' ) );
 	}
@@ -76,7 +76,7 @@ class BEPLUSPB_Images {
 
 		$picture_blocks = array();
 		$pic_idx        = 0;
-		$content = preg_replace_callback(
+		$content        = preg_replace_callback(
 			'/<picture[^>]*>[\s\S]*?<\/picture>/i',
 			function ( $m ) use ( &$picture_blocks, &$pic_idx ) {
 				$token                    = 'BEPLUSPBPIC' . $pic_idx . 'END';
@@ -103,7 +103,7 @@ class BEPLUSPB_Images {
 				},
 				$picture_html
 			);
-			$content = str_replace( $token, $picture_html, $content );
+			$content      = str_replace( $token, $picture_html, $content );
 		}
 
 		return $content;
@@ -129,7 +129,7 @@ class BEPLUSPB_Images {
 			return $full_tag;
 		}
 
-		self::$image_count++;
+		++self::$image_count;
 		if ( self::$image_count <= $skip_n ) {
 			return '<img' . $attrs . ' loading="eager">';
 		}
