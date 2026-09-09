@@ -52,6 +52,23 @@ checking whether it would break the SVN slug binding).
   This class still never creates/converts images itself — only swaps the
   URL when the file is already present (produced by WP core 6.5+, a theme
   build step, or another plugin/service).
+- `includes/class-bepluspb-cloudflare.php` — Cloudflare API integration,
+  admin-triggered only (never runs on a regular front-end page load):
+  zone lookup by API Token (`test_connection_and_fetch_zone()`), cache
+  purge (`purge_all()`, wired into the existing `handle_clear_cache()` in
+  `class-bepluspb-admin.php` when `cloudflare_enabled` is on — no separate
+  purge button needed for the common case), and Development Mode on/off/
+  status. **API Token auth only** (`Authorization: Bearer`), no legacy
+  Global API Key support. Token/zone are stored as plain `wp_options`
+  fields (`cloudflare_api_token`, `cloudflare_zone_id`, `cloudflare_zone_name`)
+  — deliberately NOT a separate file like `.bepluspb_oc.json`, since a DB
+  option is not servable over HTTP the way a static file is. `zone_id`/
+  `zone_name` are never accepted from the settings form directly (see
+  `sanitize_options()`) — they are only ever written by the "Test
+  Connection" AJAX handler (`handle_ajax_cf_test_connection()`), so a
+  stale/mismatched zone can never be hand-typed. Never logs the token or
+  raw request/response (same sensitivity class as the Object Cache Redis
+  password — see Hard Rule #1 — just DB-stored instead of file-stored).
 - `includes/class-bepluspb-cleanup.php` — despite the name, this only
   dequeues default WP scripts/styles (emoji, embed, block CSS, WooCommerce
   on non-shop pages). It does NOT touch the database. If you add real DB

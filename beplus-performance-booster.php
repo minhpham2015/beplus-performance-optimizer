@@ -132,6 +132,12 @@ function bepluspb_default_options() {
 		'cdn_exclude'                        => '',
 		'cdn_webp_avif'                      => 0,  // Serve a sibling .webp/.avif file instead of .jpg/.jpeg/.png when one exists and the browser supports it.
 
+		// --- Cloudflare (API-triggered cache purge + development mode) ---
+		'cloudflare_enabled'                 => 0,
+		'cloudflare_api_token'               => '',  // Cloudflare API Token (Bearer auth only, no legacy Global API Key support).
+		'cloudflare_zone_id'                 => '',  // Auto-populated by "Test Connection" — never user-editable directly.
+		'cloudflare_zone_name'               => '',  // Matched zone name, shown read-only in the UI.
+
 		// --- Object Cache (Redis / Memcached) ---
 		'object_cache_enabled'               => 0,
 		'object_cache_driver'                => 'redis',   // 'redis' or 'memcached'. phpcs:ignore Squiz.PHP.CommentedOutCode.Found -- not code, just quoting the two valid option values.
@@ -203,6 +209,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cdn.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cloudflare.php';
 
 // ---------------------------------------------------------------------------
 // ACTIVATION / DEACTIVATION HOOKS

@@ -63,6 +63,11 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_ajax_bepluspb_install_oc_dropin', array( __CLASS__, 'handle_ajax_install_oc' ) );
 		add_action( 'wp_ajax_bepluspb_remove_oc_dropin', array( __CLASS__, 'handle_ajax_remove_oc' ) );
 
+		// Cloudflare AJAX handlers (all admin-only, nonce + capability checked).
+		add_action( 'wp_ajax_bepluspb_cf_test_connection', array( __CLASS__, 'handle_ajax_cf_test_connection' ) );
+		add_action( 'wp_ajax_bepluspb_cf_purge', array( __CLASS__, 'handle_ajax_cf_purge' ) );
+		add_action( 'wp_ajax_bepluspb_cf_devmode', array( __CLASS__, 'handle_ajax_cf_devmode' ) );
+
 		// Admin notice shown after a successful cache clear.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
 	}
@@ -211,6 +216,8 @@ class BEPLUSPB_Admin {
 			// CDN.
 			'cdn_enabled',
 			'cdn_webp_avif',
+			// Cloudflare.
+			'cloudflare_enabled',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -220,6 +227,18 @@ class BEPLUSPB_Admin {
 		$sanitized['js_exclude'] = isset( $input['js_exclude'] )
 			? sanitize_textarea_field( $input['js_exclude'] )
 			: '';
+
+		// ---- Cloudflare API Token. Zone id/name are NOT sanitized from this
+		// form — they are only ever written by the "Test Connection" AJAX
+		// handler (BEPLUSPB_Admin::handle_ajax_cf_test_connection()), so a
+		// stale/mismatched zone can never be typed in by hand. Preserve the
+		// existing DB value here exactly like cache_enabled does below. ----
+		$sanitized['cloudflare_api_token'] = isset( $input['cloudflare_api_token'] )
+			? sanitize_text_field( $input['cloudflare_api_token'] )
+			: '';
+		$existing_cf                       = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+		$sanitized['cloudflare_zone_id']   = isset( $existing_cf['cloudflare_zone_id'] ) ? $existing_cf['cloudflare_zone_id'] : '';
+		$sanitized['cloudflare_zone_name'] = isset( $existing_cf['cloudflare_zone_name'] ) ? $existing_cf['cloudflare_zone_name'] : '';
 
 		// ---- JS delay mode + rdelay. ----
 		$sanitized['js_delay_mode'] = ( isset( $input['js_delay_mode'] ) && 'advanced' === $input['js_delay_mode'] )
@@ -362,6 +381,7 @@ class BEPLUSPB_Admin {
 			'cache_files'  => '⚡ ' . __( 'Cache Files', 'beplus-performance-booster' ),
 			'fonts'        => '🔤 ' . __( 'Fonts', 'beplus-performance-booster' ),
 			'cdn'          => '☁️ ' . __( 'CDN', 'beplus-performance-booster' ),
+			'cloudflare'   => '🔶 ' . __( 'Cloudflare', 'beplus-performance-booster' ),
 			'cleanup'      => '🧹 ' . __( 'Cleanup', 'beplus-performance-booster' ),
 			'exclusions'   => '🚫 ' . __( 'Cache Exclusions', 'beplus-performance-booster' ),
 			'object_cache' => '🗄️ ' . __( 'Object Cache', 'beplus-performance-booster' ),
@@ -406,6 +426,10 @@ class BEPLUSPB_Admin {
 
 				<div id="bepluspb-tab-cdn" class="bepluspb-tab-panel" role="tabpanel">
 					<?php self::render_section_cdn( $opts ); ?>
+				</div>
+
+				<div id="bepluspb-tab-cloudflare" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_section_cloudflare( $opts ); ?>
 				</div>
 
 				<div id="bepluspb-tab-cleanup" class="bepluspb-tab-panel" role="tabpanel">
@@ -1141,6 +1165,214 @@ class BEPLUSPB_Admin {
 
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Cloudflare" tab — API-triggered cache purge, zone lookup,
+	 * and development mode toggle.
+	 *
+	 * Follows the same inline-<script>+fetch()+FormData AJAX pattern used
+	 * by the Object Cache tab's "Test Connection"/drop-in buttons, rather
+	 * than the external admin.js file, for consistency within this file.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_cloudflare( $opts ) {
+		$has_token = ! empty( $opts['cloudflare_api_token'] );
+		$has_zone  = ! empty( $opts['cloudflare_zone_id'] );
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Cloudflare', 'beplus-performance-booster' ); ?></h2>
+				<p>
+					<?php
+					esc_html_e( 'Keep Cloudflare\'s edge cache in sync with this plugin\'s own cache, and control Cloudflare Development Mode, without leaving wp-admin. This does not set up Cloudflare as a CDN/DNS proxy for you — it only talks to a Cloudflare zone you have already added your domain to.', 'beplus-performance-booster' );
+					?>
+				</p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<!-- Enable Cloudflare -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cloudflare_enabled"><?php esc_html_e( 'Enable Cloudflare Integration', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_cloudflare_enabled"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cloudflare_enabled]" value="1"
+								<?php checked( $opts['cloudflare_enabled'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'When on, the existing "Clear Cache" button also purges Cloudflare\'s cache for this zone.', 'beplus-performance-booster' ); ?></span>
+						</label>
+					</div>
+				</div>
+
+				<!-- API Token -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cloudflare_api_token"><?php esc_html_e( 'API Token', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="password" id="bepluspb_cloudflare_api_token"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cloudflare_api_token]"
+							value="<?php echo esc_attr( $opts['cloudflare_api_token'] ); ?>"
+							class="regular-text code"
+							autocomplete="off"
+							placeholder="<?php esc_attr_e( 'Cloudflare API Token', 'beplus-performance-booster' ); ?>">
+						<button type="button" id="bepluspb-cf-test-btn" class="button">
+							<?php esc_html_e( 'Test Connection', 'beplus-performance-booster' ); ?>
+						</button>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: link to Cloudflare's API token dashboard. */
+								esc_html__( 'Create a token at %s. Legacy Global API Keys are not supported — use an API Token scoped to Zone > Cache Purge and Zone > Zone Settings.', 'beplus-performance-booster' ),
+								'<a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">dash.cloudflare.com/profile/api-tokens</a>'
+							);
+							?>
+						</p>
+						<p id="bepluspb-cf-test-result" style="display:<?php echo $has_token ? '' : 'none'; ?>;"></p>
+					</div>
+				</div>
+
+				<!-- Matched zone (read-only, auto-populated by Test Connection) -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label><?php esc_html_e( 'Matched Zone', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<code id="bepluspb-cf-zone-display">
+							<?php
+							echo $has_zone
+								? esc_html( $opts['cloudflare_zone_name'] . ' (' . $opts['cloudflare_zone_id'] . ')' )
+								: esc_html__( 'Not configured — click "Test Connection" above.', 'beplus-performance-booster' );
+							?>
+						</code>
+					</div>
+				</div>
+
+			</div>
+		</div>
+
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Cloudflare Cache', 'beplus-performance-booster' ); ?></h2>
+			</div>
+			<div class="bepluspb-card-body">
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-field">
+						<button type="button" id="bepluspb-cf-purge-btn" class="button button-secondary" <?php disabled( ! $has_zone ); ?>>
+							<?php esc_html_e( 'Purge Cloudflare Now', 'beplus-performance-booster' ); ?>
+						</button>
+						<p id="bepluspb-cf-purge-result"></p>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Development Mode', 'beplus-performance-booster' ); ?></h2>
+				<p>
+					<?php esc_html_e( 'Temporarily bypasses Cloudflare\'s cache so origin changes show up immediately. Cloudflare automatically turns this off after 3 hours.', 'beplus-performance-booster' ); ?>
+				</p>
+			</div>
+			<div class="bepluspb-card-body">
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-field">
+						<button type="button" id="bepluspb-cf-devmode-on-btn" class="button" <?php disabled( ! $has_zone ); ?>>
+							<?php esc_html_e( 'Turn ON', 'beplus-performance-booster' ); ?>
+						</button>
+						<button type="button" id="bepluspb-cf-devmode-off-btn" class="button" <?php disabled( ! $has_zone ); ?>>
+							<?php esc_html_e( 'Turn OFF', 'beplus-performance-booster' ); ?>
+						</button>
+						<button type="button" id="bepluspb-cf-devmode-status-btn" class="button button-secondary" <?php disabled( ! $has_zone ); ?>>
+							<?php esc_html_e( 'Check Status', 'beplus-performance-booster' ); ?>
+						</button>
+						<p id="bepluspb-cf-devmode-result"></p>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+		(function(){
+			var ajaxUrl        = '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>';
+			var cfTestNonce    = '<?php echo esc_js( wp_create_nonce( 'bepluspb_cf_test_connection' ) ); ?>';
+			var cfPurgeNonce   = '<?php echo esc_js( wp_create_nonce( 'bepluspb_cf_purge' ) ); ?>';
+			var cfDevmodeNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_cf_devmode' ) ); ?>';
+
+			function cfAjax(action, nonce, extra, resultEl, busyLabel) {
+				resultEl.style.color = '';
+				resultEl.style.display = '';
+				resultEl.textContent = busyLabel;
+				var data = new FormData();
+				data.append('action', action);
+				data.append('nonce', nonce);
+				for (var key in extra) {
+					if (Object.prototype.hasOwnProperty.call(extra, key)) {
+						data.append(key, extra[key]);
+					}
+				}
+				fetch(ajaxUrl, { method: 'POST', body: data })
+					.then(function(r){ return r.json(); })
+					.then(function(res){
+						resultEl.style.color = res.success ? '#46b450' : '#dc3232';
+						resultEl.textContent = (res.data && res.data.message) ? res.data.message : '—';
+						return res;
+					})
+					.catch(function(){ resultEl.textContent = 'Request failed.'; });
+			}
+
+			var testBtn = document.getElementById('bepluspb-cf-test-btn');
+			var testResult = document.getElementById('bepluspb-cf-test-result');
+			if (testBtn && testResult) {
+				testBtn.addEventListener('click', function(){
+					var tokenEl = document.getElementById('bepluspb_cloudflare_api_token');
+					cfAjax('bepluspb_cf_test_connection', cfTestNonce, { api_token: tokenEl.value }, testResult, 'Testing…')
+						.then(function(res){
+							if (res && res.success) {
+								var zoneDisplay = document.getElementById('bepluspb-cf-zone-display');
+								if (zoneDisplay) { zoneDisplay.textContent = res.data.zone_name + ' (' + res.data.zone_id + ')'; }
+								['bepluspb-cf-purge-btn', 'bepluspb-cf-devmode-on-btn', 'bepluspb-cf-devmode-off-btn', 'bepluspb-cf-devmode-status-btn'].forEach(function(id){
+									var el = document.getElementById(id);
+									if (el) { el.disabled = false; }
+								});
+							}
+						});
+				});
+			}
+
+			var purgeBtn = document.getElementById('bepluspb-cf-purge-btn');
+			var purgeResult = document.getElementById('bepluspb-cf-purge-result');
+			if (purgeBtn && purgeResult) {
+				purgeBtn.addEventListener('click', function(){
+					cfAjax('bepluspb_cf_purge', cfPurgeNonce, {}, purgeResult, 'Purging…');
+				});
+			}
+
+			var devResult = document.getElementById('bepluspb-cf-devmode-result');
+			var onBtn     = document.getElementById('bepluspb-cf-devmode-on-btn');
+			var offBtn    = document.getElementById('bepluspb-cf-devmode-off-btn');
+			var statusBtn = document.getElementById('bepluspb-cf-devmode-status-btn');
+			if (onBtn && devResult) {
+				onBtn.addEventListener('click', function(){
+					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'on' }, devResult, 'Turning ON…');
+				});
+			}
+			if (offBtn && devResult) {
+				offBtn.addEventListener('click', function(){
+					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'off' }, devResult, 'Turning OFF…');
+				});
+			}
+			if (statusBtn && devResult) {
+				statusBtn.addEventListener('click', function(){
+					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'status' }, devResult, 'Checking…');
+				});
+			}
+		})();
+		</script>
 		<?php
 	}
 
@@ -3153,6 +3385,16 @@ gzip_min_length 1024;'
 
 		$count = BEPLUSPB_Minify::clear_cache();
 
+		// Also purge Cloudflare when enabled, so both cache layers stay in
+		// sync from the single existing "Clear Cache" action — no separate
+		// button needed for the common case. Failure here is silent (the
+		// dedicated "Purge Cloudflare Now" button on the Cloudflare tab
+		// surfaces errors); local cache clearing must never be blocked by
+		// an unreachable/misconfigured Cloudflare account.
+		if ( ! empty( bepluspb_get_options()['cloudflare_enabled'] ) ) {
+			BEPLUSPB_Cloudflare::purge_all();
+		}
+
 		// SEC-1: Store the result in a short-lived per-user transient instead of
 		// appending it to the redirect URL. This avoids the notice re-firing if
 		// the user bookmarks or shares the URL with the query string attached.
@@ -3350,6 +3592,94 @@ gzip_min_length 1024;'
 		}
 
 		$result = BEPLUSPB_Object_Cache::uninstall_dropin();
+
+		if ( $result['success'] ) {
+			wp_send_json_success( $result );
+		} else {
+			wp_send_json_error( $result );
+		}
+	}
+
+	// =========================================================================
+	// Cloudflare AJAX handlers
+	// =========================================================================
+
+	/**
+	 * AJAX: Test the Cloudflare API Token and, on success, persist the
+	 * matched zone_id/zone_name into the plugin options.
+	 *
+	 * Accepts an api_token from the POST body rather than always reading
+	 * the saved option, so a user can test a new token before saving the
+	 * settings form (mirrors handle_ajax_test_oc()'s pattern of testing
+	 * unsaved connection details).
+	 */
+	public static function handle_ajax_cf_test_connection() {
+		check_ajax_referer( 'bepluspb_cf_test_connection', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
+		}
+
+		$api_token = isset( $_POST['api_token'] ) ? sanitize_text_field( wp_unslash( $_POST['api_token'] ) ) : '';
+
+		$result = BEPLUSPB_Cloudflare::test_connection_and_fetch_zone( $api_token );
+
+		if ( $result['success'] ) {
+			// Persist the matched zone + token together so "Test Connection"
+			// alone is enough to configure Cloudflare, without requiring a
+			// separate full-form submit.
+			$opts                         = bepluspb_get_options();
+			$opts['cloudflare_api_token'] = $api_token;
+			$opts['cloudflare_zone_id']   = $result['zone_id'];
+			$opts['cloudflare_zone_name'] = $result['zone_name'];
+			update_option( BEPLUSPB_OPTIONS_KEY, $opts );
+
+			wp_send_json_success( $result );
+		} else {
+			wp_send_json_error( $result );
+		}
+	}
+
+	/**
+	 * AJAX: Purge the entire Cloudflare cache on demand (separate from the
+	 * automatic purge-on-clear-cache integration in handle_clear_cache()).
+	 */
+	public static function handle_ajax_cf_purge() {
+		check_ajax_referer( 'bepluspb_cf_purge', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
+		}
+
+		$result = BEPLUSPB_Cloudflare::purge_all();
+
+		if ( $result['success'] ) {
+			wp_send_json_success( $result );
+		} else {
+			wp_send_json_error( $result );
+		}
+	}
+
+	/**
+	 * AJAX: Get, turn on, or turn off Cloudflare Development Mode.
+	 * Expects $_POST['dev_action'] to be one of 'status' | 'on' | 'off'.
+	 */
+	public static function handle_ajax_cf_devmode() {
+		check_ajax_referer( 'bepluspb_cf_devmode', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
+		}
+
+		$dev_action = isset( $_POST['dev_action'] ) ? sanitize_key( wp_unslash( $_POST['dev_action'] ) ) : 'status';
+
+		if ( 'on' === $dev_action ) {
+			$result = BEPLUSPB_Cloudflare::set_development_mode( true );
+		} elseif ( 'off' === $dev_action ) {
+			$result = BEPLUSPB_Cloudflare::set_development_mode( false );
+		} else {
+			$result = BEPLUSPB_Cloudflare::get_development_mode();
+		}
 
 		if ( $result['success'] ) {
 			wp_send_json_success( $result );
