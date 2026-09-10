@@ -1303,10 +1303,11 @@ class BEPLUSPB_Admin {
 			var cfPurgeNonce   = '<?php echo esc_js( wp_create_nonce( 'bepluspb_cf_purge' ) ); ?>';
 			var cfDevmodeNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_cf_devmode' ) ); ?>';
 
-			function cfAjax(action, nonce, extra, resultEl, busyLabel) {
+			function cfAjax(action, nonce, extra, resultEl, busyLabel, btn, cooldownMs) {
 				resultEl.style.color = '';
 				resultEl.style.display = '';
 				resultEl.textContent = busyLabel;
+				if (btn) { btn.disabled = true; }
 				var data = new FormData();
 				data.append('action', action);
 				data.append('nonce', nonce);
@@ -1320,9 +1321,25 @@ class BEPLUSPB_Admin {
 					.then(function(res){
 						resultEl.style.color = res.success ? '#46b450' : '#dc3232';
 						resultEl.textContent = (res.data && res.data.message) ? res.data.message : '—';
+						// Keep the button disabled for the cooldown window on success
+						// (mirrors the server-side per-user rate limit) so a second
+						// click can't queue up while Cloudflare is still processing.
+						// On failure (including a 429 from the rate limit itself),
+						// re-enable right away so the admin isn't stuck waiting on
+						// top of an already-failed attempt.
+						if (btn) {
+							if (res.success && cooldownMs) {
+								setTimeout(function(){ btn.disabled = false; }, cooldownMs);
+							} else {
+								btn.disabled = false;
+							}
+						}
 						return res;
 					})
-					.catch(function(){ resultEl.textContent = 'Request failed.'; });
+					.catch(function(){
+						resultEl.textContent = 'Request failed.';
+						if (btn) { btn.disabled = false; }
+					});
 			}
 
 			var testBtn = document.getElementById('bepluspb-cf-test-btn');
@@ -1348,7 +1365,7 @@ class BEPLUSPB_Admin {
 			var purgeResult = document.getElementById('bepluspb-cf-purge-result');
 			if (purgeBtn && purgeResult) {
 				purgeBtn.addEventListener('click', function(){
-					cfAjax('bepluspb_cf_purge', cfPurgeNonce, {}, purgeResult, 'Purging…');
+					cfAjax('bepluspb_cf_purge', cfPurgeNonce, {}, purgeResult, 'Purging…', purgeBtn, 10000);
 				});
 			}
 
@@ -1358,16 +1375,18 @@ class BEPLUSPB_Admin {
 			var statusBtn = document.getElementById('bepluspb-cf-devmode-status-btn');
 			if (onBtn && devResult) {
 				onBtn.addEventListener('click', function(){
-					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'on' }, devResult, 'Turning ON…');
+					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'on' }, devResult, 'Turning ON…', onBtn, 10000);
 				});
 			}
 			if (offBtn && devResult) {
 				offBtn.addEventListener('click', function(){
-					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'off' }, devResult, 'Turning OFF…');
+					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'off' }, devResult, 'Turning OFF…', offBtn, 10000);
 				});
 			}
 			if (statusBtn && devResult) {
 				statusBtn.addEventListener('click', function(){
+					// Read-only status check — not rate-limited server-side, so no
+					// button/cooldown args here either.
 					cfAjax('bepluspb_cf_devmode', cfDevmodeNonce, { dev_action: 'status' }, devResult, 'Checking…');
 				});
 			}
@@ -3643,12 +3662,23 @@ gzip_min_length 1024;'
 	/**
 	 * AJAX: Purge the entire Cloudflare cache on demand (separate from the
 	 * automatic purge-on-clear-cache integration in handle_clear_cache()).
+	 *
+	 * Rate-limited: Cloudflare's own API enforces per-endpoint rate limits,
+	 * and an admin double-clicking (or a stuck browser tab retrying) could
+	 * trip Cloudflare's IP-level throttling. A short per-user cooldown here
+	 * is cheap insurance against that, independent of the eventual
+	 * Cloudflare-side response.
 	 */
 	public static function handle_ajax_cf_purge() {
 		check_ajax_referer( 'bepluspb_cf_purge', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
+		}
+
+		$rate_limit_error = self::check_cloudflare_rate_limit( 'purge' );
+		if ( null !== $rate_limit_error ) {
+			wp_send_json_error( array( 'message' => $rate_limit_error ), 429 );
 		}
 
 		$result = BEPLUSPB_Cloudflare::purge_all();
@@ -3661,8 +3691,38 @@ gzip_min_length 1024;'
 	}
 
 	/**
+	 * Enforce a short per-user, per-action cooldown before hitting the
+	 * Cloudflare API. Returns null when the call is allowed, or a
+	 * user-facing error string (with seconds remaining) when still cooling
+	 * down. Shared by the purge and dev-mode AJAX handlers.
+	 *
+	 * @param string $action Short action key, e.g. 'purge' or 'devmode'.
+	 * @return string|null
+	 */
+	private static function check_cloudflare_rate_limit( $action ) {
+		$cooldown_seconds = 10;
+		$transient_key    = 'bepluspb_cf_' . $action . '_lock_' . get_current_user_id();
+
+		if ( false !== get_transient( $transient_key ) ) {
+			return sprintf(
+				/* translators: %d: seconds remaining before the action can be retried. */
+				__( 'Please wait %d seconds before trying again (Cloudflare rate limit protection).', 'beplus-performance-booster' ),
+				$cooldown_seconds
+			);
+		}
+
+		set_transient( $transient_key, 1, $cooldown_seconds );
+
+		return null;
+	}
+
+	/**
 	 * AJAX: Get, turn on, or turn off Cloudflare Development Mode.
 	 * Expects $_POST['dev_action'] to be one of 'status' | 'on' | 'off'.
+	 *
+	 * Rate-limited on 'on'/'off' only — those are the calls that mutate
+	 * the zone's setting via the Cloudflare API. A plain 'status' check is
+	 * read-only and left unthrottled so the UI can poll it freely.
 	 */
 	public static function handle_ajax_cf_devmode() {
 		check_ajax_referer( 'bepluspb_cf_devmode', 'nonce' );
@@ -3672,6 +3732,13 @@ gzip_min_length 1024;'
 		}
 
 		$dev_action = isset( $_POST['dev_action'] ) ? sanitize_key( wp_unslash( $_POST['dev_action'] ) ) : 'status';
+
+		if ( in_array( $dev_action, array( 'on', 'off' ), true ) ) {
+			$rate_limit_error = self::check_cloudflare_rate_limit( 'devmode' );
+			if ( null !== $rate_limit_error ) {
+				wp_send_json_error( array( 'message' => $rate_limit_error ), 429 );
+			}
+		}
 
 		if ( 'on' === $dev_action ) {
 			$result = BEPLUSPB_Cloudflare::set_development_mode( true );
