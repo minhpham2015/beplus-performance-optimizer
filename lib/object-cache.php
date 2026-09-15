@@ -16,6 +16,17 @@ defined( 'WPINC' ) || exit;
 // ---------------------------------------------------------------------------
 // Load configuration written by the plugin on settings save.
 // ---------------------------------------------------------------------------
+//
+// IMPORTANT: WordPress core loads this file via `require_once` from
+// *inside* wp_start_object_cache() (wp-includes/load.php), so top-level
+// variables here are local to that function's scope by default — NOT
+// real PHP globals, even though wp_cache_init() below does
+// `global $_bepluspb_oc_cfg;`. Without the `global` declaration up
+// front, wp_cache_init() would see an uninitialized global (null),
+// silently breaking the Redis/Memcached connection while everything
+// else (Test Connection, Install) reports success. See CLAUDE.md
+// "Known bugs" (2026-09-15) for the full trace of how this was found.
+global $_bepluspb_oc_cfg;
 
 $_bepluspb_oc_cfg = array(
 	'enabled'               => false,
