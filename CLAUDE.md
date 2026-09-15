@@ -174,6 +174,67 @@ dev-only file/folder at the repo root, add it to that exclude list too, or
 it will accidentally get published to every WordPress site running this
 plugin.
 
+## Known bugs (found via live testing, 2026-09-15) — NEEDS FIX
+
+🔴 **Object Cache drop-in never actually connects to Redis/Memcached —
+silently falls back to in-memory cache, even when Test Connection and
+Install both report success.** Verified live on a real WordPress
+install (not a simulation): after `write_config()` → `install_dropin()`
+in the correct order, `wp_using_ext_object_cache()` returns `true` and
+`get_class($wp_object_cache)` correctly shows the plugin's class — but
+reflection on the private `$connected` property shows `false`, and
+`$client` is `null`. Root cause: `lib/object-cache.php` declares
+`$_bepluspb_oc_cfg = array(...)` (parsed from `.bepluspb_oc.json`) at
+file top-level, but WordPress core's `wp_start_object_cache()`
+(`wp-includes/load.php`) loads this file via
+`require_once WP_CONTENT_DIR . '/object-cache.php'` **from inside a
+function**. That makes `$_bepluspb_oc_cfg` a local variable of
+`wp_start_object_cache()`, not a true PHP global — so when
+`wp_cache_init()` later does `global $_bepluspb_oc_cfg;` and
+instantiates `new WP_Object_Cache($_bepluspb_oc_cfg)`, it receives
+`null` instead of the parsed config. The constructor's `_connect()`
+then runs with a `null` config coerced to defaults (no password, wrong
+host assumptions), the connection silently fails, and the catch-all
+`catch (Exception $e)` swallows it — by design (fail-safe so the site
+never breaks), but that same fail-safe is what hides this bug from
+admins. **Fix direction:**
+store the config on a class-level static property
+(`WP_Object_Cache::$config`) set before `new self()`, or write to
+`$GLOBALS['_bepluspb_oc_cfg']` explicitly instead of relying on a bare
+top-level variable — don't depend on `require_once`'s calling scope.
+
+🔴 **Calling `install_dropin()` before the *first* `write_config()` call
+crashes the entire site (WSOD, HTTP 500), not just Object Cache.** If
+`wp-content/.bepluspb_oc.json` doesn't exist yet or still has
+`"enabled": false`, the drop-in's own top-of-file guard
+(`if (empty($_bepluspb_oc_cfg['enabled'])) { require_once
+ABSPATH . WPINC . '/cache.php'; return; }`) loads WordPress core's
+*own* `wp_cache_init()`/`wp_cache_get()`/etc. **inside the drop-in
+file**. Core's `wp_start_object_cache()` then also requires
+`wp-includes/cache.php` in the normal path, or the drop-in's later
+unconditional function definitions collide with what it just required
+— either way the result is `Cannot redeclare function wp_cache_init()`,
+a hard PHP Fatal Error with no admin-facing message, on every single
+page load including `wp-admin`. Only recovery is deleting
+`wp-content/object-cache.php` by hand (SSH/SFTP) — there is no
+in-dashboard undo once the site is down. The AJAX handler
+(`handle_ajax_install_oc()`) happens to always call `write_config()`
+right before `install_dropin()`, which is why this has never surfaced
+through the normal UI click-path — but any programmatic/automated call
+to `install_dropin()` alone (migration script, WP-CLI, another
+plugin/API integration) hits this immediately. **Fix direction:**
+`install_dropin()` itself should refuse to proceed (return an error,
+not attempt the copy) unless a valid enabled config already exists on
+disk, instead of trusting the caller to always sequence the two calls
+correctly.
+
+Both reproduced on `demo-wordpress.minhopsai.com` (PHP 8.4-FPM +
+php8.4-redis, Redis 7.x local with AUTH password) — Redis itself was
+healthy and reachable (`redis-cli PING` and a raw `new Redis();
+->pconnect()->auth()->ping()` all succeeded) throughout; the failures
+are purely in how the drop-in receives/uses its own config, not an
+infra issue.
+
 ## Known future improvements (not scheduled)
 
 _(none currently — WebP/AVIF auto-serve, previously listed here, shipped in v1.0.9; see `class-bepluspb-cdn.php` above.)_
