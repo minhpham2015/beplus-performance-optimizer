@@ -36,8 +36,8 @@ $_bepluspb_oc_cfg = array(
 	'password'              => '',
 	'db'                    => 0,
 	'persistent'            => true,
-	'global_groups'         => array( 'users', 'userlogins', 'useremail', 'usermeta', 'site-transient', 'site-options' ),
-	'non_persistent_groups' => array( 'comment', 'counts', 'plugins' ),
+	'global_groups'         => array( 'userlogins', 'useremail', 'usermeta', 'site-transient', 'site-options' ),
+	'non_persistent_groups' => array( 'users', 'comment', 'counts', 'plugins' ),
 );
 
 $_bepluspb_oc_config_file = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR . '/.bepluspb_oc.json' : '';

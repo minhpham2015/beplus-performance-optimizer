@@ -246,6 +246,55 @@ local with AUTH password) — Redis itself was healthy and reachable
 failures were purely in how the drop-in received/used its own config,
 not an infra issue.
 
+## Known bugs (found via live testing, 2026-09-16) — ✅ FIXED same day
+
+✅ **[FIXED]** Default `global_groups` included `'users'`, which crashed
+every logged-in page load (WSOD on `wp-admin`, cookie auth silently
+broken on the front end) as soon as more than one PHP-FPM
+request/process touched a logged-in user. WordPress core calls
+`wp_cache_add( $user->ID, $user, 'users' )` (see
+`wp-includes/user.php`) — it caches the **actual `WP_User` object**,
+not a scalar/array, in this group. Because `'users'` was listed under
+`global_groups` (meaning: persist to Redis), the object got
+`serialize()`d, sent to Redis, then on the next read
+`unserialize($raw, ['allowed_classes' => false])` (Hard Rule #2 — the
+RCE-prevention rule, correct and must stay) turned it back into an
+**incomplete `stdClass` stub**, not a real `WP_User`. The next line
+that touched a `WP_User`-only property/method
+(`WP_User::init()` in `wp-includes/class-wp-user.php`) then threw
+`Error: The script tried to modify a property on an incomplete
+object`, an uncaught fatal — every time a *different* PHP-FPM worker
+process handled the next logged-in request (same worker's in-request
+`$this->cache` array masked it, which is why this didn't show up in
+the single-request testing that verified the 2026-09-15 fixes).
+Reproduced live: generated a real WP auth cookie
+(`wp_generate_auth_cookie()`), hit `/wp-admin/` and plain page loads
+across several separate `curl` requests with Redis flushed first —
+`wp-content/debug.log` showed the exact fatal above. **Fix applied:**
+moved `'users'` from `global_groups` to `non_persistent_groups` in
+both defaults (`lib/object-cache.php`'s `$_bepluspb_oc_cfg` and
+`beplus-performance-booster.php`'s `bepluspb_default_options()`). This
+keeps `WP_User` objects in the plugin's per-request in-memory array
+(same behavior as WP core's own default object cache for a
+single-server setup) instead of round-tripping them through Redis's
+`unserialize(allowed_classes: false)` — Hard Rule #2 stays untouched
+and enforced, this just stops feeding it a real object it can't safely
+round-trip. `userslugs` (a sibling group) was checked too and is
+already safe — WP core only caches an integer ID there
+(`wp_cache_add( $user->user_nicename, $user->ID, 'userslugs' )`), never
+an object. Re-verified: 5 consecutive fresh page loads + `/wp-admin/`
++ `/wp-login.php` all returned expected codes with an empty
+`debug.log`, and `redis-cli KEYS '*users*'` after the run shows no
+`bepluspb:users:*` key (only the untouched `userslugs`/other groups),
+confirming `users` no longer round-trips through Redis.
+
+**Anyone who installed Object Cache before this fix should flush Redis
+once after upgrading** (`redis-cli FLUSHALL` or use the plugin's
+"Clear Cache" action) to purge any already-corrupted cached
+`WP_User` entries — otherwise the next read of a stale key can still
+throw once before the new config takes over the key's group
+classification for future writes.
+
 ## Known future improvements (not scheduled)
 
 _(none currently — WebP/AVIF auto-serve, previously listed here, shipped in v1.0.9; see `class-bepluspb-cdn.php` above.)_
