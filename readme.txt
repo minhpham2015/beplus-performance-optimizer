@@ -32,6 +32,9 @@ accidentally break the admin panel or your own editing experience.
 * Browser cache and gzip/brotli rules via .htaccess
 * Per-page option to disable the cache for specific posts/pages
 * Custom CDN (pull-zone) URL rewriting for static assets
+* Automatic WebP/AVIF image serving when a matching file already exists
+* Cloudflare integration: one-click cache purge, zone auto-detection via API
+  Token, and Development Mode toggle from wp-admin
 
 == Settings Reference ==
 
@@ -333,6 +336,65 @@ Default: empty
 One URL keyword per line. URLs containing any of these strings stay on your own
 domain instead of being rewritten to the CDN.
 
+**Serve WebP/AVIF Images**
+Default: off
+
+When enabled, JPG/PNG image URLs are swapped for a same-named `.avif` or
+`.webp` file when one already exists next to it and the visitor's browser
+declares support for that format (via the `Accept` header). Prefers AVIF over
+WebP when both are supported and both files exist. This plugin does not
+generate or convert any images itself — it only rewrites the URL when a
+matching file is already present on disk (e.g. created by WordPress core,
+a theme build step, or another optimization/conversion tool).
+
+---
+
+= 🔶 Cloudflare =
+
+Keep Cloudflare's edge cache in sync with this plugin's own cache, and
+control Cloudflare Development Mode, without leaving wp-admin. This does
+not set up Cloudflare as a CDN/DNS proxy for you — it only talks to a
+Cloudflare zone you have already added your domain to. All Cloudflare API
+calls are admin-triggered only (nonce + capability checked, and rate
+limited); nothing is called automatically on a regular front-end page load.
+
+**Enable Cloudflare Integration**
+Default: off
+
+When on, the existing "Clear Cache" button also purges Cloudflare's cache
+for the configured zone, in addition to this plugin's own CSS/JS cache.
+
+**API Token**
+Default: empty
+
+Your Cloudflare API Token (not a Global API Key — legacy Global API Keys
+are not supported). Create one at
+[dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+scoped to Zone > Cache Purge and Zone > Zone Settings. Click **Test
+Connection** to validate the token and auto-detect the matching zone for
+this site's domain — the zone ID/name are never typed in by hand, only
+ever written by a successful Test Connection.
+
+**Matched Zone**
+Read-only, auto-populated by Test Connection.
+
+Shows the Cloudflare zone name and ID that was matched to this site's
+domain. Displays "Not configured" until Test Connection succeeds.
+
+**Purge Cloudflare Now**
+
+Button in the "Cloudflare Cache" card — immediately purges everything on
+the configured zone via the Cloudflare API, independent of the main
+Clear Cache button.
+
+**Development Mode (Turn ON / Turn OFF / Check Status)**
+
+Buttons in the "Development Mode" card — temporarily bypasses Cloudflare's
+cache so origin changes show up immediately, useful while actively editing
+a live site. Cloudflare automatically turns Development Mode off after 3
+hours; "Check Status" always re-queries the live value from Cloudflare
+rather than trusting a locally cached state.
+
 ---
 
 = Per-Page Cache Disable (Meta Box) =
@@ -405,6 +467,13 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 == Changelog ==
 
 = 1.0.9 =
+* New: "Cloudflare" settings tab — connect a Cloudflare zone with an API
+  Token (auto-detects the matching zone for this site's domain via "Test
+  Connection"), purge the Cloudflare edge cache with one click (optionally
+  in sync with the plugin's own Clear Cache button), and turn Cloudflare
+  Development Mode on/off/check status without leaving wp-admin. All calls
+  are admin-triggered only and rate-limited; nothing runs on a normal
+  front-end page load.
 * New: optional "Serve WebP/AVIF Images" toggle in the CDN tab. When
   enabled, JPG/PNG image URLs are swapped for a same-named .avif or .webp
   file when one already exists next to it and the visitor's browser
@@ -413,6 +482,20 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
   any images itself — it only rewrites the URL when a matching file is
   already present on disk (e.g. created by WordPress core, a theme build
   step, or another optimization tool). Off by default.
+* Fixed: Object Cache (Redis) reported "connected" in the settings page
+  but was silently never actually being used — a scoping bug meant the
+  saved config never reached the connection code. Object Cache now
+  actually connects and caches.
+* Fixed: two crashes that could bring down wp-admin (white screen) on
+  sites using the Object Cache: caching the logged-in user (`users` group)
+  or the update-count indicator (`site-transient` group) through Redis
+  could corrupt on read-back. Both groups are now kept out of the
+  persistent Redis cache. **If you already had Object Cache enabled**,
+  clear/flush your Redis cache once after updating to remove any
+  already-corrupted entries.
+* Fixed: `install_dropin()` no longer installs the Object Cache drop-in
+  on a site with no valid saved configuration, which could previously
+  crash the entire site.
 
 = 1.0.8 =
 * Maintenance: `Requires PHP` raised to 8.1 (7.4 reached end-of-life in
@@ -499,8 +582,12 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 == Upgrade Notice ==
 
 = 1.0.9 =
-Optional WebP/AVIF image serving added to the CDN tab (off by default, only
-uses images that already exist — never generates any). No breaking changes.
+New Cloudflare integration (cache purge, Development Mode toggle) and
+optional WebP/AVIF image serving on the CDN tab (both off by default). Fixes
+critical Object Cache bugs: Redis was silently never connecting despite
+reporting success, and caching the logged-in user or update-count indicator
+through Redis could crash wp-admin. If you already had Object Cache
+enabled, flush your Redis cache once after updating.
 
 = 1.0.8 =
 Requires PHP 8.1+ now (was 7.4, now end-of-life). No functional changes.

@@ -6,9 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-09-16
+
 ### Added
+- **Cloudflare API integration** (new `class-bepluspb-cloudflare.php` +
+  "Cloudflare" settings tab). Admin-triggered only via 2 new AJAX handlers
+  (`bepluspb_cf_test_connection`, `bepluspb_cf_purge`) plus a 3rd for
+  Development Mode — no outbound Cloudflare calls happen on a normal
+  front-end page load, mirroring the "no outbound requests from the
+  front-end path" principle already followed by `class-bepluspb-cdn.php`.
+  - `BEPLUSPB_Cloudflare::test_connection_and_fetch_zone()` — validates an
+    API Token and auto-detects the matching zone by this site's domain;
+    zone ID/name are only ever written here, never typed in by hand.
+  - `BEPLUSPB_Cloudflare::purge_all()` — wired into the existing Clear
+    Cache button when `cloudflare_enabled` is on, purging Cloudflare's
+    edge cache alongside the plugin's own CSS/JS cache.
+  - `get_development_mode()` / `set_development_mode()` — toggle/check
+    Cloudflare Development Mode (auto-expires after 3 hours on
+    Cloudflare's side; "Check Status" always re-queries live, never
+    trusts a locally cached value).
+  - API Token stored in `wp_options` only (never a static file, never
+    logged) — same sensitivity handling as the Redis AUTH password (Hard
+    Rule #2).
 - **Cloudflare Purge/Development Mode rate limiting.** `handle_ajax_cf_purge()`
-  and the mutating branches (`on`/`off`) of `handle_ajax_cf_devmode()` now
+  and the mutating branches (`on`/`off`) of `handle_ajax_cf_devmode()`
   enforce a 10-second per-user cooldown via a new
   `check_cloudflare_rate_limit()` helper (transient-backed, same pattern as
   the existing `bepluspb_cache_cleared_*` transient). Protects against an
@@ -17,10 +38,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   unthrottled. Client-side, the Purge/Dev-Mode-On/Dev-Mode-Off buttons now
   disable for the cooldown window on a successful call (re-enabling
   immediately on failure) to match the server-side behavior.
-
-## [1.0.9] - 2026-09-06
-
-### Added
 - **Optional WebP/AVIF image serving** (`cdn_webp_avif` option, CDN tab).
   `BEPLUSPB_CDN::rewrite_url()` (and the two HTML-scanning rewrite paths,
   `rewrite_absolute_urls()`/`rewrite_relative_urls()`) now call new
@@ -46,9 +63,68 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to a visitor whose browser doesn't support that format, since the
   choice is made at render time based on that request's Accept header.
 
+### Fixed
+- **Critical: Object Cache never actually connected to Redis, despite the
+  UI reporting success.** `lib/object-cache.php` read `$_bepluspb_oc_cfg`
+  without an explicit `global $_bepluspb_oc_cfg;` — WordPress core
+  `require_once`s this file from *inside* `wp_start_object_cache()`, so the
+  top-level variable was never a real global in that scope, and
+  `wp_cache_init()` always received `null` instead of the real config. A
+  fail-safe catch-all swallowed the resulting error, so the settings page
+  reported "connected" while Redis was never actually used. Fixed by adding
+  the explicit `global` declaration. Also hardened `install_dropin()`
+  (`class-bepluspb-object-cache.php`) to refuse installing the drop-in
+  unless `.bepluspb_oc.json` already exists AND `enabled=true` — previously
+  a blind copy on a fresh/disabled config could produce a fatal
+  `Cannot redeclare function wp_cache_init()` (WSOD across the whole site,
+  not recoverable from wp-admin). Verified live over real HTTP (not
+  WP-CLI): `connected=true`, real Redis PING succeeded, 39 real cache keys
+  observed in Redis after normal page loads; `install_dropin()` on a clean
+  site with no config now returns a clear error instead of bricking it.
+- **Critical: Object Cache crashed wp-admin (WSOD) whenever the `users`
+  cache group held real `WP_User` objects.** WordPress core caches actual
+  `WP_User` PHP objects (not scalars/arrays) in the `users` group via
+  `wp_cache_add($user->ID, $user, 'users')`. With `users` in
+  `global_groups` (persisted through Redis) and the Hard Rule #2
+  `unserialize(..., ['allowed_classes' => false])` protection in place (a
+  deliberate RCE guard, never to be removed), reading that cached value
+  back produced an incomplete `stdClass` instead of a real `WP_User`,
+  crashing the moment any code touched a `WP_User` property/method — a
+  fatal that only surfaced once a *different* PHP-FPM worker served the
+  next request (the worker that originally cached the object still had it
+  live in its in-request memory, masking the bug in a single-request test).
+  Fixed by moving `users` from `global_groups` to `non_persistent_groups`
+  in both places it's defined (`lib/object-cache.php` and
+  `beplus-performance-booster.php`); Hard Rule #2's `unserialize` guard is
+  untouched. Audited the sibling `userslugs` group and confirmed it is
+  safe — WP core only ever caches a plain integer ID there, never an
+  object. Re-verified with real generated login cookies
+  (`wp_generate_auth_cookie()`) across 5 separate requests plus
+  `/wp-admin/` and `/wp-login.php` after a Redis `FLUSHALL` — clean
+  `debug.log`, no more `users:*` keys in Redis post-fix.
+  **Upgrade note:** sites that had Object Cache installed before this fix
+  should run a Redis `FLUSHALL` once after updating, to clear any
+  already-corrupted cached `WP_User` objects.
+- **Critical: same crash class also affected the `site-transient` group.**
+  `get_site_transient('update_core'/'update_plugins'/'update_themes')`
+  also returns a real `stdClass` object, not a scalar/array — and the
+  admin-bar update-count indicator calls it on *every* wp-admin page load.
+  `site-transient` was also in `global_groups`, so it hit the identical
+  `unserialize(allowed_classes:false)` corruption as the `users` group
+  above. Fixed the same way: moved `site-transient` to
+  `non_persistent_groups`. While auditing the rest of `global_groups`
+  against WordPress core's actual list (`wp-includes/load.php`), also
+  found and fixed a typo: the default group list had `usermeta` but core
+  uses `user_meta` (underscore) — meaning that group had silently never
+  actually applied since the name never matched. Re-verified with real
+  login cookies across 5 separate requests to `/wp-admin/`,
+  `options-general.php`, `plugins.php`, `update-core.php` — all HTTP 200,
+  clean `debug.log`; confirmed no `users`/`site-transient` keys remain in
+  Redis while 47 other legitimate keys continue working normally.
+
 ### Removed
-- "Known future improvements" note in `CLAUDE.md` for this feature (was
-  added 2026-09-06, now implemented — see above).
+- "Known future improvements" note in `CLAUDE.md` for the WebP/AVIF
+  feature (was added 2026-09-06, now implemented — see above).
 
 ## [1.0.8] - 2026-09-06
 
