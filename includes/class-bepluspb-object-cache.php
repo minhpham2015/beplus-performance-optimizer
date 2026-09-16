@@ -75,6 +75,33 @@ class BEPLUSPB_Object_Cache {
 			);
 		}
 
+		// Guard: the drop-in's own top-of-file check falls back to
+		// requiring wp-includes/cache.php when the on-disk config is
+		// missing or has 'enabled' => false. If that require collides
+		// with WordPress core's own load path, every page (including
+		// wp-admin) hard-crashes with "Cannot redeclare function
+		// wp_cache_init()" and there is no in-dashboard recovery. The
+		// AJAX click-path always calls write_config() first so this
+		// never surfaced there — but any other caller (WP-CLI, a
+		// migration script, another integration) must not be allowed
+		// to install the drop-in before a valid enabled config exists.
+		// See CLAUDE.md "Known bugs" (2026-09-15).
+		$cfg_file = self::config_file();
+		if ( ! file_exists( $cfg_file ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'No Object Cache configuration found yet. Save your Redis/Memcached settings first (this writes the config the drop-in needs) before installing.', 'beplus-performance-booster' ),
+			);
+		}
+		$cfg_raw = file_get_contents( $cfg_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$cfg     = $cfg_raw ? json_decode( $cfg_raw, true ) : null;
+		if ( ! is_array( $cfg ) || empty( $cfg['enabled'] ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Object Cache configuration is not enabled. Save your settings with Object Cache turned on first, then install.', 'beplus-performance-booster' ),
+			);
+		}
+
 		// If a drop-in already exists and was NOT installed by us, refuse to overwrite.
 		if ( file_exists( $dst ) && ! self::is_our_dropin( $dst ) ) {
 			return array(

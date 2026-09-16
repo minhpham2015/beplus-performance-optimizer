@@ -4,6 +4,20 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **Cloudflare Purge/Development Mode rate limiting.** `handle_ajax_cf_purge()`
+  and the mutating branches (`on`/`off`) of `handle_ajax_cf_devmode()` now
+  enforce a 10-second per-user cooldown via a new
+  `check_cloudflare_rate_limit()` helper (transient-backed, same pattern as
+  the existing `bepluspb_cache_cleared_*` transient). Protects against an
+  admin double-clicking (or a stuck tab retrying) tripping Cloudflare's own
+  IP-level rate limiting. The read-only `status` dev-mode check is left
+  unthrottled. Client-side, the Purge/Dev-Mode-On/Dev-Mode-Off buttons now
+  disable for the cooldown window on a successful call (re-enabling
+  immediately on failure) to match the server-side behavior.
+
 ## [1.0.9] - 2026-09-06
 
 ### Added

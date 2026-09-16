@@ -52,6 +52,23 @@ checking whether it would break the SVN slug binding).
   This class still never creates/converts images itself — only swaps the
   URL when the file is already present (produced by WP core 6.5+, a theme
   build step, or another plugin/service).
+- `includes/class-bepluspb-cloudflare.php` — Cloudflare API integration,
+  admin-triggered only (never runs on a regular front-end page load):
+  zone lookup by API Token (`test_connection_and_fetch_zone()`), cache
+  purge (`purge_all()`, wired into the existing `handle_clear_cache()` in
+  `class-bepluspb-admin.php` when `cloudflare_enabled` is on — no separate
+  purge button needed for the common case), and Development Mode on/off/
+  status. **API Token auth only** (`Authorization: Bearer`), no legacy
+  Global API Key support. Token/zone are stored as plain `wp_options`
+  fields (`cloudflare_api_token`, `cloudflare_zone_id`, `cloudflare_zone_name`)
+  — deliberately NOT a separate file like `.bepluspb_oc.json`, since a DB
+  option is not servable over HTTP the way a static file is. `zone_id`/
+  `zone_name` are never accepted from the settings form directly (see
+  `sanitize_options()`) — they are only ever written by the "Test
+  Connection" AJAX handler (`handle_ajax_cf_test_connection()`), so a
+  stale/mismatched zone can never be hand-typed. Never logs the token or
+  raw request/response (same sensitivity class as the Object Cache Redis
+  password — see Hard Rule #1 — just DB-stored instead of file-stored).
 - `includes/class-bepluspb-cleanup.php` — despite the name, this only
   dequeues default WP scripts/styles (emoji, embed, block CSS, WooCommerce
   on non-shop pages). It does NOT touch the database. If you add real DB
@@ -156,6 +173,172 @@ before pushing).
 dev-only file/folder at the repo root, add it to that exclude list too, or
 it will accidentally get published to every WordPress site running this
 plugin.
+
+## Known bugs (found via live testing, 2026-09-15) — ✅ FIXED same day
+
+✅ **[FIXED, commit after `100e467`]** Object Cache drop-in never
+actually connected to Redis/Memcached — silently fell back to
+in-memory cache, even when Test Connection and Install both reported
+success. Verified live on a real WordPress install (not a simulation):
+after `write_config()` → `install_dropin()` in the correct order,
+`wp_using_ext_object_cache()` returned `true` and
+`get_class($wp_object_cache)` correctly showed the plugin's class —
+but reflection on the private `$connected` property showed `false`,
+and `$client` was `null`. Root cause: `lib/object-cache.php` declared
+`$_bepluspb_oc_cfg = array(...)` (parsed from `.bepluspb_oc.json`) at
+file top-level, but WordPress core's `wp_start_object_cache()`
+(`wp-includes/load.php`) loads this file via
+`require_once WP_CONTENT_DIR . '/object-cache.php'` **from inside a
+function**. That made `$_bepluspb_oc_cfg` a local variable of
+`wp_start_object_cache()`, not a true PHP global — so when
+`wp_cache_init()` later did `global $_bepluspb_oc_cfg;` and
+instantiated `new WP_Object_Cache($_bepluspb_oc_cfg)`, it received
+`null` instead of the parsed config. The constructor's `_connect()`
+then ran with a `null` config coerced to defaults (no password, wrong
+host assumptions), the connection silently failed, and the catch-all
+`catch (Exception $e)` swallowed it — by design (fail-safe so the site
+never breaks), but that same fail-safe hid this bug from admins.
+**Fix applied:** added an explicit `global $_bepluspb_oc_cfg;`
+declaration immediately before the variable assignment at the top of
+`lib/object-cache.php`, forcing it into real global scope regardless
+of the calling function's scope. Re-verified live via HTTP (not
+WP-CLI, which runs as a separate process and could mask this class of
+bug): after the fix, reflection on `$wp_object_cache` shows
+`connected: true`, `client: Redis`, `ping(): true`, and Redis actually
+receives real WordPress cache keys (`bepluspb:posts:*`,
+`bepluspb:post-queries:*`, etc. — 39 keys after a couple of page
+loads on a fresh `FLUSHALL`).
+
+✅ **[FIXED, same commit]** Calling `install_dropin()` before the
+*first* `write_config()` call used to crash the entire site (WSOD,
+HTTP 500), not just Object Cache. If `wp-content/.bepluspb_oc.json`
+didn't exist yet or still had `"enabled": false`, the drop-in's own
+top-of-file guard (`if (empty($_bepluspb_oc_cfg['enabled'])) {
+require_once ABSPATH . WPINC . '/cache.php'; return; }`) loaded
+WordPress core's *own* `wp_cache_init()`/`wp_cache_get()`/etc.
+**inside the drop-in file**. Core's `wp_start_object_cache()` then
+also required `wp-includes/cache.php` in the normal path, or the
+drop-in's later unconditional function definitions collided with what
+it just required — either way the result was `Cannot redeclare
+function wp_cache_init()`, a hard PHP Fatal Error with no
+admin-facing message, on every single page load including
+`wp-admin`. Only recovery was deleting `wp-content/object-cache.php`
+by hand (SSH/SFTP) — no in-dashboard undo once the site was down. The
+AJAX handler (`handle_ajax_install_oc()`) always calls
+`write_config()` right before `install_dropin()`, which is why this
+never surfaced through the normal UI click-path — but any
+programmatic/automated call to `install_dropin()` alone (migration
+script, WP-CLI, another plugin/API integration) hit this immediately.
+**Fix applied:** `install_dropin()` in
+`includes/class-bepluspb-object-cache.php` now refuses to proceed
+(returns a clear `success: false` error message instead of copying
+the file) unless `wp-content/.bepluspb_oc.json` exists AND parses to
+an array with `enabled` truthy. Re-verified live: calling
+`install_dropin()` on a clean site with no config on disk now returns
+`{"success":false,"message":"No Object Cache configuration found
+yet..."}`, creates no file, and the site stays at HTTP 200 throughout.
+
+Both originally reproduced, and both fixes re-verified, on
+`demo-wordpress.minhopsai.com` (PHP 8.4-FPM + php8.4-redis, Redis 7.x
+local with AUTH password) — Redis itself was healthy and reachable
+(`redis-cli PING` and a raw `new Redis();
+->pconnect()->auth()->ping()` all succeeded) throughout; the original
+failures were purely in how the drop-in received/used its own config,
+not an infra issue.
+
+## Known bugs (found via live testing, 2026-09-16) — ✅ FIXED same day
+
+✅ **[FIXED]** Default `global_groups` included `'users'`, which crashed
+every logged-in page load (WSOD on `wp-admin`, cookie auth silently
+broken on the front end) as soon as more than one PHP-FPM
+request/process touched a logged-in user. WordPress core calls
+`wp_cache_add( $user->ID, $user, 'users' )` (see
+`wp-includes/user.php`) — it caches the **actual `WP_User` object**,
+not a scalar/array, in this group. Because `'users'` was listed under
+`global_groups` (meaning: persist to Redis), the object got
+`serialize()`d, sent to Redis, then on the next read
+`unserialize($raw, ['allowed_classes' => false])` (Hard Rule #2 — the
+RCE-prevention rule, correct and must stay) turned it back into an
+**incomplete `stdClass` stub**, not a real `WP_User`. The next line
+that touched a `WP_User`-only property/method
+(`WP_User::init()` in `wp-includes/class-wp-user.php`) then threw
+`Error: The script tried to modify a property on an incomplete
+object`, an uncaught fatal — every time a *different* PHP-FPM worker
+process handled the next logged-in request (same worker's in-request
+`$this->cache` array masked it, which is why this didn't show up in
+the single-request testing that verified the 2026-09-15 fixes).
+Reproduced live: generated a real WP auth cookie
+(`wp_generate_auth_cookie()`), hit `/wp-admin/` and plain page loads
+across several separate `curl` requests with Redis flushed first —
+`wp-content/debug.log` showed the exact fatal above. **Fix applied:**
+moved `'users'` from `global_groups` to `non_persistent_groups` in
+both defaults (`lib/object-cache.php`'s `$_bepluspb_oc_cfg` and
+`beplus-performance-booster.php`'s `bepluspb_default_options()`). This
+keeps `WP_User` objects in the plugin's per-request in-memory array
+(same behavior as WP core's own default object cache for a
+single-server setup) instead of round-tripping them through Redis's
+`unserialize(allowed_classes: false)` — Hard Rule #2 stays untouched
+and enforced, this just stops feeding it a real object it can't safely
+round-trip. `userslugs` (a sibling group) was checked too and is
+already safe — WP core only caches an integer ID there
+(`wp_cache_add( $user->user_nicename, $user->ID, 'userslugs' )`), never
+an object. Re-verified: 5 consecutive fresh page loads + `/wp-admin/`
++ `/wp-login.php` all returned expected codes with an empty
+`debug.log`, and `redis-cli KEYS '*users*'` after the run shows no
+`bepluspb:users:*` key (only the untouched `userslugs`/other groups),
+confirming `users` no longer round-trips through Redis.
+
+**Anyone who installed Object Cache before this fix should flush Redis
+once after upgrading** (`redis-cli FLUSHALL` or use the plugin's
+"Clear Cache" action) to purge any already-corrupted cached
+`WP_User` entries — otherwise the next read of a stale key can still
+throw once before the new config takes over the key's group
+classification for future writes.
+
+**Follow-up same day:** the `'users'` fix above wasn't the whole
+picture. `wp-admin` still hard-crashed on `options-general.php` (any
+admin page rendering the admin bar's update-count bubble) with the
+exact same `Error: The script tried to modify a property on an
+incomplete object`, this time in
+`wp-admin/includes/update.php`/`wp-includes/update.php`. Root cause is
+identical in kind: `get_site_transient('update_core'|'update_plugins'|
+'update_themes')` returns a real object (`new stdClass()` /
+`(object) array(...)` — see `wp-admin/includes/update.php` line ~256
+and `wp-includes/update.php` line 24) whenever WP core has one cached,
+and `'site-transient'` was still listed in `global_groups` (persisted
+to Redis, same `unserialize(allowed_classes: false)` problem as
+`'users'`). **Fix applied:** moved `'site-transient'` to
+`non_persistent_groups` too, alongside `'users'`. Also caught and
+fixed a latent naming bug while auditing every remaining
+`global_groups` entry against WP core's actual cache-group names
+(`wp-includes/load.php`'s `wp_cache_add_global_groups()` call is the
+authoritative list): the defaults said `'usermeta'` but WordPress core
+uses `'user_meta'` (with an underscore) — the typo meant this group
+was never actually being classified as anything by the drop-in in the
+first place (harmless, since `get_metadata()`'s own cache path doesn't
+hit `wp_cache_get()` under that literal group name either, but still
+corrected for clarity and to not mislead a future reader of this
+config into thinking usermeta caching was covered). `userlogins`,
+`useremail`, and `site-options` were re-checked and confirmed safe —
+WP core only stores scalars (a user ID, or a plain option value) under
+those group names, never an object.
+
+Re-verified with the same live-cookie method: `wp-admin/`,
+`options-general.php`, `plugins.php`, and `update-core.php` (the page
+that reads `update_core` directly) all returned HTTP 200 across 5
+separate `curl` requests with Redis flushed first, `debug.log` stayed
+empty, and `redis-cli KEYS '*'` afterward shows zero
+`bepluspb:users:*` or `bepluspb:site-transient:*` keys while 47 other
+cache keys (posts, options, term-queries, etc.) are present and
+working normally — persistent caching for the safe groups is intact,
+only the two object-bearing groups were pulled out.
+
+**General lesson for future work on this file:** don't assume a
+WordPress core cache group is scalar/array-only without grepping core
+for every `wp_cache_get()`/`wp_cache_set()`/`wp_cache_add()` call
+against that literal group name first. `site-transient` "sounds like"
+it should hold simple transient values and doesn't obviously scream
+"object" the way `users` does — check, don't guess.
 
 ## Known future improvements (not scheduled)
 
