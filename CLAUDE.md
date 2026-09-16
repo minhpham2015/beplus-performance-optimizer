@@ -295,6 +295,51 @@ once after upgrading** (`redis-cli FLUSHALL` or use the plugin's
 throw once before the new config takes over the key's group
 classification for future writes.
 
+**Follow-up same day:** the `'users'` fix above wasn't the whole
+picture. `wp-admin` still hard-crashed on `options-general.php` (any
+admin page rendering the admin bar's update-count bubble) with the
+exact same `Error: The script tried to modify a property on an
+incomplete object`, this time in
+`wp-admin/includes/update.php`/`wp-includes/update.php`. Root cause is
+identical in kind: `get_site_transient('update_core'|'update_plugins'|
+'update_themes')` returns a real object (`new stdClass()` /
+`(object) array(...)` — see `wp-admin/includes/update.php` line ~256
+and `wp-includes/update.php` line 24) whenever WP core has one cached,
+and `'site-transient'` was still listed in `global_groups` (persisted
+to Redis, same `unserialize(allowed_classes: false)` problem as
+`'users'`). **Fix applied:** moved `'site-transient'` to
+`non_persistent_groups` too, alongside `'users'`. Also caught and
+fixed a latent naming bug while auditing every remaining
+`global_groups` entry against WP core's actual cache-group names
+(`wp-includes/load.php`'s `wp_cache_add_global_groups()` call is the
+authoritative list): the defaults said `'usermeta'` but WordPress core
+uses `'user_meta'` (with an underscore) — the typo meant this group
+was never actually being classified as anything by the drop-in in the
+first place (harmless, since `get_metadata()`'s own cache path doesn't
+hit `wp_cache_get()` under that literal group name either, but still
+corrected for clarity and to not mislead a future reader of this
+config into thinking usermeta caching was covered). `userlogins`,
+`useremail`, and `site-options` were re-checked and confirmed safe —
+WP core only stores scalars (a user ID, or a plain option value) under
+those group names, never an object.
+
+Re-verified with the same live-cookie method: `wp-admin/`,
+`options-general.php`, `plugins.php`, and `update-core.php` (the page
+that reads `update_core` directly) all returned HTTP 200 across 5
+separate `curl` requests with Redis flushed first, `debug.log` stayed
+empty, and `redis-cli KEYS '*'` afterward shows zero
+`bepluspb:users:*` or `bepluspb:site-transient:*` keys while 47 other
+cache keys (posts, options, term-queries, etc.) are present and
+working normally — persistent caching for the safe groups is intact,
+only the two object-bearing groups were pulled out.
+
+**General lesson for future work on this file:** don't assume a
+WordPress core cache group is scalar/array-only without grepping core
+for every `wp_cache_get()`/`wp_cache_set()`/`wp_cache_add()` call
+against that literal group name first. `site-transient` "sounds like"
+it should hold simple transient values and doesn't obviously scream
+"object" the way `users` does — check, don't guess.
+
 ## Known future improvements (not scheduled)
 
 _(none currently — WebP/AVIF auto-serve, previously listed here, shipped in v1.0.9; see `class-bepluspb-cdn.php` above.)_

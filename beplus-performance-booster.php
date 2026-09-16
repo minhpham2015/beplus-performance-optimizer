@@ -146,8 +146,8 @@ function bepluspb_default_options() {
 		'object_cache_password'              => '',        // Redis AUTH only.
 		'object_cache_db'                    => 0,         // Redis DB index only.
 		'object_cache_persistent'            => 1,
-		'object_cache_global_groups'         => "userlogins\nuseremail\nusermeta\nsite-transient\nsite-options",
-		'object_cache_non_persistent_groups' => "users\ncomment\ncounts\nplugins",
+		'object_cache_global_groups'         => "userlogins\nuseremail\nuser_meta\nsite-options",
+		'object_cache_non_persistent_groups' => "users\nsite-transient\ncomment\ncounts\nplugins",
 	);
 }
 
