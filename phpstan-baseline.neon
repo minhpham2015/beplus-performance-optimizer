@@ -1,0 +1,73 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-admin.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'
+			identifier: constant.notFound
+			count: 3
+			path: includes/class-bepluspb-admin.php
+
+		-
+			message: '#^Function is_account_page not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: includes/class-bepluspb-cleanup.php
+
+		-
+			message: '#^Function is_cart not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: includes/class-bepluspb-cleanup.php
+
+		-
+			message: '#^Function is_checkout not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: includes/class-bepluspb-cleanup.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-images.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-js.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-js.php
+
+		-
+			message: '#^Constant WP_CONTENT_URL not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-minify.php
+
+		-
+			message: '#^Found usage of constant WP_CONTENT_URL\. Use content_url\(\) instead\.$#'
+			identifier: phpstanWP.wpConstant.fetch
+			count: 1
+			path: includes/class-bepluspb-minify.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/class-bepluspb-object-cache.php
+
+		-
+			message: '#^Action callback returns int but should not return anything\.$#'
+			identifier: return.void
+			count: 2
+			path: includes/class-bepluspb-ucss.php
