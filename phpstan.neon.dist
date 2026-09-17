@@ -1,0 +1,16 @@
+parameters:
+    level: 1
+    paths:
+        - includes
+        - lib
+        - beplus-performance-booster.php
+        - uninstall.php
+    excludePaths:
+        - vendor/*
+        - node_modules/*
+    bootstrapFiles:
+        - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+    - phpstan-baseline.neon
