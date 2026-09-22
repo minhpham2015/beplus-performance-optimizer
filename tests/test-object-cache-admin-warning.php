@@ -63,11 +63,11 @@ require_once dirname( __DIR__ ) . '/includes/class-bepluspb-admin.php';
  *
  * @param bool   $condition Condition.
  * @param string $message   Failure message.
+ * @throws RuntimeException When the assertion fails.
  */
 function assert_true( $condition, $message ) {
 	if ( ! $condition ) {
-		fwrite( STDERR, "FAIL: {$message}\n" );
-		exit( 1 );
+		throw new RuntimeException( esc_html( "FAIL: {$message}" ) );
 	}
 }
 
@@ -97,4 +97,4 @@ assert_true( false !== strpos( $warning_output, 'Memcached' ), 'warning should i
 assert_true( false === strpos( $warning_output, 'secret.internal.example' ), 'warning must not expose the configured host' );
 assert_true( false === strpos( $warning_output, 'super-secret-password' ), 'warning must not expose credentials' );
 
-fwrite( STDOUT, "PASS: 6 assertions\n" );
+echo "PASS: 6 assertions\n";
