@@ -68,8 +68,9 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_ajax_bepluspb_cf_purge', array( __CLASS__, 'handle_ajax_cf_purge' ) );
 		add_action( 'wp_ajax_bepluspb_cf_devmode', array( __CLASS__, 'handle_ajax_cf_devmode' ) );
 
-		// Admin notice shown after a successful cache clear.
+		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_object_cache_warning' ) );
 	}
 
 	// =========================================================================
@@ -3426,6 +3427,35 @@ gzip_min_length 1024;'
 
 		wp_safe_redirect( remove_query_arg( 'bepluspb_cache_cleared', $referrer ) );
 		exit;
+	}
+
+	/**
+	 * Warn administrators when the enabled Object Cache backend is unavailable.
+	 *
+	 * Deliberately reports only the selected driver; connection settings and
+	 * credentials are never included in admin output.
+	 */
+	public static function maybe_show_object_cache_warning() {
+		$status = BEPLUSPB_Object_Cache::get_status();
+
+		if ( empty( $status['enabled_in_settings'] ) || ! empty( $status['extension_available'] ) ) {
+			return;
+		}
+
+		$driver = 'memcached' === $status['driver'] ? 'Memcached' : 'Redis';
+		?>
+		<div class="notice notice-warning">
+			<p>
+				<?php
+				printf(
+					/* translators: %s: Redis or Memcached. */
+					esc_html__( 'Beplus Performance Booster: Object Cache is enabled, but the PHP %s extension is unavailable. Persistent object caching is not active; install/enable the extension or disable Object Cache.', 'beplus-performance-booster' ),
+					esc_html( $driver )
+				);
+				?>
+			</p>
+		</div>
+		<?php
 	}
 
 	/**
