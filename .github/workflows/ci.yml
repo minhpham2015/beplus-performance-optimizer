@@ -95,8 +95,14 @@ jobs:
             exit 1
           fi
 
-      - name: Run Object Cache admin-warning regression tests
-        run: php tests/test-object-cache-admin-warning.php
+  object-cache-warning-test:
+    name: Object Cache Admin Warning Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run without Redis/Memcached PHP extensions
+        run: php -n tests/test-object-cache-admin-warning.php
 
   wordpress-compatibility:
     name: WordPress 7.1.1 Activation
