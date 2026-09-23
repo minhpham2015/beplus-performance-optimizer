@@ -111,7 +111,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run standalone asset-cache tests
-        run: php -n tests/test-asset-cache-regression.php
+        run: |
+          php -n tests/test-asset-cache-regression.php
+          php -n -d disable_functions=link tests/test-asset-cache-regression.php
 
   wordpress-compatibility:
     name: WordPress 7.1.1 Activation

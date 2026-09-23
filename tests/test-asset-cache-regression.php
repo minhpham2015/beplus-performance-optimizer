@@ -94,7 +94,11 @@ $d = BEPLUSPB_CACHE_DIR . 'ucss-page-d-style-deadbeef00.css';
 
 assert_true( BEPLUSPB_UCSS::write_deduplicated_cache( $a, '.same{color:red}' ), 'first UCSS write must succeed' );
 assert_true( BEPLUSPB_UCSS::write_deduplicated_cache( $b, '.same{color:red}' ), 'duplicate UCSS write must succeed' );
-assert_true( fileinode( $a ) === fileinode( $b ), 'identical UCSS must share one inode through a hard link' );
+if ( function_exists( 'link' ) ) {
+	assert_true( fileinode( $a ) === fileinode( $b ), 'identical UCSS must share one inode through a hard link' );
+} else {
+	assert_true( hash_file( 'sha256', $a ) === hash_file( 'sha256', $b ), 'hard-link-disabled fallback must preserve identical content' );
+}
 assert_true( BEPLUSPB_UCSS::write_deduplicated_cache( $c, '.different{color:blue}' ), 'different UCSS write must succeed' );
 assert_true( fileinode( $a ) !== fileinode( $c ), 'different UCSS must not share an inode' );
 

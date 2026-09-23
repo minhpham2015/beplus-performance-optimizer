@@ -418,7 +418,7 @@ class BEPLUSPB_UCSS {
 				if ( $candidate === $cache_file || ! is_file( $candidate ) || filesize( $candidate ) !== strlen( $content ) ) {
 					continue;
 				}
-				if ( hash_file( 'sha256', $candidate ) === $content_hash ) {
+				if ( function_exists( 'link' ) && hash_file( 'sha256', $candidate ) === $content_hash ) {
 					wp_delete_file( $temp_file );
 					$prepared = @link( $candidate, $temp_file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 					if ( $prepared && hash_file( 'sha256', $temp_file ) !== $content_hash ) {
