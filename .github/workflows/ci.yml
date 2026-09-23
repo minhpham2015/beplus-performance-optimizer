@@ -115,6 +115,24 @@ jobs:
           php -n tests/test-asset-cache-regression.php
           php -n -d disable_functions=link tests/test-asset-cache-regression.php
 
+  delay-js-regression:
+    name: Delay JS Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone Delay JS tests
+        run: php -n tests/test-delay-js-regression.php
+
+  buffer-nesting-regression:
+    name: Output Buffer Nesting (LIFO) Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone buffer-nesting tests
+        run: php -n tests/test-buffer-nesting-regression.php
+
   wordpress-compatibility:
     name: WordPress 7.1.1 Activation
     runs-on: ubuntu-latest

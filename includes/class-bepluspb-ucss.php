@@ -51,6 +51,17 @@ class BEPLUSPB_UCSS {
 	 */
 	private static $buffering = false;
 
+	/**
+	 * The ob_get_level() value recorded immediately before buffer_start()'s
+	 * ob_start() call. Used by buffer_end() to verify it is closing exactly
+	 * the buffer it opened, not an inner buffer opened by another feature
+	 * (e.g. Delay JS advanced mode) that hasn't been closed yet. See
+	 * BEPLUSPB_JS's own $buffer_level docblock for the bug this prevents.
+	 *
+	 * @var int|null
+	 */
+	private static $buffer_level = null;
+
 	// -------------------------------------------------------------------------
 	// Bootstrap
 	// -------------------------------------------------------------------------
@@ -315,10 +326,13 @@ class BEPLUSPB_UCSS {
 	 * Start buffering the full page output.
 	 */
 	public static function buffer_start() {
+		self::$buffer_level = null;
+
 		if ( is_admin() ) {
 			return;
 		}
-		self::$buffering = true;
+		self::$buffering    = true;
+		self::$buffer_level = ob_get_level();
 		ob_start();
 	}
 
@@ -327,9 +341,18 @@ class BEPLUSPB_UCSS {
 	 * used-only CSS caches for the stylesheets seen on this request.
 	 */
 	public static function buffer_end() {
-		if ( ! self::$buffering || ob_get_level() < 1 ) {
+		// Only close the exact buffer level this class itself opened
+		// (level + 1). Using an exact match instead of a "< 1" check
+		// prevents accidentally closing an inner buffer opened by another
+		// feature (e.g. Delay JS advanced mode) that hasn't finished yet —
+		// see BEPLUSPB_JS's $buffer_level docblock for the failure mode
+		// this used to cause.
+		if ( ! self::$buffering || null === self::$buffer_level || ob_get_level() !== self::$buffer_level + 1 ) {
 			return;
 		}
+
+		self::$buffering    = false;
+		self::$buffer_level = null;
 
 		$html = ob_get_clean();
 		if ( false === $html ) {
