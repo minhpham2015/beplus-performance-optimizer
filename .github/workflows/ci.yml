@@ -104,6 +104,15 @@ jobs:
       - name: Run without Redis/Memcached PHP extensions
         run: php -n tests/test-object-cache-admin-warning.php
 
+  asset-cache-regression:
+    name: CSS/JS and UCSS Cache Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone asset-cache tests
+        run: php -n tests/test-asset-cache-regression.php
+
   wordpress-compatibility:
     name: WordPress 7.1.1 Activation
     runs-on: ubuntu-latest
