@@ -6,6 +6,81 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-09-23
+
+### Fixed
+- **Delay JS (Advanced mode) rewrite silently discarded when Remove Unused
+  CSS was also enabled.** Both features open a nested PHP output buffer on
+  `template_redirect`: `BEPLUSPB_UCSS` opens first (priority 0, outer),
+  `BEPLUSPB_JS::advanced_buffer_start()` opens last (priority `PHP_INT_MAX`,
+  innermost). On `shutdown`, `BEPLUSPB_UCSS::buffer_end()` used to check
+  only `ob_get_level() < 1` — true whenever *any* buffer was open, not
+  specifically the one it had opened — and ran before Delay JS's own buffer
+  had been explicitly closed. That let it `ob_get_clean()` the wrong
+  (inner, Delay JS) buffer: PHP still invoked `advanced_rewrite()` as a
+  side effect of closing the buffer, but the CLEAN semantics discarded its
+  rewritten `<script>` output rather than returning it, so the client
+  always received the un-rewritten, un-delayed page — the setting appeared
+  to do nothing on any site running both features. Reproduced live on
+  `demo-wordpress.minhopsai.com`: `curl` showed 0 occurrences of
+  `type="javascript/blocked"` in the response despite `js_delay=1`,
+  `js_delay_mode=advanced` being active, confirmed via targeted
+  `error_log()` instrumentation showing `advanced_rewrite()` *did* run and
+  produce the correctly rewritten buffer, but the bytes reaching the client
+  were the original, unmodified 65747-byte buffer, not the rewritten
+  79413-byte one.
+  **Fix:** `BEPLUSPB_JS` now records its own `ob_get_level()` before
+  opening its buffer (mirroring the existing `$buffer_level` pattern
+  already used by `BEPLUSPB_HTML`/`BEPLUSPB_CDN`) and closes it explicitly
+  via a new `advanced_buffer_end()` hooked on `shutdown` at the lowest
+  possible priority (`-PHP_INT_MAX`) using `ob_end_flush()` — guaranteeing
+  it is always the first buffer closed, in correct LIFO order, and that
+  the rewritten content (not the original) reaches the next buffer level.
+  `BEPLUSPB_UCSS::buffer_end()` was also hardened to the same exact-level
+  check already used by `BEPLUSPB_HTML`/`BEPLUSPB_CDN`
+  (`ob_get_level() !== self::$buffer_level + 1`), so it can never again
+  accidentally close a buffer it did not open, regardless of which other
+  feature is active. Added `tests/test-buffer-nesting-regression.php`
+  (RED-then-GREEN reproduction of the exact bug, now in CI) and new
+  debug-log instrumentation (see below) so a similar regression is caught
+  immediately instead of silently shipping.
+- **Delay JS (Simple mode) dropped `type`, `integrity`, `crossorigin`,
+  `nonce`, and `referrerpolicy` attributes when restoring a delayed
+  script.** `BEPLUSPB_JS::delay_scripts()` stripped the original `type`
+  attribute (to swap in `type="text/plain"`) but never preserved it
+  anywhere, and `assets/js/delay.js` only ever copied `src` onto the
+  script element it recreated after user interaction. A script originally
+  marked `type="module"` came back as a plain classic script (breaking
+  `import`/`export` and module execution-order guarantees), and any script
+  using Subresource Integrity (`integrity`/`crossorigin`) or a
+  nonce-based Content-Security-Policy (`nonce`) lost that protection/
+  eligibility entirely on restore — SRI-protected scripts could silently
+  stop being verified, and CSP-nonced scripts could be blocked by the
+  browser after restore.
+  **Fix:** `delay_scripts()` now captures the original `type` (if any)
+  into a new `data-bepluspb-type` attribute before stripping it, and
+  `delay.js`'s `_bepluspbLoadAll()` sets `s.type` from that attribute and
+  copies `integrity`/`crossorigin`/`nonce`/`referrerpolicy` straight from
+  the placeholder onto the recreated `<script>` element. Added
+  `tests/test-delay-js-regression.php` (now in CI) asserting all of the
+  above survive a round-trip through `delay_scripts()`.
+
+### Added
+- Debug-log instrumentation (`error_log()`, WordPress `WP_DEBUG_LOG`
+  convention — silent unless debug logging is enabled) in
+  `BEPLUSPB_JS::advanced_buffer_start()`/`advanced_buffer_end()` recording
+  buffer open/close level mismatches, so a future conflict with another
+  plugin's own output buffering shows up in `debug.log` immediately
+  instead of silently discarding output like this bug did.
+- `tests/test-buffer-nesting-regression.php` — standalone regression test
+  reproducing the exact nested-buffer LIFO-ordering bug above (RED without
+  the fix, GREEN with it); wired into CI as a dedicated
+  `buffer-nesting-regression` job.
+- `tests/test-delay-js-regression.php` — standalone regression test
+  covering Advanced mode's buffer registration and Simple mode's
+  attribute-preservation on restore; wired into CI as a dedicated
+  `delay-js-regression` job.
+
 ## [1.0.9] - 2026-09-16
 
 ### Added

@@ -95,6 +95,80 @@ jobs:
             exit 1
           fi
 
+  object-cache-warning-test:
+    name: Object Cache Admin Warning Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run without Redis/Memcached PHP extensions
+        run: php -n tests/test-object-cache-admin-warning.php
+
+  asset-cache-regression:
+    name: CSS/JS and UCSS Cache Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone asset-cache tests
+        run: |
+          php -n tests/test-asset-cache-regression.php
+          php -n -d disable_functions=link tests/test-asset-cache-regression.php
+
+  delay-js-regression:
+    name: Delay JS Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone Delay JS tests
+        run: php -n tests/test-delay-js-regression.php
+
+  buffer-nesting-regression:
+    name: Output Buffer Nesting (LIFO) Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run standalone buffer-nesting tests
+        run: php -n tests/test-buffer-nesting-regression.php
+
+  wordpress-compatibility:
+    name: WordPress 7.1.1 Activation
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: wp-cli
+
+      - name: Install WordPress 7.1.1 and activate plugin
+        run: |
+          wp core download --version=7.1.1 --path=/tmp/wordpress --skip-content
+          wp config create --path=/tmp/wordpress --dbname=wordpress_test --dbuser=root --dbpass=root --dbhost=127.0.0.1
+          wp core install --path=/tmp/wordpress --url=http://localhost --title=CI --admin_user=admin --admin_password=ci-password --admin_email=ci@example.com
+          mkdir -p /tmp/wordpress/wp-content/plugins
+          ln -s "$GITHUB_WORKSPACE" /tmp/wordpress/wp-content/plugins/beplus-performance-optimizer
+          wp plugin activate beplus-performance-optimizer --path=/tmp/wordpress
+          wp plugin deactivate beplus-performance-optimizer --path=/tmp/wordpress
+
   security-regression-guard:
     name: Security Regression Guard (v1.0.5 fixes)
     runs-on: ubuntu-latest

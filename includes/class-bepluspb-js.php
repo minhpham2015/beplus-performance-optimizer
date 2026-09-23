@@ -21,6 +21,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_JS {
 
+	/**
+	 * The ob_get_level() value recorded immediately before advanced mode's
+	 * ob_start() call.
+	 *
+	 * Delay JS (advanced) opens its output buffer LAST (template_redirect at
+	 * PHP_INT_MAX, after UCSS/HTML/CDN have already opened theirs), so on
+	 * shutdown it is the INNERMOST buffer on the stack and MUST close FIRST
+	 * — otherwise an outer feature's buffer_end() (e.g. UCSS, which used to
+	 * pop whatever buffer happened to be on top without verifying the exact
+	 * level) can pop Delay JS's still-open buffer instead of its own,
+	 * discarding the rewritten <script> output and ending the response
+	 * before the outer feature ever runs its own buffer_end(). See
+	 * advanced_buffer_end() below, hooked at the lowest shutdown priority so
+	 * it always runs before UCSS/HTML/CDN's shutdown handlers.
+	 *
+	 * @var int|null
+	 */
+	private static $buffer_level = null;
+
 	// -------------------------------------------------------------------------
 	// Boot
 	// -------------------------------------------------------------------------
@@ -145,14 +164,24 @@ class BEPLUSPB_JS {
 				$src    = $m[3];
 				$after  = $m[4];
 
+				$original_type = null;
+				if ( preg_match( '/\s+type=["\']([^"\']*)["\']/', $before . $after, $type_match ) ) {
+					$original_type = $type_match[1];
+				}
+
 				$before = preg_replace( '/\s*type=["\'][^"\']*["\']/', '', $before );
 				$after  = preg_replace( '/\s*type=["\'][^"\']*["\']/', '', $after );
+
+				$type_data_attr = ( null !== $original_type && '' !== $original_type )
+					? ' data-bepluspb-type="' . esc_attr( $original_type ) . '"'
+					: '';
 
 				return '<script' . $before . $after
 					. ' type="text/plain"'
 					. ' data-bepluspb-delay="1"'
 					. ' data-bepluspb-handle="' . esc_attr( $handle ) . '"'
 					. ' data-bepluspb-src="' . esc_url( $src ) . '"'
+					. $type_data_attr
 					. '>';
 			},
 			$tag
@@ -190,12 +219,16 @@ class BEPLUSPB_JS {
 	/**
 	 * Start the output buffer for the advanced delay rewriter.
 	 * Hooks into template_redirect at maximum priority so it runs last,
-	 * wrapping all other output.
+	 * wrapping all other output — meaning its buffer is innermost and must
+	 * be closed FIRST on shutdown (see advanced_buffer_end()).
 	 *
 	 * @param array $opts Plugin options.
 	 */
 	public static function init_advanced_delay( $opts ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- kept for call-site symmetry with the other init_*($opts) registration methods; this one doesn't need $opts itself.
 		add_action( 'template_redirect', array( __CLASS__, 'advanced_buffer_start' ), PHP_INT_MAX );
+		// Lowest possible priority: this buffer is innermost, so it must
+		// flush before any outer feature's own shutdown buffer_end() runs.
+		add_action( 'shutdown', array( __CLASS__, 'advanced_buffer_end' ), -PHP_INT_MAX );
 	}
 
 	/**
@@ -203,11 +236,50 @@ class BEPLUSPB_JS {
 	 * Bails for REST, JSON, login page, AMP, and page-builder preview contexts.
 	 */
 	public static function advanced_buffer_start() {
+		self::$buffer_level = null;
+
 		if ( BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return;
 		}
 
+		self::$buffer_level = ob_get_level();
 		ob_start( array( __CLASS__, 'advanced_rewrite' ) );
+	}
+
+	/**
+	 * Close the advanced-delay output buffer explicitly on shutdown, at the
+	 * lowest possible priority so it always runs BEFORE any outer feature's
+	 * own shutdown buffer_end() (UCSS, HTML, CDN all open their plain
+	 * ob_start() earlier, during template_redirect, so this buffer is
+	 * always innermost and must be the first one flushed — see the
+	 * $buffer_level docblock above for the failure mode this prevents).
+	 *
+	 * Only closes the exact buffer level this class itself opened, mirroring
+	 * the same-pattern guard used by BEPLUSPB_HTML/BEPLUSPB_CDN/BEPLUSPB_UCSS,
+	 * so it never accidentally flushes a buffer opened by another plugin.
+	 */
+	public static function advanced_buffer_end() {
+		if ( null === self::$buffer_level || ob_get_level() !== self::$buffer_level + 1 ) {
+			if ( null !== self::$buffer_level && function_exists( 'error_log' ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional WP_DEBUG_LOG diagnostic, not left-over debugging; helps diagnose a future conflict with another plugin's own output buffering (see CHANGELOG 1.0.10).
+				error_log(
+					sprintf(
+						'[BEPLUSPB] Delay JS (advanced): expected to close output buffer at level %d but current level is %d — another plugin/theme may have opened or closed an output buffer unexpectedly; delayed scripts on this page may not have been rewritten.',
+						(int) self::$buffer_level + 1,
+						ob_get_level()
+					)
+				);
+			}
+			self::$buffer_level = null;
+			return;
+		}
+
+		self::$buffer_level = null;
+
+		// ob_end_flush() (not ob_get_clean()) so the advanced_rewrite()
+		// callback's return value is what actually reaches the next buffer
+		// level / the client, instead of being discarded.
+		ob_end_flush();
 	}
 
 	/**

@@ -20,15 +20,27 @@
 		return false;
 	}
 
+	var _bepluspbCopyAttrs = [ 'integrity', 'crossorigin', 'nonce', 'referrerpolicy' ];
+
 	function _bepluspbLoadAll() {
 		if ( _bepluspbLoaded ) return;
 		_bepluspbLoaded = true;
 
 		var delayed = document.querySelectorAll( 'script[data-bepluspb-delay="1"]' );
 		delayed.forEach( function ( placeholder ) {
-			var src = placeholder.getAttribute( 'data-bepluspb-src' ) || '';
+			var src  = placeholder.getAttribute( 'data-bepluspb-src' ) || '';
+			var type = placeholder.getAttribute( 'data-bepluspb-type' );
 			if ( src && ! _bepluspbIsExcluded( src ) ) {
-				var s   = document.createElement( 'script' );
+				var s = document.createElement( 'script' );
+				if ( type ) {
+					s.type = type;
+				}
+				_bepluspbCopyAttrs.forEach( function ( attr ) {
+					var value = placeholder.getAttribute( attr );
+					if ( value !== null ) {
+						s.setAttribute( attr, value );
+					}
+				} );
 				s.src   = src;
 				s.async = false;
 				document.body.appendChild( s );
