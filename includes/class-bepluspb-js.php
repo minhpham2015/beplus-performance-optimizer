@@ -260,6 +260,17 @@ class BEPLUSPB_JS {
 	 */
 	public static function advanced_buffer_end() {
 		if ( null === self::$buffer_level || ob_get_level() !== self::$buffer_level + 1 ) {
+			if ( null !== self::$buffer_level && function_exists( 'error_log' ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional WP_DEBUG_LOG diagnostic, not left-over debugging; helps diagnose a future conflict with another plugin's own output buffering (see CHANGELOG 1.0.10).
+				error_log(
+					sprintf(
+						'[BEPLUSPB] Delay JS (advanced): expected to close output buffer at level %d but current level is %d — another plugin/theme may have opened or closed an output buffer unexpectedly; delayed scripts on this page may not have been rewritten.',
+						(int) self::$buffer_level + 1,
+						ob_get_level()
+					)
+				);
+			}
+			self::$buffer_level = null;
 			return;
 		}
 

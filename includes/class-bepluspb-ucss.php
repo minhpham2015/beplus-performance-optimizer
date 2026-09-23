@@ -348,6 +348,18 @@ class BEPLUSPB_UCSS {
 		// see BEPLUSPB_JS's $buffer_level docblock for the failure mode
 		// this used to cause.
 		if ( ! self::$buffering || null === self::$buffer_level || ob_get_level() !== self::$buffer_level + 1 ) {
+			if ( self::$buffering && null !== self::$buffer_level && function_exists( 'error_log' ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- intentional WP_DEBUG_LOG diagnostic, not left-over debugging; helps diagnose a future conflict with another plugin's own output buffering (see CHANGELOG 1.0.10).
+				error_log(
+					sprintf(
+						'[BEPLUSPB] Remove Unused CSS: expected to close output buffer at level %d but current level is %d — another plugin/theme may have opened or closed an output buffer unexpectedly; used-only CSS was not regenerated for this page.',
+						(int) self::$buffer_level + 1,
+						ob_get_level()
+					)
+				);
+			}
+			self::$buffering    = false;
+			self::$buffer_level = null;
 			return;
 		}
 

@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1
-Stable tag: 1.0.9
+Stable tag: 1.0.10
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -465,6 +465,22 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.0.10 =
+* Fix: Delay JS (Advanced mode) could silently do nothing when Remove
+  Unused CSS was also enabled. Both features open a nested PHP output
+  buffer; Remove Unused CSS's shutdown handler used a weak check that
+  could close Delay JS's still-open inner buffer first and discard its
+  rewritten output before the real page content was delivered — sites
+  received the original, un-delayed scripts even though the setting was
+  on. Both buffers now close in the correct order and Remove Unused CSS
+  verifies it is closing exactly its own buffer before doing so.
+* Fix: Delay JS (Simple mode) now preserves a script's original `type`
+  (e.g. `module`) plus `integrity`, `crossorigin`, `nonce`, and
+  `referrerpolicy` attributes when the script is restored after user
+  interaction. Previously these were dropped, which could break ES
+  module scripts and scripts protected by Subresource Integrity or a
+  nonce-based Content-Security-Policy.
 
 = 1.0.9 =
 * New: "Cloudflare" settings tab — connect a Cloudflare zone with an API
