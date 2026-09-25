@@ -2,8 +2,8 @@
 Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
-Tested up to: 7.1
-Stable tag: 1.0.10
+Tested up to: 7.1.1
+Stable tag: 1.0.11
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -465,6 +465,13 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.0.11 =
+* Fix: an internal diagnostic log message related to the 1.0.10 buffer-order
+  fix could write to the PHP error log even when debug logging was not
+  enabled. It now only logs when the site owner has explicitly turned on
+  WordPress debug logging (WP_DEBUG_LOG). No visible behavior change for
+  normal site operation.
 
 = 1.0.10 =
 * Fix: Delay JS (Advanced mode) could silently do nothing when Remove

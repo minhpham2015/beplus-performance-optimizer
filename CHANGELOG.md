@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-09-25
+
+### Fixed
+- **Buffer-mismatch diagnostic `error_log()` fired unconditionally on
+  production, contradicting its own "intentional WP_DEBUG_LOG diagnostic"
+  comment.** Both `BEPLUSPB_UCSS::buffer_end()` and
+  `BEPLUSPB_JS::advanced_buffer_end()` (added in 1.0.10 alongside the
+  buffer-nesting LIFO fix) guarded the diagnostic with only
+  `function_exists( 'error_log' )` — PHP's built-in `error_log()` always
+  exists, so that check never actually gated anything: the diagnostic
+  would write to the PHP error log on every site where the rare
+  buffer-mismatch condition occurred, regardless of `WP_DEBUG`/
+  `WP_DEBUG_LOG` settings. Found during the 2026-09-25 daily plugin
+  maintenance check. Fixed by additionally requiring
+  `defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG`, matching the existing
+  gating pattern already used elsewhere in the plugin (see
+  `BEPLUSPB_Minify`'s debug logging). Added a standalone regression test
+  (`tests/test-buffer-mismatch-debug-log-gate.php`) asserting both call
+  sites check `WP_DEBUG_LOG` and do not rely solely on
+  `function_exists( 'error_log' )`.
+
 ## [1.0.10] - 2026-09-23
 
 ### Fixed
