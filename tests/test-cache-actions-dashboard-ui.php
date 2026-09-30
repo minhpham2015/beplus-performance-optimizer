@@ -6,8 +6,8 @@
  */
 
 $root  = dirname( __DIR__ );
-$admin = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
-$css   = file_get_contents( $root . '/assets/css/admin.css' );
+$admin = file_get_contents( $root . '/includes/class-bepluspb-admin.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$css   = file_get_contents( $root . '/assets/css/admin.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 
 $dashboard_start = strpos( $admin, 'id="bepluspb-cache-actions"' );
 $dashboard_end   = strpos( $admin, '<!-- Recommended Settings v2 -->', $dashboard_start );
@@ -52,7 +52,7 @@ $failed = array_keys(
 	)
 );
 if ( $failed ) {
-	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL );
+	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- standalone CLI test reports assertion failures to STDERR; WP_Filesystem is unavailable under php -n.
 	exit( 1 );
 }
 echo 'PASS: ' . count( $checks ) . " dashboard cache action UI contracts\n";

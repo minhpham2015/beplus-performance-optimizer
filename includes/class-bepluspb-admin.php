@@ -3177,6 +3177,7 @@ gzip_min_length 1024;'
 					.then(function(res){
 						resultEl.style.color = res.success ? '#46b450' : '#dc3232';
 						resultEl.textContent = (res.data && res.data.message) ? res.data.message : '—';
+						if ( res.success && onSuccess ) { onSuccess(res); }
 					})
 					.catch(function(){ resultEl.textContent = 'Request failed.'; });
 			}
@@ -3887,14 +3888,7 @@ gzip_min_length 1024;'
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
 		}
 
-		$result = BEPLUSPB_Object_Cache::install_dropin();
-		if ( $result['success'] && ! BEPLUSPB_Object_Cache::write_config( bepluspb_get_options() ) ) {
-			BEPLUSPB_Object_Cache::uninstall_dropin();
-			$result = array(
-				'success' => false,
-				'message' => __( 'Configuration write failed; installation was rolled back.', 'beplus-performance-booster' ),
-			);
-		}
+		$result = BEPLUSPB_Object_Cache::install_with_config( bepluspb_get_options() );
 
 		if ( $result['success'] ) {
 			wp_send_json_success( $result );

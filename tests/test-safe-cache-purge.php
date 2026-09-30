@@ -6,10 +6,10 @@
  */
 
 $root   = dirname( __DIR__ );
-$admin  = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
-$minify = file_get_contents( $root . '/includes/class-bepluspb-minify.php' );
-$object = file_get_contents( $root . '/includes/class-bepluspb-object-cache.php' );
-$js     = file_get_contents( $root . '/assets/js/admin.js' );
+$admin  = file_get_contents( $root . '/includes/class-bepluspb-admin.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$minify = file_get_contents( $root . '/includes/class-bepluspb-minify.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$object = file_get_contents( $root . '/includes/class-bepluspb-object-cache.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$js     = file_get_contents( $root . '/assets/js/admin.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 $checks = array(
 	'new all POST action'               => strpos( $admin, 'admin_post_bepluspb_purge_all_cache' ) !== false,
 	'new object POST action'            => strpos( $admin, 'admin_post_bepluspb_purge_object_cache' ) !== false,
@@ -36,6 +36,6 @@ $failed = array_keys(
 	)
 );
 if ( $failed ) {
-	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL );
+	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- standalone CLI test reports assertion failures to STDERR; WP_Filesystem is unavailable under php -n.
 	exit( 1 ); }
 echo 'PASS: ' . count( $checks ) . " safe cache purge contracts\n";

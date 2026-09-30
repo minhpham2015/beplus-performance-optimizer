@@ -25,13 +25,13 @@ function fixture() {
 	mkdir( $root, 0700, true );
 	mkdir( "$root/plugin", 0700 );
 	$foreign = "<?php\n// Redis Object Cache by Vendor\n";
-	$ours    = "<?php\n// Beplus Performance Booster Object Cache Drop-in\n";
+	$ours    = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', 'fixture-build' );\n";
 	file_put_contents( "$root/object-cache.php", $foreign );
 	file_put_contents( "$root/plugin/object-cache.php", $ours );
 	return array( $root, "$root/plugin/object-cache.php", $foreign, $ours );
 }
 function wf( $r, $s, $hooks = array() ) {
-	return new BEPLUSPB_Dropin_Workflow( $r, $s, array_merge( array( 'backend_test' => fn() => array( 'success' => true ) ), $hooks ) ); }
+	return new BEPLUSPB_Dropin_Workflow( $r, $s, array_merge( array( 'backend_test' => fn() => array( 'success' => true ), 'health_probe' => fn() => true, 'manifest_key' => fn() => str_repeat( 'k', 32 ) ), $hooks ) ); }
 $n                            = 0;
 list($r, $s, $foreign, $ours) = fixture();
 $w                            = wf( $r, $s );
@@ -55,7 +55,7 @@ $a                            = $w->replace();
 ok( $a['success'], 'atomic replacement' );
 ok( $ours === file_get_contents( "$r/object-cache.php" ), 'replacement bytes' );
 ok( is_file( $a['backup'] ), 'backup exists' );
-ok( hash_file( 'sha256', $a['backup'] ) === hash( 'sha256', $foreign ), 'backup checksum' );
+ok( hash( 'sha256', base64_decode( file_get_contents( $a['backup'] ), true ) ) === hash( 'sha256', $foreign ), 'backup checksum' );
 ok( is_file( "$r/bepluspb-backups/restore-manifest.json" ), 'manifest durable' );
 $meta = json_decode( file_get_contents( $a['backup'] . '.json' ), true );
 ok( ! isset( $meta['password'] ) && false === strpos( json_encode( $meta ), 'secret' ), 'metadata no secrets' );
@@ -108,7 +108,7 @@ list($r, $s) = fixture();
 $w           = wf( $r, $s ); for ( $i = 0;$i < 6;$i++ ) {
 	file_put_contents( "$r/object-cache.php", "<?php // foreign $i" );
 	$w->backup_file( "$r/object-cache.php", 'foreign' );
-} $files = glob( "$r/bepluspb-backups/*.php" );
+} $files = glob( "$r/bepluspb-backups/*.bak" );
 ok( count( $files ) <= 3, 'retention bounded' );
 list($r, $s) = fixture();
 file_put_contents( $s, '<?php // invalid' );

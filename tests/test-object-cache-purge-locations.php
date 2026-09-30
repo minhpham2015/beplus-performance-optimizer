@@ -6,7 +6,7 @@
  */
 
 $root  = dirname( __DIR__ );
-$admin = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
+$admin = file_get_contents( $root . '/includes/class-bepluspb-admin.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 
 $dashboard_start = strpos( $admin, 'function render_section_dashboard' );
 $dashboard_end   = strpos( $admin, 'function render_section_cache_files', $dashboard_start );
@@ -43,7 +43,7 @@ $failed = array_keys(
 	)
 );
 if ( $failed ) {
-	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL );
+	fwrite( STDERR, 'FAIL: ' . implode( ', ', $failed ) . PHP_EOL ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- standalone CLI test reports assertion failures to STDERR; WP_Filesystem is unavailable under php -n.
 	exit( 1 );
 }
 echo 'PASS: ' . count( $checks ) . " object-cache purge location contracts\n";

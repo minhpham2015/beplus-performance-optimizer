@@ -57,6 +57,48 @@ class BEPLUSPB_Object_Cache {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Atomically install config plus drop-in, restoring prior config on failure.
+	 *
+	 * @param array $opts Object-cache options.
+	 * @return array Operation result.
+	 */
+	public static function install_with_config( $opts ) {
+		$cfg_file   = self::config_file();
+		$had_config = is_file( $cfg_file );
+		$old_config = $had_config ? file_get_contents( $cfg_file ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( ! self::write_config( $opts ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Configuration write failed; installation was not attempted.', 'beplus-performance-booster' ),
+			);
+		}
+		$result = self::install_dropin();
+		if ( empty( $result['success'] ) ) {
+			self::restore_config( $cfg_file, $had_config, $old_config );
+		}
+		return $result;
+	}
+
+	/**
+	 * Restore config state after a failed combined install.
+	 *
+	 * @param string       $cfg_file Config path.
+	 * @param bool         $had_config Whether a prior config existed.
+	 * @param string|false $old_config Prior config bytes.
+	 * @return bool Whether restoration succeeded.
+	 */
+	private static function restore_config( $cfg_file, $had_config, $old_config ) {
+		if ( $had_config && false !== $old_config ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
+			return false !== file_put_contents( $cfg_file, $old_config, LOCK_EX );
+		}
+		if ( is_file( $cfg_file ) ) {
+			wp_delete_file( $cfg_file );
+		}
+		return ! is_file( $cfg_file );
+	}
+
+	/**
 	 * Copy the bundled drop-in to wp-content/object-cache.php.
 	 *
 	 * @return array {

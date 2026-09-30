@@ -70,9 +70,13 @@
 		});
 	});
 
-	// Switch tabs when a Status-tab recommendation link is clicked (href="#bepluspb-tab-foo").
+	// Switch tabs when a Status-tab recommendation link or the Object Cache
+	// dashboard "Review Object Cache settings" link is clicked
+	// (href="#bepluspb-tab-foo"). Both classes share this one handler and
+	// the same resolveTabId + activate + preventDefault + scrollTo logic
+	// — do not duplicate this logic in a second handler.
 	document.addEventListener('click', function (e) {
-		var a = e.target.closest && e.target.closest('a.bepluspb-rec-link');
+		var a = e.target.closest && e.target.closest('a.bepluspb-rec-link, a.bepluspb-object-cache-settings-link');
 		if (!a) { return; }
 		var href = a.getAttribute('href') || '';
 		var hashIdx = href.indexOf('#bepluspb-tab-');
