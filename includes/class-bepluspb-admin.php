@@ -2595,26 +2595,107 @@ class BEPLUSPB_Admin {
 	 */
 	private static function render_section_predictive_navigation( $opts ) {
 		$supported = version_compare( get_bloginfo( 'version' ), '6.8', '>=' );
+		$enabled   = $supported && ! empty( $opts['predictive_navigation_enabled'] );
+		$mode      = isset( $opts['predictive_navigation_mode'] ) ? $opts['predictive_navigation_mode'] : 'safe';
+		$modes     = array(
+			'safe'     => array(
+				'label'     => __( 'Safe', 'beplus-performance-booster' ),
+				'behavior'  => __( 'Prefetches only after a visitor shows clear intent to follow a link.', 'beplus-performance-booster' ),
+				'speed'     => __( 'Measured', 'beplus-performance-booster' ),
+				'resources' => __( 'Low', 'beplus-performance-booster' ),
+			),
+			'balanced' => array(
+				'label'     => __( 'Balanced', 'beplus-performance-booster' ),
+				'behavior'  => __( 'Prefetches likely destinations earlier for a more responsive feel.', 'beplus-performance-booster' ),
+				'speed'     => __( 'Faster', 'beplus-performance-booster' ),
+				'resources' => __( 'Moderate', 'beplus-performance-booster' ),
+			),
+			'fast'     => array(
+				'label'     => __( 'Fast', 'beplus-performance-booster' ),
+				'behavior'  => __( 'Prerenders likely destinations, including page execution before navigation.', 'beplus-performance-booster' ),
+				'speed'     => __( 'Fastest', 'beplus-performance-booster' ),
+				'resources' => __( 'High', 'beplus-performance-booster' ),
+			),
+		);
 		?>
-		<div class="bepluspb-section-header"><h2><?php esc_html_e( 'Predictive Navigation', 'beplus-performance-booster' ); ?></h2>
-		<p><?php esc_html_e( 'Speed up likely next-page visits using the native WordPress Speculation Rules API. No external calls, telemetry, JavaScript polyfill, or duplicate speculation script is added.', 'beplus-performance-booster' ); ?></p></div>
-		<?php if ( ! $supported ) : ?>
-			<div class="notice notice-warning inline"><p><?php esc_html_e( 'Predictive Navigation requires WordPress 6.8 or newer. It remains inactive on this site.', 'beplus-performance-booster' ); ?></p></div>
-		<?php else : ?>
-			<div class="notice notice-info inline"><p><?php esc_html_e( 'Compatible with WordPress 6.8+. WordPress Core automatically disables speculative loading for logged-in visitors and when pretty permalinks are unavailable.', 'beplus-performance-booster' ); ?></p></div>
-		<?php endif; ?>
-		<div class="bepluspb-card">
-			<label class="bepluspb-toggle-row"><input type="checkbox" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_enabled]" value="1" <?php checked( ! empty( $opts['predictive_navigation_enabled'] ) ); ?> <?php disabled( ! $supported ); ?>><span><strong><?php esc_html_e( 'Enable Predictive Navigation', 'beplus-performance-booster' ); ?></strong><small><?php esc_html_e( 'Disabled by default. Prefetch uses network resources; prerender also executes the destination page and has higher bandwidth, server, and side-effect risk.', 'beplus-performance-booster' ); ?></small></span></label>
-			<p><label for="bepluspb-predictive-mode"><strong><?php esc_html_e( 'Mode', 'beplus-performance-booster' ); ?></strong></label></p>
-			<select id="bepluspb-predictive-mode" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_mode]">
-				<option value="safe" <?php selected( $opts['predictive_navigation_mode'], 'safe' ); ?>><?php esc_html_e( 'Safe — prefetch / conservative', 'beplus-performance-booster' ); ?></option>
-				<option value="balanced" <?php selected( $opts['predictive_navigation_mode'], 'balanced' ); ?>><?php esc_html_e( 'Balanced — prefetch / moderate', 'beplus-performance-booster' ); ?></option>
-				<option value="fast" <?php selected( $opts['predictive_navigation_mode'], 'fast' ); ?>><?php esc_html_e( 'Fast — prerender / moderate (higher resource/risk)', 'beplus-performance-booster' ); ?></option>
-			</select>
-			<p><label for="bepluspb-predictive-excludes"><strong><?php esc_html_e( 'Additional excluded paths', 'beplus-performance-booster' ); ?></strong></label></p>
-			<textarea id="bepluspb-predictive-excludes" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_excludes]" rows="6" class="large-text code" placeholder="/members/*"><?php echo esc_textarea( $opts['predictive_navigation_excludes'] ); ?></textarea>
-			<p class="description"><?php esc_html_e( 'One same-origin path pattern per line. Cart, checkout, account, search, preview, action, login, admin, REST, and detected WooCommerce page URLs are always excluded.', 'beplus-performance-booster' ); ?></p>
+		<div class="bepluspb-predictive-hero <?php echo $enabled ? 'is-enabled' : 'is-disabled'; ?>">
+			<div class="bepluspb-predictive-hero-icon" aria-hidden="true"><span class="dashicons dashicons-controls-forward"></span></div>
+			<div class="bepluspb-predictive-hero-copy">
+				<div class="bepluspb-predictive-title-row">
+					<h2><?php esc_html_e( 'Predictive Navigation', 'beplus-performance-booster' ); ?></h2>
+					<span id="bepluspb-predictive-status" class="bepluspb-predictive-status" role="status">
+						<?php echo $enabled ? esc_html__( 'Enabled', 'beplus-performance-booster' ) : esc_html__( 'Disabled', 'beplus-performance-booster' ); ?>
+					</span>
+				</div>
+				<p><?php esc_html_e( 'Make likely next pages feel instant with WordPress Core speculation rules. Your site stays in control: no external service, telemetry, polyfill, or duplicate script.', 'beplus-performance-booster' ); ?></p>
+			</div>
 		</div>
+
+		<div class="bepluspb-card bepluspb-predictive-enable-card">
+			<div class="bepluspb-card-body">
+				<div class="bepluspb-predictive-enable-row">
+					<div>
+						<label for="bepluspb-predictive-enabled" class="bepluspb-predictive-enable-label"><?php esc_html_e( 'Enable Predictive Navigation', 'beplus-performance-booster' ); ?></label>
+						<p id="bepluspb-predictive-toggle-help"><?php esc_html_e( 'Improves perceived navigation speed for eligible public visitors. Disabled by default.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<label class="bepluspb-predictive-switch">
+						<input type="checkbox" id="bepluspb-predictive-enabled" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_enabled]" value="1" aria-describedby="bepluspb-predictive-toggle-help bepluspb-predictive-status" <?php checked( $enabled ); ?> <?php disabled( ! $supported ); ?>>
+						<span class="bepluspb-predictive-switch-track" aria-hidden="true"></span>
+					</label>
+				</div>
+			</div>
+		</div>
+
+		<?php if ( ! $supported ) : ?>
+			<div class="notice notice-warning inline bepluspb-predictive-version-notice"><p><?php esc_html_e( 'Predictive Navigation requires WordPress 6.8 or newer. It remains inactive on this site.', 'beplus-performance-booster' ); ?></p></div>
+		<?php endif; ?>
+
+		<div class="bepluspb-predictive-controls" data-predictive-controls aria-disabled="<?php echo $enabled ? 'false' : 'true'; ?>">
+			<div class="bepluspb-card">
+				<div class="bepluspb-card-header">
+					<h2><?php esc_html_e( 'Choose a navigation mode', 'beplus-performance-booster' ); ?></h2>
+					<p><?php esc_html_e( 'Start with Safe. Move up only after checking analytics, server load, and important visitor flows.', 'beplus-performance-booster' ); ?></p>
+				</div>
+				<div class="bepluspb-card-body">
+					<fieldset class="bepluspb-predictive-mode-fieldset">
+						<legend><?php esc_html_e( 'Navigation mode', 'beplus-performance-booster' ); ?></legend>
+						<div class="bepluspb-predictive-mode-grid">
+							<?php foreach ( $modes as $value => $details ) : ?>
+							<label class="bepluspb-predictive-mode-option">
+								<input class="bepluspb-predictive-mode-input" type="radio" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_mode]" value="<?php echo esc_attr( $value ); ?>" <?php checked( $mode, $value ); ?>>
+								<span class="bepluspb-predictive-mode-card">
+									<span class="bepluspb-predictive-mode-heading">
+										<strong><?php echo esc_html( $details['label'] ); ?></strong>
+										<?php if ( 'safe' === $value ) : ?>
+											<span class="bepluspb-predictive-badge"><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></span>
+										<?php endif; ?>
+									</span>
+									<span class="bepluspb-predictive-mode-behavior"><?php echo esc_html( $details['behavior'] ); ?></span>
+									<span class="bepluspb-predictive-mode-meta"><span><b><?php esc_html_e( 'Speed', 'beplus-performance-booster' ); ?></b> <?php echo esc_html( $details['speed'] ); ?></span><span><b><?php esc_html_e( 'Resources', 'beplus-performance-booster' ); ?></b> <?php echo esc_html( $details['resources'] ); ?></span></span>
+								</span>
+							</label>
+							<?php endforeach; ?>
+						</div>
+					</fieldset>
+				</div>
+			</div>
+
+			<div class="bepluspb-card bepluspb-predictive-exclusions">
+				<div class="bepluspb-card-header"><h2><?php esc_html_e( 'Additional exclusions', 'beplus-performance-booster' ); ?></h2><p><?php esc_html_e( 'Keep private, personalized, or action-oriented destinations out of speculative loading.', 'beplus-performance-booster' ); ?></p></div>
+				<div class="bepluspb-card-body">
+					<label for="bepluspb-predictive-excludes" class="bepluspb-predictive-field-label"><?php esc_html_e( 'Excluded path patterns', 'beplus-performance-booster' ); ?></label>
+					<textarea id="bepluspb-predictive-excludes" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_excludes]" rows="6" class="large-text code" aria-describedby="bepluspb-predictive-excludes-help" placeholder="/members/*"><?php echo esc_textarea( $opts['predictive_navigation_excludes'] ); ?></textarea>
+					<p id="bepluspb-predictive-excludes-help" class="description"><?php esc_html_e( 'Enter one same-origin path pattern per line. Wildcards are supported.', 'beplus-performance-booster' ); ?> <?php esc_html_e( 'Examples:', 'beplus-performance-booster' ); ?> <code>/members/*</code> <code>/downloads/private/*</code></p>
+					<p class="bepluspb-predictive-protected"><span class="dashicons dashicons-shield" aria-hidden="true"></span><?php esc_html_e( 'Always protected: cart, checkout, account, search, preview, action, login, admin, REST, and detected WooCommerce URLs.', 'beplus-performance-booster' ); ?></p>
+				</div>
+			</div>
+		</div>
+
+		<div class="bepluspb-predictive-callouts">
+			<div class="bepluspb-predictive-callout"><span class="dashicons dashicons-wordpress" aria-hidden="true"></span><div><strong><?php esc_html_e( 'Core compatibility', 'beplus-performance-booster' ); ?></strong><p><?php esc_html_e( 'Uses the native WordPress 6.8+ API. Core skips logged-in visitors and sites without pretty permalinks.', 'beplus-performance-booster' ); ?></p></div></div>
+			<div class="bepluspb-predictive-callout"><span class="dashicons dashicons-lock" aria-hidden="true"></span><div><strong><?php esc_html_e( 'Privacy and safety', 'beplus-performance-booster' ); ?></strong><p><?php esc_html_e( 'No visitor data leaves your site. Fast mode can execute destination pages early, so test forms, checkout, and custom actions before using it.', 'beplus-performance-booster' ); ?></p></div></div>
+		</div>
+		<p class="bepluspb-predictive-save-note"><span class="dashicons dashicons-saved" aria-hidden="true"></span><?php esc_html_e( 'Use Save Settings below to apply these changes.', 'beplus-performance-booster' ); ?></p>
 		<?php
 	}
 

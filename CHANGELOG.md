@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-30
+
+### Changed
+- Redesigned the Predictive Navigation settings as a polished native wp-admin
+  workflow with an explicit status and benefit summary, accessible master
+  toggle, keyboard-friendly Safe/Balanced/Fast radio cards, separate exclusion
+  guidance, concise compatibility and privacy callouts, responsive styling,
+  and progressive disabled treatment while preserving all existing settings,
+  defaults, and backend behavior.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added

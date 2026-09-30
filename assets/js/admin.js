@@ -186,6 +186,37 @@
 
 
 	// -------------------------------------------------------------------------
+	// Predictive Navigation — progressive dependent state
+	// -------------------------------------------------------------------------
+
+	var predictiveToggle   = document.getElementById('bepluspb-predictive-enabled');
+	var predictiveControls = document.querySelector('[data-predictive-controls]');
+	var predictiveStatus   = document.getElementById('bepluspb-predictive-status');
+	var predictiveHero     = document.querySelector('.bepluspb-predictive-hero');
+
+	function updatePredictiveUI() {
+		if (!predictiveToggle || !predictiveControls) { return; }
+		var enabled = predictiveToggle.checked && !predictiveToggle.disabled;
+		predictiveControls.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+		// Keep values submittable while visually de-emphasising dependent fields.
+		// Native controls remain keyboard reachable so turning the feature off
+		// never silently clears a saved mode or exclusion list.
+		if (predictiveStatus) {
+			predictiveStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+		}
+		if (predictiveHero) {
+			predictiveHero.classList.toggle('is-enabled', enabled);
+			predictiveHero.classList.toggle('is-disabled', !enabled);
+		}
+	}
+
+	if (predictiveToggle) {
+		predictiveToggle.addEventListener('change', updatePredictiveUI);
+		updatePredictiveUI();
+	}
+
+
+	// -------------------------------------------------------------------------
 	// Object Cache — driver toggle (show/hide Redis-only rows)
 	// -------------------------------------------------------------------------
 
