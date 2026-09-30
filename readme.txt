@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -26,7 +26,7 @@ accidentally break the admin panel or your own editing experience.
 * CSS file and inline minification with cache
 * Remove Unused CSS: per-URL cached stripping of unused CSS rules
 * Non-render-blocking stylesheet loading
-* Lazy load images with IntersectionObserver fallback
+* WordPress Core-managed image loading policy with targeted exclusions
 * Remove emoji, wp-embed, Gutenberg CSS, WooCommerce assets on non-shop pages
 * HTML minification and comment stripping
 * Browser cache and gzip/brotli rules via .htaccess

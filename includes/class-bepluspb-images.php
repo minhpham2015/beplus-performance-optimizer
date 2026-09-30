@@ -1,6 +1,6 @@
 <?php
 /**
- * Lazy load images: native loading="lazy" attribute + IntersectionObserver fallback.
+ * Core-managed media loading policy.
  *
  * @package Beplus_Performance_Booster
  */
@@ -9,196 +9,151 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Class BEPLUSPB_Images
- *
- * Applies native lazy loading to images across the page with fine-grained
- * control over which images are affected.
- */
+/** Configure WordPress Core loading optimization without rewriting HTML. */
 class BEPLUSPB_Images {
-
 	/**
-	 * Running count of <img> tags processed in this HTTP request.
+	 * Register narrowly scoped Core filters.
 	 *
-	 * @var int
-	 */
-	private static $image_count = 0;
-
-	// -------------------------------------------------------------------------
-	// Bootstrap
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Register all lazy-load hooks when the feature is enabled.
-	 *
-	 * @param array $opts Result of bepluspb_get_options().
+	 * @param array $opts Plugin options.
 	 */
 	public static function init( $opts ) {
-		if ( ! $opts['lazy_load'] ) {
+		global $wp_version;
+		if ( empty( $opts['lazy_load'] ) || ! self::is_frontend_html_request() ) {
 			return;
 		}
 
-		self::$image_count = 0;
-
-		add_filter( 'render_block', array( __CLASS__, 'process_html' ), 8 );
-
-		$post = get_queried_object();
-		if ( ! ( $post instanceof WP_Post ) || ! has_blocks( $post->post_content ) ) {
-			add_filter( 'the_content', array( __CLASS__, 'process_html' ), 20 );
+		if ( version_compare( (string) $wp_version, '6.3', '>=' ) ) {
+			add_filter( 'wp_get_loading_optimization_attributes', array( __CLASS__, 'filter_attributes' ), 10, 4 );
+			add_filter( 'wp_omit_loading_attr_threshold', array( __CLASS__, 'filter_threshold' ) );
+			return;
 		}
 
-		add_filter( 'post_thumbnail_html', array( __CLASS__, 'process_html' ), 20 );
-		add_filter( 'widget_text', array( __CLASS__, 'process_html' ), 20 );
-
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_fallback_script' ) );
+		// WordPress 5.5–6.2 already provides native image lazy loading. Do not
+		// transform its HTML; retain this documented hook as a fail-open adapter.
+		if ( version_compare( (string) $wp_version, '5.5', '>=' ) ) {
+			add_filter( 'wp_lazy_loading_enabled', array( __CLASS__, 'legacy_enabled' ), 10, 3 );
+		}
 	}
 
-	// -------------------------------------------------------------------------
-	// HTML processing
-	// -------------------------------------------------------------------------
+	/** True only for ordinary front-end document requests. */
+	private static function is_frontend_html_request() {
+		if ( is_admin() || is_feed() || wp_doing_ajax() ) {
+			return false;
+		}
+		if ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) {
+			return false;
+		}
+		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			return false;
+		}
+		return true;
+	}
 
 	/**
-	 * Main entry point for content transformation.
+	 * Preserve Core's legacy decision; intentionally performs no HTML rewrite.
 	 *
-	 * @param  string $content HTML markup.
-	 * @return string Transformed HTML.
+	 * @param bool   $enabled  Core's decision.
+	 * @param string $tag_name Element name.
+	 * @param string $context  Rendering context.
+	 * @return bool
 	 */
-	public static function process_html( $content ) {
-		if ( empty( $content ) ) {
-			return $content;
-		}
-
-		$opts          = bepluspb_get_options();
-		$skip_n        = absint( $opts['lazy_skip_first_n'] );
-		$exc_classes   = self::parse_comma_list( $opts['lazy_exclude_class'] );
-		$exc_ids       = self::parse_comma_list( $opts['lazy_exclude_id'] );
-		$exc_filenames = self::parse_comma_list( $opts['lazy_exclude_filename'] );
-
-		$picture_blocks = array();
-		$pic_idx        = 0;
-		$content        = preg_replace_callback(
-			'/<picture[^>]*>[\s\S]*?<\/picture>/i',
-			function ( $m ) use ( &$picture_blocks, &$pic_idx ) {
-				$token                    = 'BEPLUSPBPIC' . $pic_idx . 'END';
-				$picture_blocks[ $token ] = $m[0];
-				$pic_idx++;
-				return $token;
-			},
-			$content
-		);
-
-		$content = preg_replace_callback(
-			'/<img([^>]*)>/i',
-			function ( $m ) use ( $skip_n, $exc_classes, $exc_ids, $exc_filenames ) {
-				return self::maybe_lazy( $m[0], $m[1], $skip_n, $exc_classes, $exc_ids, $exc_filenames );
-			},
-			$content
-		);
-
-		foreach ( $picture_blocks as $token => $picture_html ) {
-			$picture_html = preg_replace_callback(
-				'/<img([^>]*)>/i',
-				function ( $m ) use ( $skip_n, $exc_classes, $exc_ids, $exc_filenames ) {
-					return self::maybe_lazy( $m[0], $m[1], $skip_n, $exc_classes, $exc_ids, $exc_filenames );
-				},
-				$picture_html
-			);
-			$content      = str_replace( $token, $picture_html, $content );
-		}
-
-		return $content;
+	public static function legacy_enabled( $enabled, $tag_name, $context ) {
+		unset( $tag_name, $context );
+		return $enabled;
 	}
 
-	// -------------------------------------------------------------------------
-	// Per-image decision logic
-	// -------------------------------------------------------------------------
-
 	/**
-	 * Decide whether to add loading="lazy" to one <img> tag.
+	 * Remove Core-generated lazy loading for configured media exclusions.
+	 * Explicit author/theme/page-builder attributes always win unchanged.
 	 *
-	 * @param  string   $full_tag      The full <img ...> string.
-	 * @param  string   $attrs         Everything between <img and >.
-	 * @param  int      $skip_n        Number of leading images to skip.
-	 * @param  string[] $exc_classes   CSS class names that trigger exclusion.
-	 * @param  string[] $exc_ids       Element IDs that trigger exclusion.
-	 * @param  string[] $exc_filenames Partial filename strings that trigger exclusion.
-	 * @return string   Possibly modified <img> tag.
+	 * @param array  $loading_attrs Core-generated attributes.
+	 * @param string $tag_name      Element name.
+	 * @param array  $attr          Existing element attributes.
+	 * @param string $context       Rendering context.
+	 * @return array
 	 */
-	private static function maybe_lazy( $full_tag, $attrs, $skip_n, $exc_classes, $exc_ids, $exc_filenames ) {
-		if ( false !== strpos( $attrs, 'loading=' ) ) {
-			return $full_tag;
+	public static function filter_attributes( $loading_attrs, $tag_name, $attr, $context ) {
+		unset( $context );
+		if ( 'img' !== strtolower( (string) $tag_name ) ) {
+			return $loading_attrs;
 		}
 
-		++self::$image_count;
-		if ( self::$image_count <= $skip_n ) {
-			return '<img' . $attrs . ' loading="eager">';
-		}
-
-		if ( ! empty( $exc_classes ) ) {
-			if ( preg_match( '/\bclass=["\']([^"\']*)["\']/', $attrs, $cls_m ) ) {
-				$img_classes = array_filter( explode( ' ', $cls_m[1] ) );
-				foreach ( $exc_classes as $cls ) {
-					if ( '' !== $cls && in_array( $cls, $img_classes, true ) ) {
-						return $full_tag;
-					}
-				}
+		$explicit_loading = array_key_exists( 'loading', $attr );
+		foreach ( array( 'loading', 'fetchpriority', 'decoding' ) as $explicit ) {
+			if ( array_key_exists( $explicit, $attr ) ) {
+				$loading_attrs[ $explicit ] = $attr[ $explicit ];
 			}
 		}
 
-		if ( ! empty( $exc_ids ) ) {
-			if ( preg_match( '/\bid=["\']([^"\']*)["\']/', $attrs, $id_m ) ) {
-				foreach ( $exc_ids as $exc_id ) {
-					if ( '' !== $exc_id && $exc_id === $id_m[1] ) {
-						return $full_tag;
-					}
-				}
-			}
+		// Core must never emit these mutually exclusive values together.
+		if ( isset( $loading_attrs['loading'], $loading_attrs['fetchpriority'] )
+			&& 'lazy' === strtolower( (string) $loading_attrs['loading'] )
+			&& 'high' === strtolower( (string) $loading_attrs['fetchpriority'] ) ) {
+			unset( $loading_attrs['loading'] );
 		}
 
-		if ( ! empty( $exc_filenames ) ) {
-			if ( preg_match( '/\bsrc=["\']([^"\']*)["\']/', $attrs, $src_m ) ) {
-				foreach ( $exc_filenames as $keyword ) {
-					if ( '' !== $keyword && false !== strpos( $src_m[1], $keyword ) ) {
-						return $full_tag;
-					}
-				}
-			}
+		if ( ! $explicit_loading && self::is_excluded( $attr ) ) {
+			unset( $loading_attrs['loading'] );
 		}
-
-		return '<img' . $attrs . ' loading="lazy">';
+		return $loading_attrs;
 	}
 
-	// -------------------------------------------------------------------------
-	// Helpers
-	// -------------------------------------------------------------------------
+	/**
+	 * Apply an explicit expert override; 3 means WordPress Core's policy.
+	 *
+	 * @param int $threshold Core threshold.
+	 * @return int
+	 */
+	public static function filter_threshold( $threshold ) {
+		$opts  = bepluspb_get_options();
+		$value = isset( $opts['lazy_core_threshold'] ) ? absint( $opts['lazy_core_threshold'] ) : 3;
+		return 3 === $value ? $threshold : min( 20, $value );
+	}
 
 	/**
-	 * Split a comma-separated string into a trimmed, filtered array.
+	 * Test class, id and filename exclusions against parsed Core attributes.
 	 *
-	 * @param  string $value Raw option value.
+	 * @param array $attr Existing element attributes.
+	 * @return bool
+	 */
+	private static function is_excluded( $attr ) {
+		$opts    = bepluspb_get_options();
+		$classes = preg_split( '/\s+/', trim( isset( $attr['class'] ) ? (string) $attr['class'] : '' ) );
+		foreach ( self::parse_list( $opts['lazy_exclude_class'] ) as $value ) {
+			if ( in_array( $value, $classes, true ) ) {
+				return true;
+			}
+		}
+		$id = isset( $attr['id'] ) ? (string) $attr['id'] : '';
+		if ( in_array( $id, self::parse_list( $opts['lazy_exclude_id'] ), true ) ) {
+			return true;
+		}
+		$src = isset( $attr['src'] ) ? (string) $attr['src'] : '';
+		foreach ( self::parse_list( $opts['lazy_exclude_filename'] ) as $value ) {
+			if ( '' !== $value && false !== strpos( $src, $value ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Parse a comma-separated exclusion list.
+	 *
+	 * @param string $value Raw list.
 	 * @return string[]
 	 */
-	private static function parse_comma_list( $value ) {
-		if ( empty( $value ) ) {
-			return array();
-		}
-		return array_values( array_filter( array_map( 'trim', explode( ',', $value ) ) ) );
+	private static function parse_list( $value ) {
+		return array_values( array_filter( array_map( 'trim', explode( ',', (string) $value ) ) ) );
 	}
 
-	// -------------------------------------------------------------------------
-	// IntersectionObserver polyfill (enqueued JS file)
-	// -------------------------------------------------------------------------
-
 	/**
-	 * Enqueue the IntersectionObserver polyfill as a proper WP script asset.
+	 * Backward-compatible no-op: v2 never parses or rebuilds HTML.
+	 *
+	 * @param string $content HTML content.
+	 * @return string
 	 */
-	public static function enqueue_fallback_script() {
-		wp_enqueue_script(
-			'bepluspb-lazy-fallback',
-			BEPLUSPB_PLUGIN_URL . 'assets/js/lazy-fallback.js',
-			array(),
-			BEPLUSPB_VERSION,
-			true
-		);
+	public static function process_html( $content ) {
+		return $content;
 	}
 }

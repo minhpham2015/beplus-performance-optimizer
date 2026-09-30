@@ -302,6 +302,9 @@ class BEPLUSPB_Admin {
 		$sanitized['lazy_skip_first_n'] = isset( $input['lazy_skip_first_n'] )
 			? absint( $input['lazy_skip_first_n'] )
 			: 1;
+		$sanitized['lazy_core_threshold'] = isset( $input['lazy_core_threshold'] )
+			? min( 20, absint( $input['lazy_core_threshold'] ) )
+			: ( isset( $input['lazy_skip_first_n'] ) ? min( 20, absint( $input['lazy_skip_first_n'] ) ) : 3 );
 
 		$sanitized['lazy_exclude_class'] = isset( $input['lazy_exclude_class'] )
 			? sanitize_text_field( $input['lazy_exclude_class'] )
@@ -1048,23 +1051,23 @@ else :
 							<input type="checkbox" id="bepluspb_lazy_load"
 								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_load]" value="1"
 								<?php checked( $opts['lazy_load'], 1 ); ?>>
-							<span class="bepluspb-check-text"><?php esc_html_e( 'Add loading="lazy" to &lt;img&gt; tags in post content, thumbnails, widgets, Gutenberg blocks, and &lt;picture&gt; elements. Includes an IntersectionObserver JS fallback for older browsers.', 'beplus-performance-booster' ); ?></span>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Use WordPress Core to manage image loading, fetch priority, and decoding. Existing attributes from themes and page builders are preserved; no HTML rewriting or JavaScript fallback is used.', 'beplus-performance-booster' ); ?></span>
 						</label>
 					</div>
 				</div>
 
-				<!-- Skip First N Images -->
+				<!-- WordPress Core threshold -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
-						<label for="bepluspb_lazy_skip_first_n"><?php esc_html_e( 'Skip First N Images', 'beplus-performance-booster' ); ?></label>
+						<label for="bepluspb_lazy_core_threshold"><?php esc_html_e( 'Core Media Omission Threshold', 'beplus-performance-booster' ); ?></label>
 					</div>
 					<div class="bepluspb-form-row-field">
-						<input type="number" id="bepluspb_lazy_skip_first_n"
-							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_skip_first_n]"
-							value="<?php echo esc_attr( $opts['lazy_skip_first_n'] ); ?>"
+						<input type="number" id="bepluspb_lazy_core_threshold"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_core_threshold]"
+							value="<?php echo esc_attr( $opts['lazy_core_threshold'] ); ?>"
 							min="0" max="20" step="1" class="small-text">
 						<p class="description">
-							<?php esc_html_e( 'Images 1 through N are loaded eagerly. Default: 1 — protects the hero/LCP image from being lazy-loaded and hurting Core Web Vitals.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Expert setting. Default: 3, aligned with WordPress Core. Core decides which initial media omit loading="lazy"; this plugin does not identify or promise an LCP image. Attachment dimensions remain the responsibility of WordPress, the theme, or the page builder.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>

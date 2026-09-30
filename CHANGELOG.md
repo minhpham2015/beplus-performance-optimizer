@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-09-30
+
+### Changed
+- Replaced regex-based image rewriting and its ineffective JavaScript fallback
+  with WordPress Core-managed loading optimization, targeted exclusions, a safe
+  expert threshold, request gates, and fail-open compatibility behavior.
+
 ## [1.1.2] - 2026-09-30
 
 ### Added

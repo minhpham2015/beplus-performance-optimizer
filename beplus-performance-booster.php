@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.1.2
+ * Version: 1.1.3
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.1.2' );
+define( 'BEPLUSPB_VERSION', '1.1.3' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -100,6 +100,7 @@ function bepluspb_default_options() {
 
 		// --- Lazy Load — Advanced options ---
 		'lazy_skip_first_n'                  => 1,   // Skip the first N images (LCP / hero).
+		'lazy_core_threshold'                => 3,   // Core-managed media omission threshold.
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
 		'lazy_exclude_filename'              => '',  // Partial filename strings to exclude (comma-sep).
