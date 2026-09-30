@@ -387,14 +387,17 @@ class BEPLUSPB_Admin {
 		$cache_dir_writable = BEPLUSPB_Minify::ensure_cache_dir();
 
 		// Tab definitions: id => label.
+		// NOTE: Fonts, CDN, and Cache Exclusions were merged into a single
+		// 'advanced' tab (v1.1.11) — see render order inside the
+		// bepluspb-tab-advanced panel below. Backward-compat aliasing of the
+		// old 'fonts'/'cdn'/'exclusions' hash values to 'advanced' lives in
+		// assets/js/admin.js.
 		$tabs = array(
 			'dashboard'    => '📊 ' . __( 'Dashboard', 'beplus-performance-booster' ),
 			'cache_files'  => '⚡ ' . __( 'Cache Files', 'beplus-performance-booster' ),
-			'fonts'        => '🔤 ' . __( 'Fonts', 'beplus-performance-booster' ),
-			'cdn'          => '☁️ ' . __( 'CDN', 'beplus-performance-booster' ),
 			'cloudflare'   => '🔶 ' . __( 'Cloudflare', 'beplus-performance-booster' ),
 			'cleanup'      => '🧹 ' . __( 'Cleanup', 'beplus-performance-booster' ),
-			'exclusions'   => '🚫 ' . __( 'Cache Exclusions', 'beplus-performance-booster' ),
+			'advanced'     => '🛠️ ' . __( 'Advanced', 'beplus-performance-booster' ),
 			'predictive'   => '⚡ ' . __( 'Predictive Navigation', 'beplus-performance-booster' ),
 			'object_cache' => '🗄️ ' . __( 'Object Cache', 'beplus-performance-booster' ),
 			'status'       => '🔍 ' . __( 'Status', 'beplus-performance-booster' ),
@@ -409,6 +412,7 @@ class BEPLUSPB_Admin {
 			<div class="bepluspb-tabs-nav" role="tablist">
 				<?php foreach ( $tabs as $id => $label ) : ?>
 				<button type="button"
+					id="bepluspb-tab-btn-<?php echo esc_attr( $id ); ?>"
 					class="bepluspb-tab-btn"
 					data-tab="<?php echo esc_attr( $id ); ?>"
 					role="tab"
@@ -432,14 +436,6 @@ class BEPLUSPB_Admin {
 					<?php self::render_section_cache_files( $opts, $cache_dir_writable ); ?>
 				</div>
 
-				<div id="bepluspb-tab-fonts" class="bepluspb-tab-panel" role="tabpanel">
-					<?php self::render_section_fonts( $opts ); ?>
-				</div>
-
-				<div id="bepluspb-tab-cdn" class="bepluspb-tab-panel" role="tabpanel">
-					<?php self::render_section_cdn( $opts ); ?>
-				</div>
-
 				<div id="bepluspb-tab-cloudflare" class="bepluspb-tab-panel" role="tabpanel">
 					<?php self::render_section_cloudflare( $opts ); ?>
 				</div>
@@ -448,8 +444,23 @@ class BEPLUSPB_Admin {
 					<?php self::render_section_cleanup_all( $opts ); ?>
 				</div>
 
-				<div id="bepluspb-tab-exclusions" class="bepluspb-tab-panel" role="tabpanel">
-					<?php self::render_section_exclusions( $opts ); ?>
+				<!-- Advanced tab: Font Optimization, CDN & Asset Delivery, Cache
+					Exclusions merged into one panel (v1.1.11). Each section keeps
+					its own <h2> card heading (rendered by the existing
+					render_section_* methods, unchanged) under a labelled <section>
+					landmark so no duplicate top-level h2 hierarchy is introduced. -->
+				<div id="bepluspb-tab-advanced" class="bepluspb-tab-panel" role="tabpanel" aria-labelledby="bepluspb-tab-btn-advanced">
+					<section id="bepluspb-advanced-section-fonts" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'Font Optimization', 'beplus-performance-booster' ); ?>">
+						<?php self::render_section_fonts( $opts ); ?>
+					</section>
+
+					<section id="bepluspb-advanced-section-cdn" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'CDN & Asset Delivery', 'beplus-performance-booster' ); ?>">
+						<?php self::render_section_cdn( $opts ); ?>
+					</section>
+
+					<section id="bepluspb-advanced-section-exclusions" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'Cache Exclusions', 'beplus-performance-booster' ); ?>">
+						<?php self::render_section_exclusions( $opts ); ?>
+					</section>
 				</div>
 
 				<div id="bepluspb-tab-predictive" class="bepluspb-tab-panel" role="tabpanel">
@@ -2251,7 +2262,7 @@ else :
 			$errors[] = array(
 				'title'  => __( 'Browser caching is on but .htaccess is not writable', 'beplus-performance-booster' ),
 				'detail' => __( 'The browser cache rules cannot be injected into .htaccess. Make the .htaccess file writable (644) and re-save the Cache Exclusions tab.', 'beplus-performance-booster' ),
-				'action' => $tab_link( 'exclusions', __( 'Open Cache Exclusions', 'beplus-performance-booster' ) ),
+				'action' => $tab_link( 'advanced', __( 'Open Cache Exclusions', 'beplus-performance-booster' ) ),
 			);
 		}
 
@@ -2373,7 +2384,7 @@ else :
 				$suggestions[] = array(
 					'title'  => __( 'Enable browser cache headers', 'beplus-performance-booster' ),
 					'detail' => __( 'Inject 1-year cache headers and gzip/brotli rules into .htaccess so returning visitors load static assets from their local cache.', 'beplus-performance-booster' ),
-					'action' => $tab_link( 'exclusions', __( 'Open Cache Exclusions tab', 'beplus-performance-booster' ) ),
+					'action' => $tab_link( 'advanced', __( 'Open Cache Exclusions tab', 'beplus-performance-booster' ) ),
 				);
 			}
 

@@ -20,12 +20,30 @@
 	// Tabs that have their own forms and must NOT show the main Save bar.
 	var noSaveBarTabs = { dashboard: true, status: true, ai_optimizer: true };
 
+	// Backward-compat: Fonts, CDN, and Cache Exclusions were merged into a
+	// single "Advanced" tab (v1.1.11). Old hash values / deep-links / saved
+	// sessionStorage values still using these ids are aliased client-side to
+	// 'advanced' — no server-side or unsafe location redirect is performed.
+	var tabIdAliases = { fonts: 'advanced', cdn: 'advanced', exclusions: 'advanced' };
+
+	/**
+	 * Resolve a possibly-stale tab id (from a hash, deep-link, or stored
+	 * session value) to the current tab id, following tabIdAliases.
+	 *
+	 * @param {string} id Raw tab identifier.
+	 * @return {string} Resolved tab identifier.
+	 */
+	function resolveTabId(id) {
+		return Object.prototype.hasOwnProperty.call(tabIdAliases, id) ? tabIdAliases[id] : id;
+	}
+
 	/**
 	 * Activate the tab with the given id, hide all others.
 	 *
 	 * @param {string} id Tab identifier (matches data-tab attribute).
 	 */
 	function activate(id) {
+		id = resolveTabId(id);
 		btns.forEach(function (b) {
 			var active = b.dataset.tab === id;
 			b.classList.toggle('active', active);
@@ -59,7 +77,7 @@
 		var href = a.getAttribute('href') || '';
 		var hashIdx = href.indexOf('#bepluspb-tab-');
 		if (hashIdx === -1) { return; }
-		var tabId = href.substring(hashIdx + '#bepluspb-tab-'.length);
+		var tabId = resolveTabId(href.substring(hashIdx + '#bepluspb-tab-'.length));
 		if (document.getElementById('bepluspb-tab-' + tabId)) {
 			e.preventDefault();
 			activate(tabId);
@@ -67,13 +85,26 @@
 		}
 	});
 
+	// Switch tabs on direct #bepluspb-tab-foo deep-links / bookmarks,
+	// including legacy fonts/cdn/exclusions hashes aliased to 'advanced'.
+	if (window.location.hash.indexOf('#bepluspb-tab-') === 0) {
+		var hashTabId = resolveTabId(window.location.hash.substring('#bepluspb-tab-'.length));
+		if (document.getElementById('bepluspb-tab-' + hashTabId)) {
+			activate(hashTabId);
+		}
+	}
+
 	// Restore the last-active tab from sessionStorage, defaulting to the
 	// first tab (Dashboard) when nothing is stored or the stored value no
-	// longer refers to an existing panel.
+	// longer refers to an existing panel. Legacy fonts/cdn/exclusions
+	// values previously stored are aliased to 'advanced'.
 	var saved;
 	try { saved = sessionStorage.getItem('bepluspb_active_tab'); } catch (e) {}
+	saved = saved ? resolveTabId(saved) : saved;
 
-	if (saved && document.getElementById('bepluspb-tab-' + saved)) {
+	if (window.location.hash.indexOf('#bepluspb-tab-') === 0) {
+		// Hash already handled activation above; don't override it here.
+	} else if (saved && document.getElementById('bepluspb-tab-' + saved)) {
 		activate(saved);
 	} else if (btns.length) {
 		activate(btns[0].dataset.tab);

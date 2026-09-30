@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.10
+Stable tag: 1.1.11
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -465,6 +465,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.1.11 =
+* Merge the Fonts, CDN, and Cache Exclusions tabs into a single Advanced tab (Font Optimization, CDN & Asset Delivery, Cache Exclusions sections, in that order). All option names, ids, sanitization, defaults, and saved values are unchanged — no database migration. Old #bepluspb-tab-fonts / #bepluspb-tab-cdn / #bepluspb-tab-exclusions deep-links are aliased client-side to the new Advanced tab.
 
 = 1.1.10 =
 * Add guarded backup-and-replace and verified restore workflows for conflicting object-cache drop-ins.

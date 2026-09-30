@@ -29,6 +29,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.11] - 2026-09-30
+
+### Changed
+- Merged the Fonts, CDN, and Cache Exclusions admin tabs into a single
+  "Advanced" tab, rendering the three existing sections (Font Optimization,
+  CDN & Asset Delivery, Cache Exclusions) in that order via the unchanged
+  `render_section_fonts()` / `render_section_cdn()` / `render_section_exclusions()`
+  methods. No option names/ids/sanitizers/defaults changed and no DB
+  migration was needed. Old `#bepluspb-tab-fonts` / `#bepluspb-tab-cdn` /
+  `#bepluspb-tab-exclusions` hash deep-links (including the Status tab's
+  recommendation links) are aliased client-side to `#bepluspb-tab-advanced`.
+  Cloudflare, Predictive Navigation, and Object Cache remain separate,
+  unmoved tabs.
+
 ## [1.1.10] - 2026-09-30
 
 ### Added
