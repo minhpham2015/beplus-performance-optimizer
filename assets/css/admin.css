@@ -1390,3 +1390,6 @@
 	.bepluspb-predictive-controls,
 	.bepluspb-predictive-mode-card { transition: none; }
 }
+
+/* Recommended Settings v2 */
+.bepluspb-recommendation-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.65fr);gap:20px;align-items:start}.bepluspb-recommendation-summary,.bepluspb-profile-form,.bepluspb-recommendation-preview{border:1px solid #dcdcde;border-radius:8px;padding:16px;background:#fff}.bepluspb-profile-form{display:grid;gap:10px}.bepluspb-recommendation-preview{margin-top:18px;overflow-x:auto}.bepluspb-recommendation-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}.bepluspb-recommendation-actions .description{flex-basis:100%;margin:0}.bepluspb-recommendations button:focus-visible,.bepluspb-recommendations select:focus-visible{outline:2px solid #2271b1;outline-offset:2px}@media ( max-width: 782px ){.bepluspb-recommendation-grid{grid-template-columns:1fr}.bepluspb-recommendation-actions .button{width:100%;min-height:44px}}

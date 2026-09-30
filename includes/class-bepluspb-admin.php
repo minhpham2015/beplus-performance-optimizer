@@ -54,6 +54,7 @@ class BEPLUSPB_Admin {
 		// POST handler for quick-enable buttons on the Dashboard tab.
 		add_action( 'admin_post_bepluspb_quick_enable', array( __CLASS__, 'handle_quick_enable' ) );
 		add_action( 'admin_post_bepluspb_enable_all_recommended', array( __CLASS__, 'handle_enable_all_recommended' ) );
+		add_action( 'admin_post_bepluspb_recommendation_action', array( __CLASS__, 'handle_recommendation_action' ) );
 
 		// AJAX handler for the master cache on/off toggle on the Dashboard tab.
 		add_action( 'wp_ajax_bepluspb_toggle_cache', array( __CLASS__, 'handle_ajax_toggle_cache' ) );
@@ -626,83 +627,57 @@ class BEPLUSPB_Admin {
 				</div>
 			</div>
 
-			<!-- Recommended Settings card -->
-			<div class="bepluspb-card">
-				<div class="bepluspb-card-header">
-					<h2><?php esc_html_e( 'Recommended Settings', 'beplus-performance-booster' ); ?></h2>
-					<p><?php esc_html_e( 'Quick-enable the most impactful performance features.', 'beplus-performance-booster' ); ?></p>
-				</div>
-				<div class="bepluspb-card-body bepluspb-card-body--flush">
-					<?php
-					// Check if any recommended option is still inactive (and not locked).
-					$has_inactive = false;
-					foreach ( $recommended as $rec_key => $rec_label ) {
-						$rec_locked = ( 'cache_headers' === $rec_key && ! $htaccess_writable );
-						if ( empty( $opts[ $rec_key ] ) && ! $rec_locked ) {
-							$has_inactive = true;
-							break;
-						}
-					}
-					if ( $has_inactive ) :
-						$enable_all_url = wp_nonce_url(
-							admin_url( 'admin-post.php?action=bepluspb_enable_all_recommended' ),
-							'bepluspb_enable_all_recommended'
-						);
-						?>
-					<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;">
-						<a href="<?php echo esc_url( $enable_all_url ); ?>" class="button button-primary">
-							⚡ <?php esc_html_e( 'Enable All Recommended', 'beplus-performance-booster' ); ?>
-						</a>
-						<span class="description" style="margin-left:8px;">
-							<?php esc_html_e( 'Enables all inactive recommended features at once.', 'beplus-performance-booster' ); ?>
-						</span>
+			<!-- Recommended Settings v2 -->
+			<?php
+			$detected          = BEPLUSPB_Recommendations::infer_profile( BEPLUSPB_Recommendations::local_signals() );
+			$requested_profile = isset( $_GET['bepluspb_profile'] ) ? sanitize_key( wp_unslash( $_GET['bepluspb_profile'] ) ) : $detected['profile']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display override.
+			$profile           = BEPLUSPB_Recommendations::sanitize_profile( $requested_profile );
+			$plans             = BEPLUSPB_Recommendations::plans( get_bloginfo( 'version' ) );
+			$plan              = $plans[ $profile ];
+			$diff              = BEPLUSPB_Recommendations::diff( (array) get_option( BEPLUSPB_OPTIONS_KEY, array() ), $plan );
+			$profile_labels    = array(
+				'blog_business'  => __( 'Blog / Business', 'beplus-performance-booster' ),
+				'woocommerce'    => __( 'WooCommerce', 'beplus-performance-booster' ),
+				'membership_lms' => __( 'Membership / LMS', 'beplus-performance-booster' ),
+				'high_traffic'   => __( 'High-traffic / Advanced', 'beplus-performance-booster' ),
+			);
+			$snapshot          = get_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, array() );
+			?>
+			<section class="bepluspb-card bepluspb-recommendations" aria-labelledby="bepluspb-rec-title">
+				<div class="bepluspb-card-header"><h2 id="bepluspb-rec-title"><?php esc_html_e( 'Recommended Settings', 'beplus-performance-booster' ); ?></h2><p><?php esc_html_e( 'A local-only plan based on this site. No telemetry or external AI is used.', 'beplus-performance-booster' ); ?></p></div>
+				<div class="bepluspb-card-body">
+					<div class="bepluspb-recommendation-grid">
+						<div class="bepluspb-recommendation-summary"><span class="bepluspb-status-badge active"><?php echo esc_html( $profile_labels[ $detected['profile'] ] ); ?></span><h3><?php esc_html_e( 'Detected signals', 'beplus-performance-booster' ); ?></h3><p><strong><?php esc_html_e( 'Confidence:', 'beplus-performance-booster' ); ?></strong> <?php echo esc_html( ucfirst( $detected['confidence'] ) ); ?></p><ul>
+						<?php
+						foreach ( $detected['reasons'] as $reason ) :
+							?>
+							<li><?php echo esc_html( $reason ); ?></li><?php endforeach; ?></ul></div>
+						<form method="get" class="bepluspb-profile-form"><input type="hidden" name="page" value="beplus-performance-booster"><label for="bepluspb-recommendation-profile"><strong><?php esc_html_e( 'Plan override', 'beplus-performance-booster' ); ?></strong></label><select id="bepluspb-recommendation-profile" name="bepluspb_profile">
+						<?php
+						foreach ( $profile_labels as $value => $label ) :
+							?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $profile, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select><button class="button" type="submit"><?php esc_html_e( 'Preview plan', 'beplus-performance-booster' ); ?></button></form>
 					</div>
-					<?php endif; ?>
-					<table class="bepluspb-rec-table">
-						<thead>
-							<tr>
-								<th><?php esc_html_e( 'Feature', 'beplus-performance-booster' ); ?></th>
-								<th><?php esc_html_e( 'Status', 'beplus-performance-booster' ); ?></th>
-								<th></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php
-							foreach ( $recommended as $key => $label ) :
-								$is_on  = ! empty( $opts[ $key ] );
-								$locked = ( 'cache_headers' === $key && ! $htaccess_writable );
-								?>
-							<tr>
-								<td><?php echo esc_html( $label ); ?></td>
-								<td>
-									<?php if ( $is_on ) : ?>
-										<span class="bepluspb-status-badge active"><?php esc_html_e( 'Active', 'beplus-performance-booster' ); ?></span>
-									<?php else : ?>
-										<span class="bepluspb-status-badge inactive"><?php esc_html_e( 'Inactive', 'beplus-performance-booster' ); ?></span>
-									<?php endif; ?>
-								</td>
-								<td>
-									<?php if ( $is_on ) : ?>
-										<span class="bepluspb-status-check dashicons dashicons-yes"></span>
-									<?php elseif ( $locked ) : ?>
-										<span class="description" style="font-size:11px;"><?php esc_html_e( 'N/A', 'beplus-performance-booster' ); ?></span>
-									<?php else : ?>
-										<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-											<input type="hidden" name="action" value="bepluspb_quick_enable">
-											<input type="hidden" name="bepluspb_option" value="<?php echo esc_attr( $key ); ?>">
-											<?php wp_nonce_field( 'bepluspb_quick_enable_' . $key, 'bepluspb_quick_enable_nonce' ); ?>
-											<button type="submit" class="button button-secondary bepluspb-quick-enable-btn">
-												<?php esc_html_e( 'Enable', 'beplus-performance-booster' ); ?>
-											</button>
-										</form>
-									<?php endif; ?>
-								</td>
-							</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
+					<div class="bepluspb-recommendation-preview"><h3><?php esc_html_e( 'Exact changes before save', 'beplus-performance-booster' ); ?></h3>
+					<?php
+					if ( $diff ) :
+						?>
+						<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
+						<?php
+						foreach ( $diff as $key => $change ) :
+							?>
+						<tr><th scope="row"><code><?php echo esc_html( $key ); ?></code></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : (string) $change['from'] ); ?></td><td><?php echo esc_html( (string) $change['to'] ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<?php
+else :
+	?>
+	<p><?php esc_html_e( 'This plan is already applied.', 'beplus-performance-booster' ); ?></p><?php endif; ?></div>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-recommendation-actions"><input type="hidden" name="action" value="bepluspb_recommendation_action"><input type="hidden" name="profile" value="<?php echo esc_attr( $profile ); ?>"><?php wp_nonce_field( 'bepluspb_recommendation_action' ); ?><button class="button button-primary" name="operation" value="apply" data-recommendation-confirm="<?php esc_attr_e( 'Apply exactly the previewed changes?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Apply Recommended', 'beplus-performance-booster' ); ?></button><button class="button" name="operation" value="disable" data-recommendation-confirm="<?php esc_attr_e( 'Turn off only features managed by this plan?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Disable Recommended', 'beplus-performance-booster' ); ?></button>
+					<?php
+					if ( is_array( $snapshot ) && empty( $snapshot['used'] ) ) :
+						?>
+						<button class="button" name="operation" value="restore" data-recommendation-confirm="<?php esc_attr_e( 'Restore the previous managed settings?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Restore Previous Settings', 'beplus-performance-booster' ); ?></button><?php endif; ?><p class="description"><?php esc_html_e( 'Disable Recommended does not deactivate the plugin. It only turns off boolean features managed by the selected plan; credentials, endpoints, exclusions and manual fields stay unchanged.', 'beplus-performance-booster' ); ?></p></form>
 				</div>
-			</div>
+			</section>
 
 		</div>
 
@@ -3463,6 +3438,52 @@ gzip_min_length 1024;'
 		}
 
 		wp_safe_redirect( admin_url( 'options-general.php?page=beplus-performance-booster&bepluspb_all_enabled=1' ) );
+		exit;
+	}
+
+	/** Apply, disable, or one-time restore a recommendation plan atomically. */
+	public static function handle_recommendation_action() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'beplus-performance-booster' ) ); }
+		check_admin_referer( 'bepluspb_recommendation_action' );
+		$operation      = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
+		$posted_profile = isset( $_POST['profile'] ) ? sanitize_key( wp_unslash( $_POST['profile'] ) ) : '';
+		$profile        = BEPLUSPB_Recommendations::sanitize_profile( $posted_profile );
+		if ( ! in_array( $operation, array( 'apply', 'disable', 'restore' ), true ) ) {
+			wp_die( esc_html__( 'Invalid recommendation action.', 'beplus-performance-booster' ) ); }
+		$saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+		$saved = is_array( $saved ) ? $saved : array();
+		if ( 'restore' === $operation ) {
+			$snapshot = get_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, array() );
+			if ( ! is_array( $snapshot ) || ! empty( $snapshot['used'] ) || empty( $snapshot['values'] ) ) {
+				wp_die( esc_html__( 'No unused previous-settings snapshot is available.', 'beplus-performance-booster' ) ); }
+			$next                    = BEPLUSPB_Recommendations::restore( $saved, $snapshot );
+			$snapshot['used']        = true;
+			$snapshot['restored_at'] = time();
+			$snapshot['restored_by'] = get_current_user_id();
+			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, $snapshot, false );
+		} else {
+			$plans = BEPLUSPB_Recommendations::plans( get_bloginfo( 'version' ) );
+			$plan  = $plans[ $profile ];
+			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, BEPLUSPB_Recommendations::snapshot( $saved, $profile, get_current_user_id(), time() ), false );
+			$next = 'apply' === $operation ? BEPLUSPB_Recommendations::apply_plan( $saved, $plan ) : BEPLUSPB_Recommendations::disable_plan( $saved, $plan );
+		}
+		update_option( BEPLUSPB_OPTIONS_KEY, $next );
+		bepluspb_flush_options_cache();
+		if ( ! empty( $next['cache_headers'] ) ) {
+			BEPLUSPB_Htaccess::add_rules();
+		} else {
+			BEPLUSPB_Htaccess::remove_rules(); }
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'                         => 'beplus-performance-booster',
+					'bepluspb_profile'             => $profile,
+					'bepluspb_recommendation_done' => $operation,
+				),
+				admin_url( 'options-general.php' )
+			)
+		);
 		exit;
 	}
 

@@ -294,4 +294,11 @@
 		});
 	}
 
+	// Recommended Settings v2 destructive/save confirmation.
+	document.querySelectorAll('[data-recommendation-confirm]').forEach(function (button) {
+		button.addEventListener('click', function (event) {
+			if (!window.confirm(button.getAttribute('data-recommendation-confirm'))) { event.preventDefault(); }
+		});
+	});
+
 })();

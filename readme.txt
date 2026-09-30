@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -465,6 +465,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.1.2 =
+* Added local-only, site-aware Recommended Settings plans with previewed apply, safe disable, and one-time restore.
+
 
 = 1.1.0 =
 * New: Predictive Navigation for WordPress 6.8+ using Core's native Speculation Rules API. Choose safe prefetch, balanced prefetch, or fast prerender, with conservative defaults and commerce/sensitive-path exclusions. Disabled by default.

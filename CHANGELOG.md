@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-30
+
+### Added
+- Site-aware Recommended Settings v2 with local detection, exact preview, allowlisted atomic apply/disable, and audited one-time restore.
+
 ## [1.1.1] - 2026-09-30
 
 ### Changed
