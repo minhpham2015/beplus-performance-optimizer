@@ -219,6 +219,7 @@ class BEPLUSPB_Admin {
 			'cdn_webp_avif',
 			// Cloudflare.
 			'cloudflare_enabled',
+			'predictive_navigation_enabled',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -277,6 +278,11 @@ class BEPLUSPB_Admin {
 		$sanitized['cache_exclude_pages'] = isset( $input['cache_exclude_pages'] )
 			? sanitize_textarea_field( $input['cache_exclude_pages'] )
 			: '';
+
+		$allowed_predictive_modes                    = array( 'safe', 'balanced', 'fast' );
+		$predictive_mode                             = isset( $input['predictive_navigation_mode'] ) ? sanitize_key( $input['predictive_navigation_mode'] ) : 'safe';
+		$sanitized['predictive_navigation_mode']     = in_array( $predictive_mode, $allowed_predictive_modes, true ) ? $predictive_mode : 'safe';
+		$sanitized['predictive_navigation_excludes'] = BEPLUSPB_Predictive_Navigation::sanitize_excludes( $input['predictive_navigation_excludes'] ?? '' );
 
 		// ---- CDN (custom pull-zone rewriter). ----
 		$sanitized['cdn_url'] = isset( $input['cdn_url'] )
@@ -385,6 +391,7 @@ class BEPLUSPB_Admin {
 			'cloudflare'   => '🔶 ' . __( 'Cloudflare', 'beplus-performance-booster' ),
 			'cleanup'      => '🧹 ' . __( 'Cleanup', 'beplus-performance-booster' ),
 			'exclusions'   => '🚫 ' . __( 'Cache Exclusions', 'beplus-performance-booster' ),
+			'predictive'   => '⚡ ' . __( 'Predictive Navigation', 'beplus-performance-booster' ),
 			'object_cache' => '🗄️ ' . __( 'Object Cache', 'beplus-performance-booster' ),
 			'status'       => '🔍 ' . __( 'Status', 'beplus-performance-booster' ),
 			'ai_optimizer' => '🤖 ' . __( 'AI Optimizer', 'beplus-performance-booster' ),
@@ -439,6 +446,10 @@ class BEPLUSPB_Admin {
 
 				<div id="bepluspb-tab-exclusions" class="bepluspb-tab-panel" role="tabpanel">
 					<?php self::render_section_exclusions( $opts ); ?>
+				</div>
+
+				<div id="bepluspb-tab-predictive" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_section_predictive_navigation( $opts ); ?>
 				</div>
 
 				<div id="bepluspb-tab-object_cache" class="bepluspb-tab-panel" role="tabpanel">
@@ -2579,6 +2590,36 @@ class BEPLUSPB_Admin {
 
 	/**
 	 * Render the "Cache Exclusions" tab — page exclusions, user exclusions, browser cache.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_predictive_navigation( $opts ) {
+		$supported = version_compare( get_bloginfo( 'version' ), '6.8', '>=' );
+		?>
+		<div class="bepluspb-section-header"><h2><?php esc_html_e( 'Predictive Navigation', 'beplus-performance-booster' ); ?></h2>
+		<p><?php esc_html_e( 'Speed up likely next-page visits using the native WordPress Speculation Rules API. No external calls, telemetry, JavaScript polyfill, or duplicate speculation script is added.', 'beplus-performance-booster' ); ?></p></div>
+		<?php if ( ! $supported ) : ?>
+			<div class="notice notice-warning inline"><p><?php esc_html_e( 'Predictive Navigation requires WordPress 6.8 or newer. It remains inactive on this site.', 'beplus-performance-booster' ); ?></p></div>
+		<?php else : ?>
+			<div class="notice notice-info inline"><p><?php esc_html_e( 'Compatible with WordPress 6.8+. WordPress Core automatically disables speculative loading for logged-in visitors and when pretty permalinks are unavailable.', 'beplus-performance-booster' ); ?></p></div>
+		<?php endif; ?>
+		<div class="bepluspb-card">
+			<label class="bepluspb-toggle-row"><input type="checkbox" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_enabled]" value="1" <?php checked( ! empty( $opts['predictive_navigation_enabled'] ) ); ?> <?php disabled( ! $supported ); ?>><span><strong><?php esc_html_e( 'Enable Predictive Navigation', 'beplus-performance-booster' ); ?></strong><small><?php esc_html_e( 'Disabled by default. Prefetch uses network resources; prerender also executes the destination page and has higher bandwidth, server, and side-effect risk.', 'beplus-performance-booster' ); ?></small></span></label>
+			<p><label for="bepluspb-predictive-mode"><strong><?php esc_html_e( 'Mode', 'beplus-performance-booster' ); ?></strong></label></p>
+			<select id="bepluspb-predictive-mode" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_mode]">
+				<option value="safe" <?php selected( $opts['predictive_navigation_mode'], 'safe' ); ?>><?php esc_html_e( 'Safe — prefetch / conservative', 'beplus-performance-booster' ); ?></option>
+				<option value="balanced" <?php selected( $opts['predictive_navigation_mode'], 'balanced' ); ?>><?php esc_html_e( 'Balanced — prefetch / moderate', 'beplus-performance-booster' ); ?></option>
+				<option value="fast" <?php selected( $opts['predictive_navigation_mode'], 'fast' ); ?>><?php esc_html_e( 'Fast — prerender / moderate (higher resource/risk)', 'beplus-performance-booster' ); ?></option>
+			</select>
+			<p><label for="bepluspb-predictive-excludes"><strong><?php esc_html_e( 'Additional excluded paths', 'beplus-performance-booster' ); ?></strong></label></p>
+			<textarea id="bepluspb-predictive-excludes" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[predictive_navigation_excludes]" rows="6" class="large-text code" placeholder="/members/*"><?php echo esc_textarea( $opts['predictive_navigation_excludes'] ); ?></textarea>
+			<p class="description"><?php esc_html_e( 'One same-origin path pattern per line. Cart, checkout, account, search, preview, action, login, admin, REST, and detected WooCommerce page URLs are always excluded.', 'beplus-performance-booster' ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render cache exclusions.
 	 *
 	 * @param array $opts Current option values.
 	 */

@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-30
+
+### Added
+- Predictive Navigation v1 on WordPress 6.8+ via Core's native speculation
+  rules filters, with safe/balanced/fast modes, commerce and sensitive-path
+  exclusions, sanitized custom paths, compatibility/risk guidance, and no
+  telemetry, external calls, polyfill, or duplicate script.
+
 ## [1.0.11] - 2026-09-25
 
 ### Fixed
