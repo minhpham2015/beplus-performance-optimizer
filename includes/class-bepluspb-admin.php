@@ -48,8 +48,9 @@ class BEPLUSPB_Admin {
 		// Enqueue admin bar stylesheet on front-end pages where the bar is showing.
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_adminbar_styles' ) );
 
-		// POST handler for the "Clear Cache" action (admin-post.php).
-		add_action( 'admin_post_bepluspb_clear_cache', array( __CLASS__, 'handle_clear_cache' ) );
+		// Destructive cache maintenance is POST-only.
+		add_action( 'admin_post_bepluspb_purge_all_cache', array( __CLASS__, 'handle_purge_all_cache' ) );
+		add_action( 'admin_post_bepluspb_purge_object_cache', array( __CLASS__, 'handle_purge_object_cache' ) );
 
 		// POST handler for quick-enable buttons on the Dashboard tab.
 		add_action( 'admin_post_bepluspb_quick_enable', array( __CLASS__, 'handle_quick_enable' ) );
@@ -380,10 +381,6 @@ class BEPLUSPB_Admin {
 
 		$opts = bepluspb_get_options();
 
-		$clear_cache_url    = wp_nonce_url(
-			admin_url( 'admin-post.php?action=bepluspb_clear_cache' ),
-			'bepluspb_clear_cache'
-		);
 		$cache_dir_writable = BEPLUSPB_Minify::ensure_cache_dir();
 
 		// Tab definitions: id => label.
@@ -421,7 +418,7 @@ class BEPLUSPB_Admin {
 
 			<!-- Dashboard tab: rendered outside the settings form so it can have its own forms -->
 			<div id="bepluspb-tab-dashboard" class="bepluspb-tab-panel" role="tabpanel">
-				<?php self::render_section_dashboard( $opts, $clear_cache_url, $cache_dir_writable ); ?>
+				<?php self::render_section_dashboard( $opts, $cache_dir_writable ); ?>
 			</div>
 
 			<!-- Settings tabs: all inside a single <form> for the Settings API -->
@@ -465,6 +462,12 @@ class BEPLUSPB_Admin {
 				</div>
 			</form>
 
+			<form id="bepluspb-object-purge-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-purge-form" data-confirm="<?php esc_attr_e( 'This may clear the entire configured Redis database or Memcached pool. Continue?', 'beplus-performance-booster' ); ?>">
+				<input type="hidden" name="action" value="bepluspb_purge_object_cache">
+				<input type="hidden" name="bepluspb_confirm_object_purge" value="1">
+				<?php wp_nonce_field( 'bepluspb_purge_object_cache', 'bepluspb_object_purge_nonce' ); ?>
+			</form>
+
 			<!-- Status tab: outside the settings form — read-only system report -->
 			<div id="bepluspb-tab-status" class="bepluspb-tab-panel" role="tabpanel">
 				<?php self::render_section_status(); ?>
@@ -488,11 +491,10 @@ class BEPLUSPB_Admin {
 	/**
 	 * Render the Dashboard tab: cache overview + recommended settings.
 	 *
-	 * @param array  $opts               Current option values.
-	 * @param string $clear_cache_url    Nonce-signed URL for the clear-cache action.
-	 * @param bool   $cache_dir_writable Whether the cache directory is writable.
+	 * @param array $opts               Current option values.
+	 * @param bool  $cache_dir_writable Whether the cache directory is writable.
 	 */
-	private static function render_section_dashboard( $opts, $clear_cache_url, $cache_dir_writable = true ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- kept for call-site symmetry with render_section_cache_files() and to match the tab-rendering pattern; not currently read here.
+	private static function render_section_dashboard( $opts, $cache_dir_writable = true ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- kept for call-site symmetry with render_section_cache_files() and to match the tab-rendering pattern; not currently read here.
 		$stats             = BEPLUSPB_Minify::get_cache_stats();
 		$settings_url      = admin_url( 'options-general.php?page=beplus-performance-booster' );
 		$htaccess_writable = BEPLUSPB_Htaccess::is_writable();
@@ -599,14 +601,12 @@ class BEPLUSPB_Admin {
 					<div class="notice notice-warning inline bepluspb-cache-disabled-notice" id="bepluspb-cache-disabled-notice" style="display:none;"></div>
 					<?php endif; ?>
 
-					<div class="bepluspb-cache-actions-row">
-						<a href="<?php echo $cache_on ? esc_url( $clear_cache_url ) : '#'; ?>"
-							id="bepluspb-clear-cache-btn"
-							class="button <?php echo esc_attr( ! $cache_on || 0 === $stats['count'] ? 'bepluspb-clear-btn bepluspb-clear-btn--empty' : 'bepluspb-clear-btn' ); ?>"
-							<?php echo ! $cache_on ? 'aria-disabled="true" tabindex="-1"' : ''; ?>>
-							<?php esc_html_e( 'Clear CSS/JS Cache', 'beplus-performance-booster' ); ?>
-						</a>
-					</div>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-purge-form bepluspb-cache-actions-row">
+						<input type="hidden" name="action" value="bepluspb_purge_all_cache">
+						<?php wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce' ); ?>
+						<button type="submit" id="bepluspb-clear-cache-btn" class="button bepluspb-clear-btn"><?php esc_html_e( 'Purge ALL Cache', 'beplus-performance-booster' ); ?></button>
+					</form>
+					<p class="description"><?php esc_html_e( 'Clears plugin-managed CSS/JS/UCSS disk artifacts and Cloudflare only when enabled. Does not purge persistent Object Cache, WordPress transients, or third-party/server page caches.', 'beplus-performance-booster' ); ?></p>
 
 					<p class="bepluspb-cache-summary">
 						<?php if ( $stats['count'] > 0 ) : ?>
@@ -3066,6 +3066,19 @@ gzip_min_length 1024;'
 					</div>
 				</div>
 
+				<?php $purge = BEPLUSPB_Object_Cache::get_purge_availability(); ?>
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label"><?php esc_html_e( 'Purge Object Cache', 'beplus-performance-booster' ); ?></div>
+					<div class="bepluspb-form-row-field">
+						<p><strong><?php esc_html_e( 'Warning: this invokes Redis FLUSHDB or clears the Memcached entire pool and may affect other sites/apps sharing that backend.', 'beplus-performance-booster' ); ?></strong></p>
+						<button type="submit" form="bepluspb-object-purge-form" class="button" <?php disabled( empty( $purge['available'] ) ); ?>><?php esc_html_e( 'Purge Object Cache', 'beplus-performance-booster' ); ?></button>
+						<?php
+						if ( empty( $purge['available'] ) ) :
+							?>
+							<p class="description"><?php echo esc_html( $purge['reason'] ); ?></p><?php endif; ?>
+					</div>
+				</div>
+
 				<!-- Drop-in Install / Remove row -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
@@ -3207,13 +3220,9 @@ gzip_min_length 1024;'
 			return;
 		}
 
-		$opts            = bepluspb_get_options();
-		$dot_color       = ! empty( $opts['cache_enabled'] ) ? '#00a32a' : '#dc3232';
-		$stats           = BEPLUSPB_Minify::get_cache_stats();
-		$clear_cache_url = wp_nonce_url(
-			admin_url( 'admin-post.php?action=bepluspb_clear_cache' ),
-			'bepluspb_clear_cache'
-		);
+		$opts      = bepluspb_get_options();
+		$dot_color = ! empty( $opts['cache_enabled'] ) ? '#00a32a' : '#dc3232';
+		$stats     = BEPLUSPB_Minify::get_cache_stats();
 
 		// Parent node — colour-coded dot (green = on, red = off) + "Beplus Performance Booster".
 		$wp_admin_bar->add_node(
@@ -3231,7 +3240,7 @@ gzip_min_length 1024;'
 			array(
 				'id'     => 'bepluspb-cache-panel',
 				'parent' => 'bepluspb-cache',
-				'title'  => self::build_adminbar_panel( $stats, $clear_cache_url, $dot_color ),
+				'title'  => self::build_adminbar_panel( $stats, $dot_color ),
 				'href'   => false,
 				'meta'   => array( 'class' => 'bepluspb-adminbar-panel-node' ),
 			)
@@ -3255,11 +3264,10 @@ gzip_min_length 1024;'
 	 * stroke-dashoffset = 25 rotates the arc start to 12 o'clock.
 	 *
 	 * @param  array  $stats           Result of BEPLUSPB_Minify::get_cache_stats().
-	 * @param  string $clear_cache_url Nonce-signed URL for the clear-cache action.
 	 * @param  string $dot_color       Hex color for the status dot in the panel header.
 	 * @return string HTML markup (output raw as WP_Admin_Bar node title).
 	 */
-	private static function build_adminbar_panel( $stats, $clear_cache_url, $dot_color = '#00a32a' ) {
+	private static function build_adminbar_panel( $stats, $dot_color = '#00a32a' ) {
 		$max_bytes = 10 * 1024 * 1024; // 10 MB reference maximum.
 		$pct       = $stats['size'] > 0
 			? min( 100, (int) round( ( $stats['size'] / $max_bytes ) * 100 ) )
@@ -3342,9 +3350,7 @@ gzip_min_length 1024;'
 		$html .= '<div class="bepluspb-ab-sep" aria-hidden="true"></div>';
 
 		// Full-width flush clear button.
-		$html .= '<a href="' . esc_url( $clear_cache_url ) . '" class="bepluspb-ab-clear-btn">'
-			. esc_html__( 'Clear CSS / JS Cache', 'beplus-performance-booster' )
-			. '</a>';
+		$html .= '<div class="bepluspb-ab-purge-form"><a href="' . esc_url( admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-purge-all' ) ) . '">' . esc_html__( 'Purge ALL Cache', 'beplus-performance-booster' ) . '</a></div>';
 
 		$html .= '</div>'; // .bepluspb-ab-panel
 
@@ -3545,37 +3551,115 @@ gzip_min_length 1024;'
 	/**
 	 * Handle POST to admin-post.php?action=bepluspb_clear_cache.
 	 */
-	public static function handle_clear_cache() {
-		// Nonce first — also verifies the user is logged in before any capability check.
-		check_admin_referer( 'bepluspb_clear_cache' );
-
+	public static function handle_purge_all_cache() {
+		if ( 'POST' !== ( isset( $_SERVER['REQUEST_METHOD'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : '' ) ) {
+			wp_die( esc_html__( 'Cache purge requires POST.', 'beplus-performance-booster' ), 405 );
+		}
+		check_admin_referer( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce' );
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to perform this action.', 'beplus-performance-booster' ) );
 		}
-
-		$count = BEPLUSPB_Minify::clear_cache();
-
-		// Also purge Cloudflare when enabled, so both cache layers stay in
-		// sync from the single existing "Clear Cache" action — no separate
-		// button needed for the common case. Failure here is silent (the
-		// dedicated "Purge Cloudflare Now" button on the Cloudflare tab
-		// surfaces errors); local cache clearing must never be blocked by
-		// an unreachable/misconfigured Cloudflare account.
+		$user = get_current_user_id();
+		$lock = 'bepluspb_purge_all_lock_' . $user;
+		if ( get_transient( $lock ) ) {
+			self::store_purge_result(
+				array(
+					'scope'   => 'all',
+					'overall' => 'failed',
+					'message' => __( 'A cache purge is already in progress. Try again shortly.', 'beplus-performance-booster' ),
+					'layers'  => array(),
+				)
+			);
+			self::redirect_after_purge();
+		}
+		set_transient( $lock, 1, 15 );
+		$disk = BEPLUSPB_Minify::clear_cache();
+		$cf   = array(
+			'status'  => 'skipped',
+			'message' => __( 'Cloudflare is not enabled.', 'beplus-performance-booster' ),
+		);
 		if ( ! empty( bepluspb_get_options()['cloudflare_enabled'] ) ) {
-			BEPLUSPB_Cloudflare::purge_all();
+			$raw = BEPLUSPB_Cloudflare::purge_all();
+			$cf  = array(
+				'status'  => ! empty( $raw['success'] ) ? 'success' : 'failed',
+				'message' => ! empty( $raw['success'] ) ? __( 'Cloudflare cache purged.', 'beplus-performance-booster' ) : __( 'Cloudflare purge failed; verify its configuration.', 'beplus-performance-booster' ),
+			);
 		}
+		$overall = ( 'failed' === $disk['status'] && 'failed' === $cf['status'] ) ? 'failed' : ( in_array( 'failed', array( $disk['status'], $cf['status'] ), true ) ? 'partial' : 'success' );
+		$report  = array(
+			'scope'   => 'all',
+			'overall' => $overall,
+			'layers'  => array(
+				'disk_assets'  => $disk,
+				'cloudflare'   => $cf,
+				'object_cache' => array(
+					'status'  => 'skipped',
+					'message' => __( 'Object Cache is excluded from Purge ALL.', 'beplus-performance-booster' ),
+				),
+			),
+		);
+		/** Fires after plugin-owned local disk artifacts are purged. Adapters may inspect the structured report; their caches are not claimed as purged. */
+		do_action( 'bepluspb_after_local_cache_purge', $report );
+		// Keep the short lock as a cooldown against rapid duplicate Cloudflare purges.
+		self::store_purge_result( $report );
+		self::redirect_after_purge();
+	}
 
-		// SEC-1: Store the result in a short-lived per-user transient instead of
-		// appending it to the redirect URL. This avoids the notice re-firing if
-		// the user bookmarks or shares the URL with the query string attached.
-		set_transient( 'bepluspb_cache_cleared_' . get_current_user_id(), $count, 30 );
-
-		$referrer = wp_get_referer();
-		if ( ! $referrer ) {
-			$referrer = admin_url( 'options-general.php?page=beplus-performance-booster' );
+	/** Handle the separately confirmed Object Cache purge. */
+	public static function handle_purge_object_cache() {
+		if ( 'POST' !== ( isset( $_SERVER['REQUEST_METHOD'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : '' ) ) {
+			wp_die( esc_html__( 'Cache purge requires POST.', 'beplus-performance-booster' ), 405 ); }
+		check_admin_referer( 'bepluspb_purge_object_cache', 'bepluspb_object_purge_nonce' );
+		$cap = is_multisite() ? 'manage_network_options' : 'manage_options';
+		if ( ! current_user_can( $cap ) || empty( $_POST['bepluspb_confirm_object_purge'] ) ) {
+			wp_die( esc_html__( 'Object-cache purge was not authorized and confirmed.', 'beplus-performance-booster' ) ); }
+		$availability = BEPLUSPB_Object_Cache::get_purge_availability();
+		if ( empty( $availability['available'] ) ) {
+			self::store_purge_result(
+				array(
+					'scope'   => 'object',
+					'overall' => 'failed',
+					'layers'  => array(
+						'object_cache' => array(
+							'status'  => 'refused',
+							'backend' => $availability['backend'],
+							'scope'   => $availability['scope'],
+							'message' => $availability['reason'],
+						),
+					),
+				)
+			);
+			self::redirect_after_purge();
 		}
+		$ok = wp_cache_flush();
+		self::store_purge_result(
+			array(
+				'scope'   => 'object',
+				'overall' => $ok ? 'success' : 'failed',
+				'layers'  => array(
+					'object_cache' => array(
+						'status'  => $ok ? 'success' : 'failed',
+						'backend' => $availability['backend'],
+						'scope'   => $availability['scope'],
+						'message' => $ok ? __( 'Persistent Object Cache purged.', 'beplus-performance-booster' ) : __( 'Object Cache purge failed.', 'beplus-performance-booster' ),
+					),
+				),
+			)
+		);
+		self::redirect_after_purge();
+	}
 
-		wp_safe_redirect( remove_query_arg( 'bepluspb_cache_cleared', $referrer ) );
+	/** Store a bounded, per-user, one-time purge report.
+	 *
+	 * @param array $report Sanitized structured report.
+	 */
+	private static function store_purge_result( $report ) {
+		set_transient( 'bepluspb_cache_cleared_' . get_current_user_id(), $report, 60 );
+	}
+
+	/** Redirect after a POST to prevent refresh from repeating it. */
+	private static function redirect_after_purge() {
+		wp_safe_redirect( admin_url( 'options-general.php?page=beplus-performance-booster' ) );
 		exit;
 	}
 
@@ -3616,37 +3700,18 @@ gzip_min_length 1024;'
 	 * of browser history or URL sharing.
 	 */
 	public static function maybe_show_cleared_notice() {
-		$transient_key = 'bepluspb_cache_cleared_' . get_current_user_id();
-		$count         = get_transient( $transient_key );
-
-		if ( false === $count ) {
-			return;
+		$key    = 'bepluspb_cache_cleared_' . get_current_user_id();
+		$report = get_transient( $key );
+		if ( ! is_array( $report ) ) {
+			return; }
+		delete_transient( $key );
+		$class = 'success' === $report['overall'] ? 'success' : ( 'partial' === $report['overall'] ? 'warning' : 'error' );
+		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible"><p><strong>' . esc_html( sprintf( /* translators: %s: overall purge status. */ __( 'Cache purge result: %s.', 'beplus-performance-booster' ), $report['overall'] ) ) . '</strong></p><ul>';
+		foreach ( $report['layers'] as $name => $layer ) {
+			$message = isset( $layer['message'] ) ? $layer['message'] : sprintf( /* translators: 1: matched files, 2: deleted files, 3: failed files. */ __( '%1$d matched, %2$d deleted, %3$d failed.', 'beplus-performance-booster' ), $layer['matched'], $layer['deleted'], $layer['failed'] );
+			echo '<li>' . esc_html( ucfirst( str_replace( '_', ' ', $name ) ) . ': ' . $layer['status'] . ' — ' . $message ) . '</li>';
 		}
-
-		// Consume the transient so the notice only appears once.
-		delete_transient( $transient_key );
-
-		$count = absint( $count );
-		?>
-		<div class="notice notice-success is-dismissible">
-			<p>
-				<?php
-				printf(
-					esc_html(
-						/* translators: %d = number of deleted files. */
-						_n(
-							'Beplus Performance Booster: %d cached file cleared successfully.',
-							'Beplus Performance Booster: %d cached files cleared successfully.',
-							$count,
-							'beplus-performance-booster'
-						)
-					),
-					absint( $count )
-				);
-				?>
-			</p>
-		</div>
-		<?php
+		echo '</ul></div>';
 	}
 
 	// =========================================================================

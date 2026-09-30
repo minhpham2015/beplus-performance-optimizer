@@ -386,6 +386,56 @@ class BEPLUSPB_Object_Cache {
 		}
 	}
 
+	/**
+	 * Determine whether a backend-wide purge can be offered safely.
+	 *
+	 * The bundled drop-in uses Redis FLUSHDB or Memcached flush. Therefore it
+	 * fails closed unless an operator/integration explicitly attests that the
+	 * selected backend scope is dedicated to this WordPress installation.
+	 *
+	 * @return array{available:bool,backend:string,scope:string,reason:string}
+	 */
+	public static function get_purge_availability() {
+		$opts    = bepluspb_get_options();
+		$backend = 'memcached' === ( $opts['object_cache_driver'] ?? '' ) ? 'memcached' : 'redis';
+		$scope   = 'redis' === $backend ? 'database' : 'pool';
+		$reason  = __( 'Disabled: exclusive ownership of the configured backend scope cannot be proven.', 'beplus-performance-booster' );
+		if ( empty( $opts['object_cache_enabled'] ) || ! wp_using_ext_object_cache() || ! self::is_dropin_installed() ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: settings, runtime external cache, and the bundled drop-in do not all match.', 'beplus-performance-booster' ),
+			);
+		}
+		$cfg_raw = file_exists( self::config_file() ) ? file_get_contents( self::config_file() ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$cfg     = $cfg_raw ? json_decode( $cfg_raw, true ) : null;
+		if ( ! is_array( $cfg ) || empty( $cfg['enabled'] ) || ( $cfg['driver'] ?? '' ) !== $backend ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: the effective Object Cache configuration does not match saved settings.', 'beplus-performance-booster' ),
+			);
+		}
+		$health = self::test_connection( $cfg );
+		if ( empty( $health['success'] ) ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: the persistent Object Cache backend is disconnected or unhealthy.', 'beplus-performance-booster' ),
+			);
+		}
+		$isolated = (bool) apply_filters( 'bepluspb_object_cache_scope_is_dedicated', false, $backend, $scope );
+		return array(
+			'available' => $isolated,
+			'backend'   => $backend,
+			'scope'     => $scope,
+			'reason'    => $isolated ? '' : $reason,
+		);
+	}
+
 	// -------------------------------------------------------------------------
 	// Status
 	// -------------------------------------------------------------------------

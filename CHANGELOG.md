@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.7
+
+- Add POST-only Purge ALL Cache with structured disk and Cloudflare layer reporting.
+- Add fail-closed, separately confirmed Object Cache purge controls; object cache remains excluded from Purge ALL.
+- Document third-party page-cache adapter hook `bepluspb_after_local_cache_purge`.
+
 ## 1.1.6
 - Harden Font Preload v2 origin deduplication with effective ports and revalidate filtered entries before rendering.
 - Correct the admin copy to describe render-time validation.

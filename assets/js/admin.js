@@ -97,6 +97,17 @@
 		jsDelayCheckbox.addEventListener('change', toggleDelaySubRows);
 	}
 
+	// Confirm destructive purge forms and prevent accidental double submission.
+	document.querySelectorAll('form.bepluspb-purge-form').forEach(function (form) {
+		form.addEventListener('submit', function (event) {
+			var message = form.getAttribute('data-confirm');
+			if (message && !window.confirm(message)) { event.preventDefault(); return; }
+			var button = form.querySelector('button[type="submit"]');
+			if (button && button.disabled) { event.preventDefault(); return; }
+			if (button) { button.disabled = true; button.setAttribute('aria-disabled', 'true'); }
+		});
+	});
+
 	// -------------------------------------------------------------------------
 	// Master cache toggle — AJAX save
 	// -------------------------------------------------------------------------
