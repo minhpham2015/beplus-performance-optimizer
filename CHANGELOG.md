@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-09-30
+
+### Fixed
+- Corrected the Lazy Load v2 compatibility boundary: the Core loading
+  optimization attributes filter is used only on WordPress 6.4+, while
+  WordPress 5.5–6.3 keeps its native behavior without plugin HTML rewriting.
+- Updated admin/readme compatibility copy, added offline WordPress 6.3/6.4
+  source-contract fixtures, and made CI execute every standalone PHP test.
+
 ## [1.1.3] - 2026-09-30
 
 ### Changed

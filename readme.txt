@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,17 +157,17 @@ Recommended for checkout/cart and other heavily dynamic pages.
 **Enable Lazy Loading**
 Default: off
 
-Adds `loading="lazy"` to qualifying `<img>` tags found in post content, featured
-images, widget text, and `<picture>` elements. For browsers that do not support the
-native `loading` attribute, a small IntersectionObserver polyfill is injected into
-`wp_footer` (activates only when native support is absent).
+Uses WordPress Core's native media loading policy without rewriting HTML or adding
+a JavaScript fallback. On WordPress 6.4 or newer, the threshold and exclusion
+settings below adjust Core-generated loading attributes. WordPress 5.5 through 6.3
+retains its native behavior because Core does not expose that attribute filter.
 
 **Skip First N Images**
 Default: 1
 
-Images 1 through N are marked `loading="eager"` instead of `loading="lazy"`.
-Set this to at least 1 to protect the hero/LCP image from being lazy-loaded, which
-would hurt Core Web Vitals. Accepts 0–20.
+On WordPress 6.4 or newer, controls Core's media omission threshold (0–20). The
+default 3 leaves Core's own threshold unchanged. The plugin does not identify or
+promise an LCP image.
 
 **Exclude by CSS Class**
 Default: empty
@@ -465,6 +465,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.1.4 =
+* Corrected Lazy Load compatibility: configurable Core attribute policy now starts on WordPress 6.4; WordPress 5.5–6.3 retains native Core behavior.
+* Added deterministic WordPress 6.3/6.4 hook contract coverage and automatic CI execution of every standalone test.
 
 = 1.1.2 =
 * Added local-only, site-aware Recommended Settings plans with previewed apply, safe disable, and one-time restore.

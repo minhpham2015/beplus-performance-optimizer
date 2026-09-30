@@ -1,0 +1,220 @@
+<?php
+// Exact excerpt from https://raw.githubusercontent.com/WordPress/wordpress-develop/6.4.5/src/wp-includes/media.php
+function wp_get_loading_optimization_attributes( $tag_name, $attr, $context ) {
+	global $wp_query;
+
+	/**
+	 * Filters whether to short-circuit loading optimization attributes.
+	 *
+	 * Returning an array from the filter will effectively short-circuit the loading of optimization attributes,
+	 * returning that value instead.
+	 *
+	 * @since 6.4.0
+	 *
+	 * @param array|false $loading_attrs False by default, or array of loading optimization attributes to short-circuit.
+	 * @param string      $tag_name      The tag name.
+	 * @param array       $attr          Array of the attributes for the tag.
+	 * @param string      $context       Context for the element for which the loading optimization attribute is requested.
+	 */
+	$loading_attrs = apply_filters( 'pre_wp_get_loading_optimization_attributes', false, $tag_name, $attr, $context );
+
+	if ( is_array( $loading_attrs ) ) {
+		return $loading_attrs;
+	}
+
+	$loading_attrs = array();
+
+	/*
+	 * Skip lazy-loading for the overall block template, as it is handled more granularly.
+	 * The skip is also applicable for `fetchpriority`.
+	 */
+	if ( 'template' === $context ) {
+		/** This filter is documented in wp-includes/media.php */
+		return apply_filters( 'wp_get_loading_optimization_attributes', $loading_attrs, $tag_name, $attr, $context );
+	}
+
+	// For now this function only supports images and iframes.
+	if ( 'img' !== $tag_name && 'iframe' !== $tag_name ) {
+		/** This filter is documented in wp-includes/media.php */
+		return apply_filters( 'wp_get_loading_optimization_attributes', $loading_attrs, $tag_name, $attr, $context );
+	}
+
+	/*
+	 * Skip programmatically created images within content blobs as they need to be handled together with the other
+	 * images within the post content or widget content.
+	 * Without this clause, they would already be considered within their own context which skews the image count and
+	 * can result in the first post content image being lazy-loaded or an image further down the page being marked as a
+	 * high priority.
+	 */
+	if (
+		'the_content' !== $context && doing_filter( 'the_content' ) ||
+		'widget_text_content' !== $context && doing_filter( 'widget_text_content' ) ||
+		'widget_block_content' !== $context && doing_filter( 'widget_block_content' )
+	) {
+		/** This filter is documented in wp-includes/media.php */
+		return apply_filters( 'wp_get_loading_optimization_attributes', $loading_attrs, $tag_name, $attr, $context );
+
+	}
+
+	/*
+	 * Add `decoding` with a value of "async" for every image unless it has a
+	 * conflicting `decoding` attribute already present.
+	 */
+	if ( 'img' === $tag_name ) {
+		if ( isset( $attr['decoding'] ) ) {
+			$loading_attrs['decoding'] = $attr['decoding'];
+		} else {
+			$loading_attrs['decoding'] = 'async';
+		}
+	}
+
+	// For any resources, width and height must be provided, to avoid layout shifts.
+	if ( ! isset( $attr['width'], $attr['height'] ) ) {
+		/** This filter is documented in wp-includes/media.php */
+		return apply_filters( 'wp_get_loading_optimization_attributes', $loading_attrs, $tag_name, $attr, $context );
+	}
+
+	/*
+	 * The key function logic starts here.
+	 */
+	$maybe_in_viewport    = null;
+	$increase_count       = false;
+	$maybe_increase_count = false;
+
+	// Logic to handle a `loading` attribute that is already provided.
+	if ( isset( $attr['loading'] ) ) {
+		/*
+		 * Interpret "lazy" as not in viewport. Any other value can be
+		 * interpreted as in viewport (realistically only "eager" or `false`
+		 * to force-omit the attribute are other potential values).
+		 */
+		if ( 'lazy' === $attr['loading'] ) {
+			$maybe_in_viewport = false;
+		} else {
+			$maybe_in_viewport = true;
+		}
+	}
+
+	// Logic to handle a `fetchpriority` attribute that is already provided.
+	if ( isset( $attr['fetchpriority'] ) && 'high' === $attr['fetchpriority'] ) {
+		/*
+		 * If the image was already determined to not be in the viewport (e.g.
+		 * from an already provided `loading` attribute), trigger a warning.
+		 * Otherwise, the value can be interpreted as in viewport, since only
+		 * the most important in-viewport image should have `fetchpriority` set
+		 * to "high".
+		 */
+		if ( false === $maybe_in_viewport ) {
+			_doing_it_wrong(
+				__FUNCTION__,
+				__( 'An image should not be lazy-loaded and marked as high priority at the same time.' ),
+				'6.3.0'
+			);
+			/*
+			 * Set `fetchpriority` here for backward-compatibility as we should
+			 * not override what a developer decided, even though it seems
+			 * incorrect.
+			 */
+			$loading_attrs['fetchpriority'] = 'high';
+		} else {
+			$maybe_in_viewport = true;
+		}
+	}
+
+	if ( null === $maybe_in_viewport ) {
+		$header_enforced_contexts = array(
+			'template_part_' . WP_TEMPLATE_PART_AREA_HEADER => true,
+			'get_header_image_tag' => true,
+		);
+
+		/**
+		 * Filters the header-specific contexts.
+		 *
+		 * @since 6.4.0
+		 *
+		 * @param array $default_header_enforced_contexts Map of contexts for which elements should be considered
+		 *                                                in the header of the page, as $context => $enabled
+		 *                                                pairs. The $enabled should always be true.
+		 */
+		$header_enforced_contexts = apply_filters( 'wp_loading_optimization_force_header_contexts', $header_enforced_contexts );
+
+		// Consider elements with these header-specific contexts to be in viewport.
+		if ( isset( $header_enforced_contexts[ $context ] ) ) {
+			$maybe_in_viewport    = true;
+			$maybe_increase_count = true;
+		} elseif ( ! is_admin() && in_the_loop() && is_main_query() ) {
+			/*
+			 * Get the content media count, since this is a main query
+			 * content element. This is accomplished by "increasing"
+			 * the count by zero, as the only way to get the count is
+			 * to call this function.
+			 * The actual count increase happens further below, based
+			 * on the `$increase_count` flag set here.
+			 */
+			$content_media_count = wp_increase_content_media_count( 0 );
+			$increase_count      = true;
+
+			// If the count so far is below the threshold, `loading` attribute is omitted.
+			if ( $content_media_count < wp_omit_loading_attr_threshold() ) {
+				$maybe_in_viewport = true;
+			} else {
+				$maybe_in_viewport = false;
+			}
+		} elseif (
+			// Only apply for main query but before the loop.
+			$wp_query->before_loop && $wp_query->is_main_query()
+			/*
+			 * Any image before the loop, but after the header has started should not be lazy-loaded,
+			 * except when the footer has already started which can happen when the current template
+			 * does not include any loop.
+			 */
+			&& did_action( 'get_header' ) && ! did_action( 'get_footer' )
+			) {
+			$maybe_in_viewport    = true;
+			$maybe_increase_count = true;
+		}
+	}
+
+	/*
+	 * If the element is in the viewport (`true`), potentially add
+	 * `fetchpriority` with a value of "high". Otherwise, i.e. if the element
+	 * is not not in the viewport (`false`) or it is unknown (`null`), add
+	 * `loading` with a value of "lazy".
+	 */
+	if ( $maybe_in_viewport ) {
+		$loading_attrs = wp_maybe_add_fetchpriority_high_attr( $loading_attrs, $tag_name, $attr );
+	} else {
+		// Only add `loading="lazy"` if the feature is enabled.
+		if ( wp_lazy_loading_enabled( $tag_name, $context ) ) {
+			$loading_attrs['loading'] = 'lazy';
+		}
+	}
+
+	/*
+	 * If flag was set based on contextual logic above, increase the content
+	 * media count, either unconditionally, or based on whether the image size
+	 * is larger than the threshold.
+	 */
+	if ( $increase_count ) {
+		wp_increase_content_media_count();
+	} elseif ( $maybe_increase_count ) {
+		/** This filter is documented in wp-includes/media.php */
+		$wp_min_priority_img_pixels = apply_filters( 'wp_min_priority_img_pixels', 50000 );
+
+		if ( $wp_min_priority_img_pixels <= $attr['width'] * $attr['height'] ) {
+			wp_increase_content_media_count();
+		}
+	}
+
+	/**
+	 * Filters the loading optimization attributes.
+	 *
+	 * @since 6.4.0
+	 *
+	 * @param array  $loading_attrs The loading optimization attributes.
+	 * @param string $tag_name      The tag name.
+	 * @param array  $attr          Array of the attributes for the tag.
+	 * @param string $context       Context for the element for which the loading optimization attribute is requested.
+	 */
+	return apply_filters( 'wp_get_loading_optimization_attributes', $loading_attrs, $tag_name, $attr, $context );
+}

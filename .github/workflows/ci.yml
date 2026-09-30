@@ -105,6 +105,17 @@ jobs:
           php -n tests/test-predictive-navigation.php
           php -n tests/test-predictive-navigation-integration.php
 
+  standalone-tests:
+    name: All Standalone Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run every standalone PHP test
+        run: |
+          for test in tests/test-*.php; do
+            php -n "$test"
+          done
+
   object-cache-warning-test:
     name: Object Cache Admin Warning Regression
     runs-on: ubuntu-latest

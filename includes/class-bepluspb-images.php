@@ -22,7 +22,7 @@ class BEPLUSPB_Images {
 			return;
 		}
 
-		if ( version_compare( (string) $wp_version, '6.3', '>=' ) ) {
+		if ( version_compare( (string) $wp_version, '6.4', '>=' ) ) {
 			add_filter( 'wp_get_loading_optimization_attributes', array( __CLASS__, 'filter_attributes' ), 10, 4 );
 			add_filter( 'wp_omit_loading_attr_threshold', array( __CLASS__, 'filter_threshold' ) );
 			return;

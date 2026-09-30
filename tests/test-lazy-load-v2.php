@@ -9,7 +9,7 @@
 if ( ! defined( 'ABSPATH' ) ) { define( 'ABSPATH', __DIR__ ); }
 $GLOBALS['hooks'] = array();
 $GLOBALS['opts'] = array();
-$GLOBALS['wp_version'] = '6.3';
+$GLOBALS['wp_version'] = '6.4';
 function add_filter($tag,$callback,$priority=10,$args=1){$GLOBALS['hooks'][$tag][]=array($callback,$priority,$args);}
 function is_admin(){return !empty($GLOBALS['ctx']['admin']);}
 function is_feed(){return !empty($GLOBALS['ctx']['feed']);}
@@ -50,5 +50,14 @@ ok(5===BEPLUSPB_Images::filter_threshold(3),'explicit expert threshold is applie
 foreach(array('admin','feed','ajax','rest') as $gate){$GLOBALS['hooks']=array();$GLOBALS['ctx']=array($gate=>1);BEPLUSPB_Images::init($GLOBALS['opts']);ok(array()===$GLOBALS['hooks'],'request gate '.$gate);}
 $GLOBALS['ctx']=array(); $GLOBALS['hooks']=array(); $GLOBALS['wp_version']='6.2'; BEPLUSPB_Images::init($GLOBALS['opts']);
 ok(isset($GLOBALS['hooks']['wp_lazy_loading_enabled']) && !isset($GLOBALS['hooks']['wp_get_loading_optimization_attributes']),'WP 5.5-6.2 uses documented Core toggle only');
+$GLOBALS['hooks']=array(); $GLOBALS['wp_version']='6.3'; BEPLUSPB_Images::init($GLOBALS['opts']);
+ok(isset($GLOBALS['hooks']['wp_lazy_loading_enabled']) && !isset($GLOBALS['hooks']['wp_get_loading_optimization_attributes']),'WP 6.3 retains Core behavior because the attributes filter is unavailable');
 $GLOBALS['hooks']=array(); $GLOBALS['wp_version']='5.0'; BEPLUSPB_Images::init($GLOBALS['opts']); ok(array()===$GLOBALS['hooks'],'WP 5.0-5.4 fail open');
-echo "PASS: Lazy Load v2 behavior (22 assertions)\n";
+$admin=file_get_contents(dirname(__DIR__).'/includes/class-bepluspb-admin.php');
+$readme=file_get_contents(dirname(__DIR__).'/readme.txt');
+$ci=file_get_contents(dirname(__DIR__).'/.github/workflows/ci.yml');
+ok(false!==strpos($admin,'WordPress 6.4 or newer'),'admin UI identifies the configurable compatibility floor');
+ok(false!==strpos($admin,'WordPress 5.5 through 6.3 retains its native behavior'),'admin UI honestly describes the legacy path');
+ok(false!==strpos($readme,'WordPress 6.4 or newer'),'readme identifies the configurable compatibility floor');
+ok(false!==strpos($ci,'for test in tests/test-*.php'),'CI discovers every standalone PHP test');
+echo "PASS: Lazy Load v2 behavior (27 assertions)\n";

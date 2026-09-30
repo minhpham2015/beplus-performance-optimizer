@@ -299,7 +299,7 @@ class BEPLUSPB_Admin {
 			: '';
 
 		// ---- Lazy load advanced options. ----
-		$sanitized['lazy_skip_first_n'] = isset( $input['lazy_skip_first_n'] )
+		$sanitized['lazy_skip_first_n']   = isset( $input['lazy_skip_first_n'] )
 			? absint( $input['lazy_skip_first_n'] )
 			: 1;
 		$sanitized['lazy_core_threshold'] = isset( $input['lazy_core_threshold'] )
@@ -1051,7 +1051,7 @@ else :
 							<input type="checkbox" id="bepluspb_lazy_load"
 								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_load]" value="1"
 								<?php checked( $opts['lazy_load'], 1 ); ?>>
-							<span class="bepluspb-check-text"><?php esc_html_e( 'Use WordPress Core to manage image loading, fetch priority, and decoding. Existing attributes from themes and page builders are preserved; no HTML rewriting or JavaScript fallback is used.', 'beplus-performance-booster' ); ?></span>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Use WordPress Core to manage image loading. On WordPress 6.4 or newer, the settings below can adjust Core-generated loading attributes. WordPress 5.5 through 6.3 retains its native behavior. Existing attributes from themes and page builders are preserved; no HTML rewriting or JavaScript fallback is used.', 'beplus-performance-booster' ); ?></span>
 						</label>
 					</div>
 				</div>
@@ -1067,7 +1067,7 @@ else :
 							value="<?php echo esc_attr( $opts['lazy_core_threshold'] ); ?>"
 							min="0" max="20" step="1" class="small-text">
 						<p class="description">
-							<?php esc_html_e( 'Expert setting. Default: 3, aligned with WordPress Core. Core decides which initial media omit loading="lazy"; this plugin does not identify or promise an LCP image. Attachment dimensions remain the responsibility of WordPress, the theme, or the page builder.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Expert setting for WordPress 6.4 or newer. Default: 3, aligned with WordPress Core. Core decides which initial media omit loading="lazy"; this plugin does not identify or promise an LCP image. Attachment dimensions remain the responsibility of WordPress, the theme, or the page builder.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
