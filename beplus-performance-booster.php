@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.1.7
+ * Version: 1.1.8
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.1.7' );
+define( 'BEPLUSPB_VERSION', '1.1.8' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );

@@ -17,7 +17,7 @@ $checks = array(
 	'POST method enforced'             => strpos( $admin, "'POST' !== ( isset( \$_SERVER['REQUEST_METHOD'] )" ) !== false,
 	'Purge ALL label'                  => strpos( $admin, 'Purge ALL Cache' ) !== false,
 	'truthful exclusions'              => strpos( $admin, 'Does not purge persistent Object Cache, WordPress transients, or third-party/server page caches.' ) !== false,
-	'admin bar is non-destructive'     => strpos( $admin, 'bepluspb-ab-purge-form' ) !== false && strpos( substr( $admin, strpos( $admin, 'function build_adminbar_panel' ), strpos( $admin, '// Quick-enable action handler' ) - strpos( $admin, 'function build_adminbar_panel' ) ), 'admin-post.php' ) === false,
+	'admin bar uses safe POST control' => strpos( $admin, 'bepluspb-ab-purge-form' ) !== false && strpos( substr( $admin, strpos( $admin, 'function build_adminbar_panel' ), strpos( $admin, '// Quick-enable action handler' ) - strpos( $admin, 'function build_adminbar_panel' ) ), 'render_object_cache_purge_control' ) !== false,
 	'disk structured result'           => strpos( $minify, "'matched'" ) !== false && strpos( $minify, "'failed'" ) !== false,
 	'integration hook'                 => strpos( $admin, "do_action( 'bepluspb_after_local_cache_purge'" ) !== false,
 	'object excluded from all'         => strpos( substr( $admin, strpos( $admin, 'function handle_purge_all_cache' ), strpos( $admin, 'function handle_purge_object_cache' ) - strpos( $admin, 'function handle_purge_all_cache' ) ), 'wp_cache_flush' ) === false,

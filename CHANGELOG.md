@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.8
+
+- Move the shared, POST-only Object Cache purge control to the Dashboard and Admin Bar.
+- Remove the duplicate Object Cache tab action while retaining settings and health tools.
+
 ## 1.1.7
 
 - Add POST-only Purge ALL Cache with structured disk and Cloudflare layer reporting.

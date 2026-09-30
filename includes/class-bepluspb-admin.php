@@ -567,7 +567,7 @@ class BEPLUSPB_Admin {
 		<div class="bepluspb-two-col">
 
 			<!-- Cache Actions card -->
-			<div class="bepluspb-card bepluspb-actions-card">
+			<div class="bepluspb-card bepluspb-actions-card" id="bepluspb-cache-actions">
 				<div class="bepluspb-card-header">
 					<h2><?php esc_html_e( 'Cache Actions', 'beplus-performance-booster' ); ?></h2>
 				</div>
@@ -607,6 +607,8 @@ class BEPLUSPB_Admin {
 						<button type="submit" id="bepluspb-clear-cache-btn" class="button bepluspb-clear-btn"><?php esc_html_e( 'Purge ALL Cache', 'beplus-performance-booster' ); ?></button>
 					</form>
 					<p class="description"><?php esc_html_e( 'Clears plugin-managed CSS/JS/UCSS disk artifacts and Cloudflare only when enabled. Does not purge persistent Object Cache, WordPress transients, or third-party/server page caches.', 'beplus-performance-booster' ); ?></p>
+
+					<?php echo self::render_object_cache_purge_control( 'dashboard' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper escapes all dynamic output. ?>
 
 					<p class="bepluspb-cache-summary">
 						<?php if ( $stats['count'] > 0 ) : ?>
@@ -3066,19 +3068,6 @@ gzip_min_length 1024;'
 					</div>
 				</div>
 
-				<?php $purge = BEPLUSPB_Object_Cache::get_purge_availability(); ?>
-				<div class="bepluspb-form-row">
-					<div class="bepluspb-form-row-label"><?php esc_html_e( 'Purge Object Cache', 'beplus-performance-booster' ); ?></div>
-					<div class="bepluspb-form-row-field">
-						<p><strong><?php esc_html_e( 'Warning: this invokes Redis FLUSHDB or clears the Memcached entire pool and may affect other sites/apps sharing that backend.', 'beplus-performance-booster' ); ?></strong></p>
-						<button type="submit" form="bepluspb-object-purge-form" class="button" <?php disabled( empty( $purge['available'] ) ); ?>><?php esc_html_e( 'Purge Object Cache', 'beplus-performance-booster' ); ?></button>
-						<?php
-						if ( empty( $purge['available'] ) ) :
-							?>
-							<p class="description"><?php echo esc_html( $purge['reason'] ); ?></p><?php endif; ?>
-					</div>
-				</div>
-
 				<!-- Drop-in Install / Remove row -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
@@ -3350,10 +3339,44 @@ gzip_min_length 1024;'
 		$html .= '<div class="bepluspb-ab-sep" aria-hidden="true"></div>';
 
 		// Full-width flush clear button.
-		$html .= '<div class="bepluspb-ab-purge-form"><a href="' . esc_url( admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-purge-all' ) ) . '">' . esc_html__( 'Purge ALL Cache', 'beplus-performance-booster' ) . '</a></div>';
+		$html .= '<div class="bepluspb-ab-purge-form"><a href="' . esc_url( admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-cache-actions' ) ) . '">' . esc_html__( 'Purge ALL Cache', 'beplus-performance-booster' ) . '</a></div>';
+		$html .= self::render_object_cache_purge_control( 'admin-bar' );
 
 		$html .= '</div>'; // .bepluspb-ab-panel
 
+		return $html;
+	}
+
+
+	/**
+	 * Render the shared, POST-only Object Cache purge control.
+	 *
+	 * @param string $context Dashboard or admin-bar presentation context.
+	 * @return string Safe HTML markup.
+	 */
+	private static function render_object_cache_purge_control( $context = 'dashboard' ) {
+		$purge         = BEPLUSPB_Object_Cache::get_purge_availability();
+		$available     = ! empty( $purge['available'] );
+		$dashboard_url = admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-cache-actions' );
+		$warning       = __( 'Warning: this invokes Redis FLUSHDB or clears the Memcached entire pool and may affect other sites/apps sharing that backend.', 'beplus-performance-booster' );
+		$reason        = isset( $purge['reason'] ) ? (string) $purge['reason'] : __( 'Object Cache purge is unavailable.', 'beplus-performance-booster' );
+
+		if ( 'admin-bar' === $context && ! $available ) {
+			return '<div class="bepluspb-ab-object-purge is-disabled"><span role="status" aria-disabled="true">' . esc_html( $reason ) . '</span><a href="' . esc_url( $dashboard_url ) . '">' . esc_html__( 'Object Cache purge details', 'beplus-performance-booster' ) . '</a></div>';
+		}
+
+		$html  = '<div class="bepluspb-object-purge-control bepluspb-object-purge-control--' . esc_attr( $context ) . '">';
+		$html .= '<p><strong>' . esc_html( $warning ) . '</strong></p>';
+		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-purge-form" data-confirm="' . esc_attr__( 'Purge the persistent Object Cache? This can affect other sites or applications sharing its backend.', 'beplus-performance-booster' ) . '">';
+		$html .= '<input type="hidden" name="action" value="bepluspb_purge_object_cache">';
+		$html .= wp_nonce_field( 'bepluspb_purge_object_cache', 'bepluspb_object_purge_nonce', true, false );
+		$html .= '<input type="hidden" name="bepluspb_confirm_object_purge" value="1">';
+		$html .= '<button type="submit" class="button" aria-label="' . esc_attr__( 'Purge persistent Object Cache', 'beplus-performance-booster' ) . '"' . disabled( $available, false, false ) . '>' . esc_html__( 'Purge Object Cache', 'beplus-performance-booster' ) . '</button>';
+		$html .= '</form>';
+		if ( ! $available ) {
+			$html .= '<p class="description" role="status">' . esc_html( $purge['reason'] ) . '</p>';
+		}
+		$html .= '</div>';
 		return $html;
 	}
 
