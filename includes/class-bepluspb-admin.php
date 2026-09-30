@@ -3355,18 +3355,19 @@ gzip_min_length 1024;'
 	 * @return string Safe HTML markup.
 	 */
 	private static function render_object_cache_purge_control( $context = 'dashboard' ) {
-		$purge         = BEPLUSPB_Object_Cache::get_purge_availability();
-		$available     = ! empty( $purge['available'] );
-		$dashboard_url = admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-cache-actions' );
-		$warning       = __( 'Warning: this invokes Redis FLUSHDB or clears the Memcached entire pool and may affect other sites/apps sharing that backend.', 'beplus-performance-booster' );
-		$reason        = isset( $purge['reason'] ) ? (string) $purge['reason'] : __( 'Object Cache purge is unavailable.', 'beplus-performance-booster' );
+		$purge     = BEPLUSPB_Object_Cache::get_purge_availability();
+		$available = ! empty( $purge['available'] );
+
+		$reason = isset( $purge['reason'] ) ? (string) $purge['reason'] : __( 'Object Cache purge is unavailable.', 'beplus-performance-booster' );
 
 		if ( 'admin-bar' === $context && ! $available ) {
-			return '<div class="bepluspb-ab-object-purge is-disabled"><span role="status" aria-disabled="true">' . esc_html( $reason ) . '</span><a href="' . esc_url( $dashboard_url ) . '">' . esc_html__( 'Object Cache purge details', 'beplus-performance-booster' ) . '</a></div>';
+			return '';
 		}
 
-		$html  = '<div class="bepluspb-object-purge-control bepluspb-object-purge-control--' . esc_attr( $context ) . '">';
-		$html .= '<p><strong>' . esc_html( $warning ) . '</strong></p>';
+		$html = '<div class="bepluspb-object-purge-control bepluspb-object-purge-control--' . esc_attr( $context ) . '">';
+		if ( 'dashboard' === $context ) {
+			$html .= '<p class="description">' . esc_html__( 'Clears the dedicated persistent Object Cache only. A confirmation is required.', 'beplus-performance-booster' ) . '</p>';
+		}
 		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-purge-form" data-confirm="' . esc_attr__( 'Purge the persistent Object Cache? This can affect other sites or applications sharing its backend.', 'beplus-performance-booster' ) . '">';
 		$html .= '<input type="hidden" name="action" value="bepluspb_purge_object_cache">';
 		$html .= wp_nonce_field( 'bepluspb_purge_object_cache', 'bepluspb_object_purge_nonce', true, false );

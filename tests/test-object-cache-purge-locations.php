@@ -20,18 +20,18 @@ $admin_bar       = substr( $admin, $bar_start, $bar_end - $bar_start );
 $helper_start    = strpos( $admin, 'function render_object_cache_purge_control' );
 
 $checks = array(
-	'dashboard anchor'             => strpos( $dashboard, 'id="bepluspb-cache-actions"' ) !== false,
-	'dashboard shared helper'      => substr_count( $dashboard, 'render_object_cache_purge_control' ) === 1,
-	'object tab control removed'   => strpos( $object_tab, 'render_object_cache_purge_control' ) === false && strpos( $object_tab, 'bepluspb_object_purge_nonce' ) === false,
-	'shared availability contract' => false !== $helper_start && false !== strpos( substr( $admin, $helper_start, 5000 ), 'BEPLUSPB_Object_Cache::get_purge_availability()' ),
-	'POST-only form'               => false !== strpos( substr( $admin, $helper_start, 5000 ), 'method="post"' ) && false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_purge_object_cache' ),
-	'nonce and confirmation'       => false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_object_purge_nonce' ) && false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_confirm_object_purge' ),
-	'destructive warning'          => strpos( substr( $admin, $helper_start, 5000 ), 'Redis FLUSHDB' ) !== false && strpos( substr( $admin, $helper_start, 5000 ), 'Memcached entire pool' ) !== false,
-	'disabled reason'              => strpos( substr( $admin, $helper_start, 5000 ), '$purge[\'reason\']' ) !== false,
-	'admin-bar shared helper'      => strpos( $admin_bar, 'render_object_cache_purge_control' ) !== false,
-	'admin-bar no destructive GET' => strpos( $admin_bar, 'action=bepluspb_purge_object_cache' ) === false,
-	'admin-bar safe fallback'      => strpos( $admin_bar, '#bepluspb-cache-actions' ) !== false,
-	'master-off independent'       => strpos( substr( $admin, $helper_start, 5000 ), 'cache_enabled' ) === false,
+	'dashboard anchor'                 => strpos( $dashboard, 'id="bepluspb-cache-actions"' ) !== false,
+	'dashboard shared helper'          => substr_count( $dashboard, 'render_object_cache_purge_control' ) === 1,
+	'object tab control removed'       => strpos( $object_tab, 'render_object_cache_purge_control' ) === false && strpos( $object_tab, 'bepluspb_object_purge_nonce' ) === false,
+	'shared availability contract'     => false !== $helper_start && false !== strpos( substr( $admin, $helper_start, 5000 ), 'BEPLUSPB_Object_Cache::get_purge_availability()' ),
+	'POST-only form'                   => false !== strpos( substr( $admin, $helper_start, 5000 ), 'method="post"' ) && false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_purge_object_cache' ),
+	'nonce and confirmation'           => false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_object_purge_nonce' ) && false !== strpos( substr( $admin, $helper_start, 5000 ), 'bepluspb_confirm_object_purge' ),
+	'dashboard omits alarming warning' => strpos( $dashboard, 'Warning: this invokes Redis FLUSHDB or clears the Memcached entire pool and may affect other sites/apps sharing that backend.' ) === false,
+	'dashboard disabled reason'        => strpos( substr( $admin, $helper_start, 5000 ), '$purge[\'reason\']' ) !== false,
+	'admin-bar shared helper'          => strpos( $admin_bar, 'render_object_cache_purge_control' ) !== false,
+	'admin-bar no destructive GET'     => strpos( $admin_bar, 'action=bepluspb_purge_object_cache' ) === false,
+	'admin-bar unavailable hidden'     => false !== strpos( substr( $admin, $helper_start, 5000 ), "'admin-bar' === \$context && ! \$available" ) && false !== strpos( substr( $admin, $helper_start, 5000 ), "return '';" ),
+	'master-off independent'           => strpos( substr( $admin, $helper_start, 5000 ), 'cache_enabled' ) === false,
 );
 
 $failed = array_keys(
