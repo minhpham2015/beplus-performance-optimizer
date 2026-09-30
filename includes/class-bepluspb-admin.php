@@ -573,62 +573,47 @@ class BEPLUSPB_Admin {
 				</div>
 				<div class="bepluspb-card-body">
 
-					<!-- Master cache toggle -->
 					<?php $cache_on = ! empty( $opts['cache_enabled'] ); ?>
-					<div class="bepluspb-toggle-section" id="bepluspb-toggle-section">
-						<div class="bepluspb-toggle-wrap">
+					<section class="bepluspb-cache-action-section" aria-labelledby="bepluspb-cache-optimizations-title">
+						<div class="bepluspb-cache-action-row">
+							<div>
+								<h3 id="bepluspb-cache-optimizations-title"><?php esc_html_e( 'Cache Optimizations', 'beplus-performance-booster' ); ?></h3>
+								<p class="description"><?php esc_html_e( 'Enable or disable CSS/JS minification and caching globally.', 'beplus-performance-booster' ); ?></p>
+							</div>
 							<label class="bepluspb-toggle" for="bepluspb-cache-enabled-toggle" aria-label="<?php esc_attr_e( 'Cache Optimizations', 'beplus-performance-booster' ); ?>">
-								<input type="checkbox"
-									id="bepluspb-cache-enabled-toggle"
-									<?php checked( $cache_on ); ?>>
+								<input type="checkbox" id="bepluspb-cache-enabled-toggle" <?php checked( $cache_on ); ?>>
 								<span class="bepluspb-toggle-slider"></span>
 							</label>
-							<div class="bepluspb-toggle-labels">
-								<span class="bepluspb-toggle-title"><?php esc_html_e( 'Cache Optimizations', 'beplus-performance-booster' ); ?></span>
-								<span class="bepluspb-toggle-status <?php echo $cache_on ? 'bepluspb-toggle-status--on' : 'bepluspb-toggle-status--off'; ?>" id="bepluspb-toggle-status">
-									<?php echo $cache_on ? esc_html__( 'Enabled', 'beplus-performance-booster' ) : esc_html__( 'Disabled', 'beplus-performance-booster' ); ?>
-								</span>
-							</div>
 						</div>
-						<p class="bepluspb-toggle-desc"><?php esc_html_e( 'Enable or disable all CSS/JS minification and caching globally.', 'beplus-performance-booster' ); ?></p>
-					</div>
-
-					<?php if ( ! $cache_on ) : ?>
-					<div class="notice notice-warning inline bepluspb-cache-disabled-notice" id="bepluspb-cache-disabled-notice">
-						<p>&#9888; <?php esc_html_e( 'All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.', 'beplus-performance-booster' ); ?></p>
-					</div>
-					<?php else : ?>
-					<div class="notice notice-warning inline bepluspb-cache-disabled-notice" id="bepluspb-cache-disabled-notice" style="display:none;"></div>
-					<?php endif; ?>
-
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-purge-form bepluspb-cache-actions-row">
-						<input type="hidden" name="action" value="bepluspb_purge_all_cache">
-						<?php wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce' ); ?>
-						<button type="submit" id="bepluspb-clear-cache-btn" class="button bepluspb-clear-btn"><?php esc_html_e( 'Purge ALL Cache', 'beplus-performance-booster' ); ?></button>
-					</form>
-					<p class="description"><?php esc_html_e( 'Clears plugin-managed CSS/JS/UCSS disk artifacts and Cloudflare only when enabled. Does not purge persistent Object Cache, WordPress transients, or third-party/server page caches.', 'beplus-performance-booster' ); ?></p>
-
-					<?php echo self::render_object_cache_purge_control( 'dashboard' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper escapes all dynamic output. ?>
-
-					<p class="bepluspb-cache-summary">
-						<?php if ( $stats['count'] > 0 ) : ?>
-							<?php
-							printf(
-								/* translators: 1: count, 2: singular/plural, 3: size */
-								esc_html__( '%1$s %2$s · %3$s', 'beplus-performance-booster' ),
-								esc_html( $stats['count'] ),
-								esc_html( _n( 'file', 'files', $stats['count'], 'beplus-performance-booster' ) ),
-								esc_html( BEPLUSPB_Minify::human_filesize( $stats['size'] ) )
-							);
-							?>
+						<?php if ( ! $cache_on ) : ?>
+						<div class="notice notice-warning inline bepluspb-cache-disabled-notice" id="bepluspb-cache-disabled-notice"><p>&#9888; <?php esc_html_e( 'All performance optimizations are currently disabled. Your site is running without any caching, minification, lazy loading, or cleanup features.', 'beplus-performance-booster' ); ?></p></div>
 						<?php else : ?>
-							<?php esc_html_e( 'Cache is empty', 'beplus-performance-booster' ); ?>
+						<div class="notice notice-warning inline bepluspb-cache-disabled-notice" id="bepluspb-cache-disabled-notice" style="display:none;"></div>
 						<?php endif; ?>
-					</p>
-					<a href="<?php echo esc_url( $settings_url ); ?>" class="bepluspb-refresh-link">
-						<span class="dashicons dashicons-update"></span>
-						<?php esc_html_e( 'Refresh Stats', 'beplus-performance-booster' ); ?>
-					</a>
+					</section>
+
+					<section class="bepluspb-cache-action-section" aria-labelledby="bepluspb-generated-cache-title">
+						<h3 id="bepluspb-generated-cache-title"><?php esc_html_e( 'Generated Cache / Disk Cache', 'beplus-performance-booster' ); ?></h3>
+						<div class="bepluspb-cache-stats-row">
+							<dl class="bepluspb-cache-metrics" aria-label="<?php esc_attr_e( 'Generated cache statistics', 'beplus-performance-booster' ); ?>">
+								<div class="bepluspb-cache-metric"><dt><?php esc_html_e( 'Files', 'beplus-performance-booster' ); ?></dt><dd><?php echo esc_html( $stats['count'] ); ?></dd></div>
+								<div class="bepluspb-cache-metric"><dt><?php esc_html_e( 'Size', 'beplus-performance-booster' ); ?></dt><dd><?php echo esc_html( $stats['size'] > 0 ? BEPLUSPB_Minify::human_filesize( $stats['size'] ) : '0 B' ); ?></dd></div>
+							</dl>
+							<a href="<?php echo esc_url( $settings_url ); ?>" class="bepluspb-refresh-link"><span class="dashicons dashicons-update" aria-hidden="true"></span><?php esc_html_e( 'Refresh Stats', 'beplus-performance-booster' ); ?></a>
+						</div>
+						<?php if ( 0 === (int) $stats['count'] ) : ?>
+							<p class="bepluspb-cache-empty" role="status"><?php esc_html_e( 'Cache is empty', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<div class="bepluspb-cache-action-row">
+							<p class="description"><?php esc_html_e( 'Includes plugin-managed CSS/JS/UCSS disk artifacts and Cloudflare when enabled. Does not purge persistent Object Cache, WordPress transients, or third-party/server page caches.', 'beplus-performance-booster' ); ?></p>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-purge-form bepluspb-cache-actions-row"><input type="hidden" name="action" value="bepluspb_purge_all_cache"><?php wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce' ); ?><button type="submit" id="bepluspb-clear-cache-btn" class="button button-secondary bepluspb-clear-btn"><?php esc_html_e( 'Purge ALL Cache', 'beplus-performance-booster' ); ?></button></form>
+						</div>
+					</section>
+
+					<section class="bepluspb-cache-action-section" aria-labelledby="bepluspb-object-cache-title">
+						<h3 id="bepluspb-object-cache-title"><?php esc_html_e( 'Object Cache', 'beplus-performance-booster' ); ?></h3>
+						<?php echo self::render_object_cache_purge_control( 'dashboard' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- helper escapes all dynamic output. ?>
+					</section>
 				</div>
 			</div>
 
@@ -3366,7 +3351,13 @@ gzip_min_length 1024;'
 
 		$html = '<div class="bepluspb-object-purge-control bepluspb-object-purge-control--' . esc_attr( $context ) . '">';
 		if ( 'dashboard' === $context ) {
-			$html .= '<p class="description">' . esc_html__( 'Clears the dedicated persistent Object Cache only. A confirmation is required.', 'beplus-performance-booster' ) . '</p>';
+			$html .= '<div class="bepluspb-cache-action-row"><div>';
+			$html .= '<span class="bepluspb-status-badge ' . ( $available ? 'active' : 'inactive' ) . ' bepluspb-object-cache-status" role="status">' . ( $available ? esc_html__( 'Available', 'beplus-performance-booster' ) : esc_html__( 'Unavailable', 'beplus-performance-booster' ) ) . '</span>';
+			$html .= '<p class="description">' . esc_html__( 'Clears the dedicated persistent Object Cache only. Confirmation is required.', 'beplus-performance-booster' ) . '</p>';
+			if ( ! $available ) {
+				$html .= '<p class="description">' . esc_html( $reason ) . ' <a class="bepluspb-object-cache-settings-link" href="' . esc_url( admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-tab-object_cache' ) ) . '">' . esc_html__( 'Review Object Cache settings', 'beplus-performance-booster' ) . '</a></p>';
+			}
+			$html .= '</div>';
 		}
 		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-purge-form" data-confirm="' . esc_attr__( 'Purge the persistent Object Cache? This can affect other sites or applications sharing its backend.', 'beplus-performance-booster' ) . '">';
 		$html .= '<input type="hidden" name="action" value="bepluspb_purge_object_cache">';
@@ -3374,8 +3365,8 @@ gzip_min_length 1024;'
 		$html .= '<input type="hidden" name="bepluspb_confirm_object_purge" value="1">';
 		$html .= '<button type="submit" class="button" aria-label="' . esc_attr__( 'Purge persistent Object Cache', 'beplus-performance-booster' ) . '"' . disabled( $available, false, false ) . '>' . esc_html__( 'Purge Object Cache', 'beplus-performance-booster' ) . '</button>';
 		$html .= '</form>';
-		if ( ! $available ) {
-			$html .= '<p class="description" role="status">' . esc_html( $purge['reason'] ) . '</p>';
+		if ( 'dashboard' === $context ) {
+			$html .= '</div>';
 		}
 		$html .= '</div>';
 		return $html;

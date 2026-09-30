@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.8
+Stable tag: 1.1.9
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -465,6 +465,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.1.9 =
+* Clarify the Dashboard Cache Actions hierarchy with grouped disk-cache statistics, compact actions, and responsive controls.
 
 = 1.1.8 =
 * Move safe Object Cache purge controls to Dashboard and the WordPress Admin Bar, with availability status and destructive confirmation.

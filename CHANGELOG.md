@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.9
+
+- Reorganize only the Dashboard Cache Actions card into accessible optimization, generated-cache, and object-cache sections.
+- Add associated disk-cache metrics, compact destructive styling, object availability status, and responsive stacked controls.
+
 ## 1.1.8
 
 - Move the shared, POST-only Object Cache purge control to the Dashboard and Admin Bar.
