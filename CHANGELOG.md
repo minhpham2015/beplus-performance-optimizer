@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.6
+- Harden Font Preload v2 origin deduplication with effective ports and revalidate filtered entries before rendering.
+- Correct the admin copy to describe render-time validation.
+
 ## 1.1.5
 - Add fail-closed Font Preload v2 validation, diagnostics, registry/filter, and conservative CDN handling.
 

@@ -1145,13 +1145,13 @@ else :
 						<textarea id="bepluspb_font_preload" aria-describedby="bepluspb-font-help bepluspb-font-status"
 							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[font_preload]"
 							rows="6" class="large-text code"><?php echo esc_textarea( $opts['font_preload'] ); ?></textarea>
-						<p id="bepluspb-font-status" aria-live="polite"><?php esc_html_e( 'Validation runs when settings are saved; invalid legacy rows are retained but never rendered.', 'beplus-performance-booster' ); ?></p>
+						<p id="bepluspb-font-status" aria-live="polite"><?php esc_html_e( 'Invalid rows remain saved but are skipped when preload tags are rendered.', 'beplus-performance-booster' ); ?></p>
 						<p id="bepluspb-font-help" class="description">
 							<?php esc_html_e( 'Each URL will be output as a &lt;link rel="preload" as="font" crossorigin="anonymous"&gt; tag near the top of &lt;head&gt;.', 'beplus-performance-booster' ); ?><br>
 							<?php esc_html_e( 'Supports woff2, woff, ttf, otf, eot. Example:', 'beplus-performance-booster' ); ?><br>
 							<code>/wp-content/themes/my-theme/fonts/myfont.woff2</code><br>
 							<?php esc_html_e( 'Use the exact final @font-face URL. Prefer WOFF2 and font-display; preload only one or two measured above-the-fold fonts. Check DevTools for unused preload warnings and configure anonymous CORS for CDN fonts. Google Fonts CSS is a stylesheet, not a font URL.', 'beplus-performance-booster' ); ?><br>
-							<strong><?php esc_html_e( 'Exact final preload tag preview', 'beplus-performance-booster' ); ?></strong><br>
+
 							<?php esc_html_e( 'This registry can deduplicate plugin entries, but cannot detect theme output or an HTTP Link header. Developers may use the bepluspb_font_preload_entries filter for per-request scope.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>

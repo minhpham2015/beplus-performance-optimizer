@@ -26,6 +26,7 @@ class BEPLUSPB_Font_Preload {
 		$home_parts  = wp_parse_url( $home );
 		$home_scheme = strtolower( $home_parts['scheme'] ?? 'https' );
 		$home_host   = strtolower( $home_parts['host'] ?? '' );
+		$home_port   = isset( $home_parts['port'] ) ? (int) $home_parts['port'] : ( 'https' === $home_scheme ? 443 : 80 );
 		foreach ( preg_split( '/\R/', wp_unslash( (string) $raw ) ) as $index => $line ) {
 			$url = trim( $line );
 			if ( '' === $url ) {
@@ -80,11 +81,12 @@ class BEPLUSPB_Font_Preload {
 					'message' => $error,
 				);
 				continue;}
-			$key = $url;
+			$key  = $url;
+			$port = $absolute ? ( isset( $parts['port'] ) ? (int) $parts['port'] : ( 'https' === strtolower( $parts['scheme'] ) ? 443 : 80 ) ) : $home_port;
 			if ( ! $absolute ) {
-				$key = $home_scheme . '://' . $home_host . $url;
-			} elseif ( $host === $home_host && strtolower( $parts['scheme'] ) === $home_scheme ) {
-				$key = $home_scheme . '://' . $home_host . ( $parts['path'] ?? '/' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' );}
+				$key = $home_scheme . '://' . $home_host . ':' . $home_port . $url;
+			} elseif ( $host === $home_host && $port === $home_port && strtolower( $parts['scheme'] ) === $home_scheme ) {
+				$key = $home_scheme . '://' . $home_host . ':' . $home_port . ( $parts['path'] ?? '/' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' );}
 			if ( isset( $seen[ $key ] ) ) {
 				continue;
 			} if ( count( $result['valid'] ) >= self::HARD_CAP ) {
@@ -117,8 +119,19 @@ class BEPLUSPB_Font_Preload {
 	public static function render( $raw, $home = '' ) {
 		if ( ! self::is_frontend_html_request() ) {
 			return '';
-		} $entries = apply_filters( 'bepluspb_font_preload_entries', self::validate( $raw, $home )['valid'] );
-		$out       = '';
+		} $filtered = apply_filters( 'bepluspb_font_preload_entries', self::validate( $raw, $home )['valid'] );
+		$urls       = array();
+		if ( is_array( $filtered ) ) {
+			foreach ( $filtered as $candidate ) {
+				if ( is_string( $candidate ) ) {
+					$urls[] = $candidate;
+				} elseif ( is_array( $candidate ) && isset( $candidate['url'] ) && is_string( $candidate['url'] ) ) {
+					$urls[] = $candidate['url'];
+				}
+			}
+		}
+		$entries = self::validate( implode( "\n", $urls ), $home )['valid'];
+		$out     = '';
 		foreach ( $entries as $entry ) {
 			if ( isset( self::$registry[ $entry['url'] ] ) ) {
 				continue;
