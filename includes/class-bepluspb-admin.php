@@ -273,7 +273,7 @@ class BEPLUSPB_Admin {
 			: '';
 
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
-			? sanitize_textarea_field( $input['font_preload'] )
+			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';
 
 		$sanitized['cache_exclude_pages'] = isset( $input['cache_exclude_pages'] )
@@ -1132,7 +1132,7 @@ else :
 		<div class="bepluspb-card">
 			<div class="bepluspb-card-header">
 				<h2><?php esc_html_e( 'Font Preload', 'beplus-performance-booster' ); ?></h2>
-				<p><?php esc_html_e( 'Manage how web fonts are loaded to eliminate render-blocking requests, reduce layout shift, and prevent a flash of invisible text (FOIT).', 'beplus-performance-booster' ); ?></p>
+				<p><?php esc_html_e( 'Global font preload hints can help only when the exact font is critical above-the-fold. They do not guarantee a performance improvement.', 'beplus-performance-booster' ); ?></p>
 			</div>
 			<div class="bepluspb-card-body">
 
@@ -1142,13 +1142,17 @@ else :
 						<p class="bepluspb-row-desc"><?php esc_html_e( 'One font URL per line.', 'beplus-performance-booster' ); ?></p>
 					</div>
 					<div class="bepluspb-form-row-field">
-						<textarea id="bepluspb_font_preload"
+						<textarea id="bepluspb_font_preload" aria-describedby="bepluspb-font-help bepluspb-font-status"
 							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[font_preload]"
 							rows="6" class="large-text code"><?php echo esc_textarea( $opts['font_preload'] ); ?></textarea>
-						<p class="description">
+						<p id="bepluspb-font-status" aria-live="polite"><?php esc_html_e( 'Validation runs when settings are saved; invalid legacy rows are retained but never rendered.', 'beplus-performance-booster' ); ?></p>
+						<p id="bepluspb-font-help" class="description">
 							<?php esc_html_e( 'Each URL will be output as a &lt;link rel="preload" as="font" crossorigin="anonymous"&gt; tag near the top of &lt;head&gt;.', 'beplus-performance-booster' ); ?><br>
 							<?php esc_html_e( 'Supports woff2, woff, ttf, otf, eot. Example:', 'beplus-performance-booster' ); ?><br>
-							<code>/wp-content/themes/my-theme/fonts/myfont.woff2</code>
+							<code>/wp-content/themes/my-theme/fonts/myfont.woff2</code><br>
+							<?php esc_html_e( 'Use the exact final @font-face URL. Prefer WOFF2 and font-display; preload only one or two measured above-the-fold fonts. Check DevTools for unused preload warnings and configure anonymous CORS for CDN fonts. Google Fonts CSS is a stylesheet, not a font URL.', 'beplus-performance-booster' ); ?><br>
+							<strong><?php esc_html_e( 'Exact final preload tag preview', 'beplus-performance-booster' ); ?></strong><br>
+							<?php esc_html_e( 'This registry can deduplicate plugin entries, but cannot detect theme output or an HTTP Link header. Developers may use the bepluspb_font_preload_entries filter for per-request scope.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>

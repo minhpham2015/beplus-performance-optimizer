@@ -373,14 +373,34 @@ class BEPLUSPB_CDN {
 			return $html;
 		}
 
+		$protected = array();
+		$html      = preg_replace_callback(
+			'/<link\b[^>]*data-bepluspb-font-preload="1"[^>]*>/i',
+			function ( $preload_match ) use ( &$protected ) {
+				$key               = '%%BEPLUSPB_FONT_' . count( $protected ) . '%%';
+				$protected[ $key ] = $preload_match[0];
+				return $key;
+			},
+			$html
+		);
+
 		if ( false !== strpos( $html, self::$site_host ) ) {
 			$html = self::rewrite_absolute_urls( $html );
 		}
 
 		$html = self::rewrite_relative_urls( $html );
 
-		return $html;
+		return strtr( $html, $protected );
 	}
+
+	/**
+	 * Preserve plugin font preload tags.
+	 *
+	 * @param string $html HTML markup.
+	 * @return string
+	 */
+	public static function protect_preload_tags( $html ) {
+		return BEPLUSPB_Font_Preload::protect_from_cdn( $html ); }
 
 	/**
 	 * Rewrite absolute/protocol-relative URLs on the site's own host.

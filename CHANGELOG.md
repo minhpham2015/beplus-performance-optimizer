@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.5
+- Add fail-closed Font Preload v2 validation, diagnostics, registry/filter, and conservative CDN handling.
+
 All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
