@@ -29,6 +29,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-09-30
+
+### Added
+- Safe, checksum-verified backup-and-replace and rollback-capable restore for conflicting object-cache drop-ins.
+- Dedicated administrator-only preflight, replacement, and restore actions with explicit acknowledgement.
+
 ## [1.1.4] - 2026-09-30
 
 ### Fixed

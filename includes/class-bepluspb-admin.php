@@ -64,6 +64,9 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_ajax_bepluspb_test_oc_connection', array( __CLASS__, 'handle_ajax_test_oc' ) );
 		add_action( 'wp_ajax_bepluspb_install_oc_dropin', array( __CLASS__, 'handle_ajax_install_oc' ) );
 		add_action( 'wp_ajax_bepluspb_remove_oc_dropin', array( __CLASS__, 'handle_ajax_remove_oc' ) );
+		add_action( 'wp_ajax_bepluspb_preflight_oc_replace', array( __CLASS__, 'handle_ajax_preflight_oc_replace' ) );
+		add_action( 'wp_ajax_bepluspb_backup_replace_oc', array( __CLASS__, 'handle_ajax_backup_replace_oc' ) );
+		add_action( 'wp_ajax_bepluspb_restore_oc', array( __CLASS__, 'handle_ajax_restore_oc' ) );
 
 		// Cloudflare AJAX handlers (all admin-only, nonce + capability checked).
 		add_action( 'wp_ajax_bepluspb_cf_test_connection', array( __CLASS__, 'handle_ajax_cf_test_connection' ) );
@@ -1302,6 +1305,7 @@ else :
 					.then(function(res){
 						resultEl.style.color = res.success ? '#46b450' : '#dc3232';
 						resultEl.textContent = (res.data && res.data.message) ? res.data.message : '—';
+						if ( res.success && onSuccess ) { onSuccess(res); }
 						// Keep the button disabled for the cooldown window on success
 						// (mirrors the server-side per-user rate limit) so a second
 						// click can't queue up while Cloudflare is still processing.
@@ -3061,7 +3065,10 @@ gzip_min_length 1024;'
 					<div class="bepluspb-form-row-field">
 						<?php if ( $alien_dropin ) : ?>
 							<div class="notice notice-warning bepluspb-notice-warning inline" style="margin:0 0 10px;">
-								<p><?php esc_html_e( 'A different object-cache drop-in is already installed. Remove it manually before installing the Beplus Performance Booster drop-in.', 'beplus-performance-booster' ); ?></p>
+								<p><?php esc_html_e( 'A different object-cache drop-in is installed. Safety checks must pass before replacement; replacing a host-managed cache may break the site.', 'beplus-performance-booster' ); ?></p>
+								<button type="button" class="button" id="bepluspb-oc-replace-btn"><?php esc_html_e( 'Back up and replace…', 'beplus-performance-booster' ); ?></button>
+								<label><input type="checkbox" id="bepluspb-oc-replace-ack"> <?php esc_html_e( 'I understand this may cause downtime and require manual recovery.', 'beplus-performance-booster' ); ?></label>
+								<span id="bepluspb-oc-dropin-result"></span>
 							</div>
 						<?php else : ?>
 							<button type="button" class="button button-primary" id="bepluspb-oc-install-btn">
@@ -3082,6 +3089,9 @@ gzip_min_length 1024;'
 								?>
 							</p>
 						<?php endif; ?>
+						<?php if ( is_file( WP_CONTENT_DIR . '/bepluspb-backups/restore-manifest.json' ) ) : ?>
+						<p><button type="button" class="button" id="bepluspb-oc-restore-btn"><?php esc_html_e( 'Restore previous drop-in…', 'beplus-performance-booster' ); ?></button> <label><input type="checkbox" id="bepluspb-oc-restore-ack"> <?php esc_html_e( 'I understand restore may require manual recovery.', 'beplus-performance-booster' ); ?></label></p>
+						<?php endif; ?>
 					</div>
 				</div>
 
@@ -3096,6 +3106,9 @@ gzip_min_length 1024;'
 			var testNonce    = '<?php echo esc_js( wp_create_nonce( 'bepluspb_test_oc' ) ); ?>';
 			var installNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_install_oc_dropin' ) ); ?>';
 			var removeNonce  = '<?php echo esc_js( wp_create_nonce( 'bepluspb_remove_oc_dropin' ) ); ?>';
+			var preflightNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_preflight_oc_replace' ) ); ?>';
+			var replaceNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_backup_replace_oc' ) ); ?>';
+			var restoreNonce = '<?php echo esc_js( wp_create_nonce( 'bepluspb_restore_oc' ) ); ?>';
 			var confirmMsg   = '<?php echo esc_js( __( 'Remove the object-cache drop-in?', 'beplus-performance-booster' ) ); ?>';
 
 			// Show/hide Redis-only rows when driver changes.
@@ -3141,12 +3154,13 @@ gzip_min_length 1024;'
 			}
 
 			// Helper: send a drop-in AJAX request.
-			function dropinAction(action, nonce, label, resultEl) {
+			function dropinAction(action, nonce, label, resultEl, onSuccess, acknowledge) {
 				resultEl.style.color  = '';
 				resultEl.textContent  = label;
 				var data = new FormData();
 				data.append('action', action);
 				data.append('nonce',  nonce);
+				if ( acknowledge ) { data.append('acknowledge', '1'); }
 				fetch(ajaxUrl, { method: 'POST', body: data })
 					.then(function(r){ return r.json(); })
 					.then(function(res){
@@ -3171,6 +3185,20 @@ gzip_min_length 1024;'
 					dropinAction('bepluspb_remove_oc_dropin', removeNonce, 'Removing…', dropinResult);
 				});
 			}
+
+			var replaceBtn = document.getElementById('bepluspb-oc-replace-btn');
+			if ( replaceBtn && dropinResult ) { replaceBtn.addEventListener('click', function(){
+				if ( ! document.getElementById('bepluspb-oc-replace-ack').checked ) { dropinResult.textContent='Explicit acknowledgement is required.'; return; }
+				dropinAction('bepluspb_preflight_oc_replace', preflightNonce, 'Checking safety…', dropinResult, function(){
+					if ( confirm('The existing drop-in will be backed up, then atomically replaced. A host-managed cache may break and manual recovery may be required. Continue?') ) { dropinAction('bepluspb_backup_replace_oc', replaceNonce, 'Backing up and replacing…', dropinResult, null, true); }
+				});
+			}); }
+			var restoreBtn = document.getElementById('bepluspb-oc-restore-btn');
+			if ( restoreBtn && dropinResult ) { restoreBtn.addEventListener('click', function(){
+				if ( ! document.getElementById('bepluspb-oc-restore-ack').checked ) { dropinResult.textContent='Explicit acknowledgement is required.'; return; }
+				if ( confirm('The current Beplus drop-in will be backed up before the verified previous file is restored. Manual recovery may still be required. Continue?') ) { dropinAction('bepluspb_restore_oc', restoreNonce, 'Restoring…', dropinResult, null, true); }
+			}); }
+
 		}());
 		</script>
 		<?php
@@ -3848,10 +3876,14 @@ gzip_min_length 1024;'
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 );
 		}
 
-		// Write config before installing so the drop-in boots with the correct settings.
-		BEPLUSPB_Object_Cache::write_config( bepluspb_get_options() );
-
 		$result = BEPLUSPB_Object_Cache::install_dropin();
+		if ( $result['success'] && ! BEPLUSPB_Object_Cache::write_config( bepluspb_get_options() ) ) {
+			BEPLUSPB_Object_Cache::uninstall_dropin();
+			$result = array(
+				'success' => false,
+				'message' => __( 'Configuration write failed; installation was rolled back.', 'beplus-performance-booster' ),
+			);
+		}
 
 		if ( $result['success'] ) {
 			wp_send_json_success( $result );
@@ -3859,6 +3891,51 @@ gzip_min_length 1024;'
 			wp_send_json_error( $result );
 		}
 	}
+
+
+	/** Build the guarded drop-in workflow. */
+	private static function dropin_workflow() {
+		return new BEPLUSPB_Dropin_Workflow(
+			WP_CONTENT_DIR,
+			dirname( __DIR__ ) . '/lib/object-cache.php',
+			array(
+				'backend_test' => function () {
+					return BEPLUSPB_Object_Cache::test_connection( bepluspb_get_options() );
+				},
+			)
+		);
+	}
+	/**
+	 * Authorize a destructive action.
+	 *
+	 * @param string $nonce Nonce action.
+	 */
+	private static function authorize_dropin_action( $nonce ) {
+		check_ajax_referer( $nonce, 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'beplus-performance-booster' ) ), 403 ); }
+	}
+	/** Preflight foreign replacement. */
+	public static function handle_ajax_preflight_oc_replace() {
+		self::authorize_dropin_action( 'bepluspb_preflight_oc_replace' );
+		$r = self::dropin_workflow()->preflight( 'replace' );
+		$r['success'] ? wp_send_json_success( $r ) : wp_send_json_error( $r ); }
+	/** Back up and replace foreign drop-in. */
+	public static function handle_ajax_backup_replace_oc() {
+		self::authorize_dropin_action( 'bepluspb_backup_replace_oc' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- authorize_dropin_action verified it.
+		if ( empty( $_POST['acknowledge'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Explicit acknowledgement is required.', 'beplus-performance-booster' ) ), 400 );
+		} $r = self::dropin_workflow()->replace();
+		$r['success'] ? wp_send_json_success( $r ) : wp_send_json_error( $r ); }
+	/** Restore verified previous drop-in. */
+	public static function handle_ajax_restore_oc() {
+		self::authorize_dropin_action( 'bepluspb_restore_oc' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- authorize_dropin_action verified it.
+		if ( empty( $_POST['acknowledge'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Explicit acknowledgement is required.', 'beplus-performance-booster' ) ), 400 );
+		} $r = self::dropin_workflow()->restore();
+		$r['success'] ? wp_send_json_success( $r ) : wp_send_json_error( $r ); }
 
 	/**
 	 * AJAX: Remove object cache drop-in.
