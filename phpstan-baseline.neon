@@ -30,11 +30,6 @@ parameters:
 			count: 1
 			path: includes/class-bepluspb-cleanup.php
 
-		-
-			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'
-			identifier: constant.notFound
-			count: 1
-			path: includes/class-bepluspb-images.php
 
 		-
 			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'

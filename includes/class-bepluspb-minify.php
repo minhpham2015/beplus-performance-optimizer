@@ -584,34 +584,46 @@ class BEPLUSPB_Minify {
 	}
 
 	/**
-	 * Delete all cached CSS and JS files from the cache directory.
+	 * Delete plugin-managed CSS, JS and UCSS disk artifacts.
 	 *
-	 * @return int Number of files deleted.
+	 * @return array{status:string,matched:int,deleted:int,failed:int}
 	 */
 	public static function clear_cache() {
-		$dir = BEPLUSPB_CACHE_DIR;
+		$dir    = BEPLUSPB_CACHE_DIR;
+		$result = array(
+			'status'  => 'skipped',
+			'matched' => 0,
+			'deleted' => 0,
+			'failed'  => 0,
+		);
 
 		if ( ! file_exists( $dir ) || ! is_dir( $dir ) ) {
-			return 0;
+			delete_transient( 'bepluspb_cache_stats' );
+			return $result;
 		}
 
-		$count = 0;
-		$files = glob( $dir . '*.{css,js}', GLOB_BRACE );
-
-		if ( is_array( $files ) ) {
-			foreach ( $files as $file ) {
-				if ( is_file( $file ) ) {
-					wp_delete_file( $file );
-					if ( ! file_exists( $file ) ) {
-						++$count;
-					}
-				}
+		$files             = glob( $dir . '*.{css,js}', GLOB_BRACE );
+		$files             = is_array( $files ) ? array_filter( $files, 'is_file' ) : array();
+		$result['matched'] = count( $files );
+		foreach ( $files as $file ) {
+			wp_delete_file( $file );
+			if ( file_exists( $file ) ) {
+				++$result['failed'];
+			} else {
+				++$result['deleted'];
 			}
 		}
-
+		if ( 0 === $result['matched'] ) {
+			$result['status'] = 'success';
+		} elseif ( 0 === $result['failed'] ) {
+			$result['status'] = 'success';
+		} elseif ( 0 === $result['deleted'] ) {
+			$result['status'] = 'failed';
+		} else {
+			$result['status'] = 'partial';
+		}
 		delete_transient( 'bepluspb_cache_stats' );
-
-		return $count;
+		return $result;
 	}
 
 	/**

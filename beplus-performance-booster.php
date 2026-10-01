@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.0.10
+ * Version: 1.1.12
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.0.10' );
+define( 'BEPLUSPB_VERSION', '1.1.12' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -100,6 +100,7 @@ function bepluspb_default_options() {
 
 		// --- Lazy Load — Advanced options ---
 		'lazy_skip_first_n'                  => 1,   // Skip the first N images (LCP / hero).
+		'lazy_core_threshold'                => 3,   // Core-managed media omission threshold.
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
 		'lazy_exclude_filename'              => '',  // Partial filename strings to exclude (comma-sep).
@@ -124,6 +125,11 @@ function bepluspb_default_options() {
 
 		// --- Master Cache Switch ---
 		'cache_enabled'                      => 0,
+
+		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---
+		'predictive_navigation_enabled'      => 0,
+		'predictive_navigation_mode'         => 'safe',
+		'predictive_navigation_excludes'     => '',
 
 		// --- CDN (custom pull-zone rewriter) ---
 		'cdn_enabled'                        => 0,
@@ -179,6 +185,21 @@ function bepluspb_flush_options_cache() {
 add_action( 'update_option_' . BEPLUSPB_OPTIONS_KEY, 'bepluspb_flush_options_cache' );
 
 /**
+ * Notify safe page-cache integrations when the font list changes.
+ *
+ * @param mixed $old_value Previous option value.
+ * @param mixed $value New option value.
+ */
+function bepluspb_font_preload_option_changed( $old_value, $value ) {
+	$old_fonts = is_array( $old_value ) ? ( $old_value['font_preload'] ?? '' ) : '';
+	$new_fonts = is_array( $value ) ? ( $value['font_preload'] ?? '' ) : '';
+	if ( $old_fonts !== $new_fonts ) {
+		do_action( 'bepluspb_font_preload_changed', $new_fonts, $old_fonts );
+	}
+}
+add_action( 'update_option_' . BEPLUSPB_OPTIONS_KEY, 'bepluspb_font_preload_option_changed', 10, 2 );
+
+/**
  * Parse a newline-separated textarea value into a trimmed, filtered array.
  *
  * @param  string $textarea Raw textarea value from settings.
@@ -198,8 +219,11 @@ function bepluspb_parse_exclude_list( $textarea ) {
 // ---------------------------------------------------------------------------
 
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-object-cache.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-dropin-workflow.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-recommendations.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-utils.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-admin.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-font-preload.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-htaccess.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
@@ -210,6 +234,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cdn.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cloudflare.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-predictive-navigation.php';
 
 // ---------------------------------------------------------------------------
 // ACTIVATION / DEACTIVATION HOOKS
@@ -243,6 +268,7 @@ register_deactivation_hook(
 // ---------------------------------------------------------------------------
 
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Admin', 'init' ) );
+add_action( 'plugins_loaded', array( 'BEPLUSPB_Predictive_Navigation', 'init' ), 20 );
 
 /**
  * Auto-clear the CSS/JS cache whenever a plugin or theme update completes.

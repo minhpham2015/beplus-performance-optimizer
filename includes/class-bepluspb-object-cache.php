@@ -19,11 +19,20 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_Object_Cache {
 
+	/** Exact machine-readable identity of the bundled drop-in. */
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+
 	/**
-	 * Drop-in signature — a comment we embed in the drop-in file so we can
-	 * confirm it was installed by this plugin before deleting it.
+	 * Every build id this plugin has ever shipped in lib/object-cache.php.
+	 * Must stay in exact sync with
+	 * BEPLUSPB_Dropin_Workflow::KNOWN_DROPIN_BUILD_IDS (enforced by
+	 * tests/test-object-cache-dropin-identity.php) — duplicated here rather
+	 * than referenced cross-class because this file is loaded standalone
+	 * from uninstall.php, which never loads class-bepluspb-dropin-workflow.php;
+	 * referencing that class's constant here would fatal during uninstall.
+	 * Append new ids on future releases; never remove old ones.
 	 */
-	const DROPIN_SIGNATURE = '// Beplus Performance Booster Object Cache Drop-in';
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
 
 	/**
 	 * Source drop-in file bundled with the plugin.
@@ -55,6 +64,48 @@ class BEPLUSPB_Object_Cache {
 	// -------------------------------------------------------------------------
 	// Drop-in management
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Atomically install config plus drop-in, restoring prior config on failure.
+	 *
+	 * @param array $opts Object-cache options.
+	 * @return array Operation result.
+	 */
+	public static function install_with_config( $opts ) {
+		$cfg_file   = self::config_file();
+		$had_config = is_file( $cfg_file );
+		$old_config = $had_config ? file_get_contents( $cfg_file ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( ! self::write_config( $opts ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Configuration write failed; installation was not attempted.', 'beplus-performance-booster' ),
+			);
+		}
+		$result = self::install_dropin();
+		if ( empty( $result['success'] ) ) {
+			self::restore_config( $cfg_file, $had_config, $old_config );
+		}
+		return $result;
+	}
+
+	/**
+	 * Restore config state after a failed combined install.
+	 *
+	 * @param string       $cfg_file Config path.
+	 * @param bool         $had_config Whether a prior config existed.
+	 * @param string|false $old_config Prior config bytes.
+	 * @return bool Whether restoration succeeded.
+	 */
+	private static function restore_config( $cfg_file, $had_config, $old_config ) {
+		if ( $had_config && false !== $old_config ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
+			return false !== file_put_contents( $cfg_file, $old_config, LOCK_EX );
+		}
+		if ( is_file( $cfg_file ) ) {
+			wp_delete_file( $cfg_file );
+		}
+		return ! is_file( $cfg_file );
+	}
 
 	/**
 	 * Copy the bundled drop-in to wp-content/object-cache.php.
@@ -185,15 +236,30 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/**
-	 * Read the first 512 bytes of a file and check for our signature.
+	 * Parse and compare the exact machine-readable build identity.
+	 *
+	 * Accepts ANY build id this plugin has ever shipped (see
+	 * BEPLUSPB_Dropin_Workflow::KNOWN_DROPIN_BUILD_IDS), not just the
+	 * current one — this check runs against an ALREADY-INSTALLED target
+	 * (uninstall, install-over-existing, "is it installed" status), so a
+	 * version bump must not make a site's earlier Beplus-installed
+	 * drop-in look foreign and un-removable/un-restorable.
 	 *
 	 * @param  string $path File path.
 	 * @return bool
 	 */
 	private static function is_our_dropin( $path ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$head = file_get_contents( $path, false, null, 0, 512 );
-		return $head && false !== strpos( $head, self::DROPIN_SIGNATURE );
+		$head = file_get_contents( $path, false, null, 0, 4096 );
+		if ( false === $head || ! preg_match( "/define\(\s*'BEPLUSPB_DROPIN_BUILD_ID'\s*,\s*'([^']+)'/", $head, $matches ) ) {
+			return false;
+		}
+		foreach ( self::KNOWN_DROPIN_BUILD_IDS as $known ) {
+			if ( hash_equals( $known, $matches[1] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// -------------------------------------------------------------------------
@@ -384,6 +450,56 @@ class BEPLUSPB_Object_Cache {
 				'ping_ms' => 0,
 			);
 		}
+	}
+
+	/**
+	 * Determine whether a backend-wide purge can be offered safely.
+	 *
+	 * The bundled drop-in uses Redis FLUSHDB or Memcached flush. Therefore it
+	 * fails closed unless an operator/integration explicitly attests that the
+	 * selected backend scope is dedicated to this WordPress installation.
+	 *
+	 * @return array{available:bool,backend:string,scope:string,reason:string}
+	 */
+	public static function get_purge_availability() {
+		$opts    = bepluspb_get_options();
+		$backend = 'memcached' === ( $opts['object_cache_driver'] ?? '' ) ? 'memcached' : 'redis';
+		$scope   = 'redis' === $backend ? 'database' : 'pool';
+		$reason  = __( 'Disabled: exclusive ownership of the configured backend scope cannot be proven.', 'beplus-performance-booster' );
+		if ( empty( $opts['object_cache_enabled'] ) || ! wp_using_ext_object_cache() || ! self::is_dropin_installed() ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: settings, runtime external cache, and the bundled drop-in do not all match.', 'beplus-performance-booster' ),
+			);
+		}
+		$cfg_raw = file_exists( self::config_file() ) ? file_get_contents( self::config_file() ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$cfg     = $cfg_raw ? json_decode( $cfg_raw, true ) : null;
+		if ( ! is_array( $cfg ) || empty( $cfg['enabled'] ) || ( $cfg['driver'] ?? '' ) !== $backend ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: the effective Object Cache configuration does not match saved settings.', 'beplus-performance-booster' ),
+			);
+		}
+		$health = self::test_connection( $cfg );
+		if ( empty( $health['success'] ) ) {
+			return array(
+				'available' => false,
+				'backend'   => $backend,
+				'scope'     => $scope,
+				'reason'    => __( 'Disabled: the persistent Object Cache backend is disconnected or unhealthy.', 'beplus-performance-booster' ),
+			);
+		}
+		$isolated = (bool) apply_filters( 'bepluspb_object_cache_scope_is_dedicated', false, $backend, $scope );
+		return array(
+			'available' => $isolated,
+			'backend'   => $backend,
+			'scope'     => $scope,
+			'reason'    => $isolated ? '' : $reason,
+		);
 	}
 
 	// -------------------------------------------------------------------------

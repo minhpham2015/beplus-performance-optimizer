@@ -6,6 +6,141 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Displayed boolean values in the Recommended Settings preview as `Active`
+  and `Inactive` instead of raw `1` and `0`, without changing stored values
+  or apply/disable/restore behavior.
+- Replaced the generic, unrestricted-substring drop-in ownership signature
+  with one exact, machine-readable `BEPLUSPB_DROPIN_BUILD_ID` identity shared
+  by the drop-in workflow, the object-cache manager, and the shipped
+  `lib/object-cache.php`, with negative regression tests for foreign files
+  containing the old generic phrase and for files with a wrong build id.
+- Hardened the real-WordPress integration test's outside-symlink fixture so
+  its path is tracked and removed by the script's EXIT trap even if a later
+  assertion fails or the process is signaled, instead of only being cleaned
+  up on the happy path.
+- Added Redis purge-boundary coverage to the real-WordPress integration test:
+  sentinel keys seeded in Redis db 0 and db 14 (representing another site/app
+  and an unrelated adjacent namespace) are asserted byte-identical after the
+  full backup/replace/restore transaction, proving no FLUSHALL/FLUSHDB or
+  cross-namespace key deletion occurs.
+- Corrected `docs/RELEASE.md`'s stated CI PHP range (was `7.4–8.3`) to match
+  the actual `8.2–8.4` CI matrix and the plugin's PHP 8.2 minimum baseline.
+
+## [1.1.12] - 2026-09-30
+
+### Fixed
+- Hardened object-cache drop-in transactions with canonical path and symlink
+  rejection, non-executable base64 backups, authenticated manifests, identity
+  rechecks, retention protection, portable metadata restoration, transaction
+  locking, isolated post-activation health probes, and automatic rollback.
+- Made config writes precede drop-in installation and corrected the replacement
+  workflow's settings-tab interactions.
+
+## [1.1.11] - 2026-09-30
+
+### Changed
+- Merged Fonts, CDN, and Cache Exclusions into one Advanced tab without changing
+  option names, sanitizers, defaults, or stored data. Legacy deep links remain
+  client-side aliases; Cloudflare, Predictive Navigation, and Object Cache stay
+  separate.
+
+## [1.1.10] - 2026-09-30
+
+### Added
+- Added guarded, checksum-verified backup-and-replace and rollback-capable
+  restore for conflicting object-cache drop-ins, with administrator-only
+  preflight, replace, and restore actions.
+
+## [1.1.9] - 2026-09-30
+
+### Changed
+- Reorganized the Dashboard Cache Actions card into optimization, generated-cache,
+  and object-cache groups with disk metrics, availability state, compact
+  destructive actions, and responsive stacking.
+
+## [1.1.8] - 2026-09-30
+
+### Changed
+- Moved the shared POST-only Object Cache purge control to the Dashboard and
+  Admin Bar, removing the duplicate Object Cache tab action while retaining
+  settings and health tools.
+
+## [1.1.7] - 2026-09-30
+
+### Added
+- Added POST-only Purge ALL Cache with structured disk and Cloudflare reporting.
+- Added separately confirmed, fail-closed Object Cache purge controls; Object
+  Cache remains excluded from Purge ALL.
+- Added the `bepluspb_after_local_cache_purge` third-party page-cache hook.
+
+## [1.1.6] - 2026-09-30
+
+### Fixed
+- Hardened Font Preload v2 origin deduplication with effective ports and
+  render-time filtered-entry revalidation; corrected the corresponding admin copy.
+
+## [1.1.5] - 2026-09-30
+
+### Added
+- Added fail-closed Font Preload v2 validation, diagnostics, registry/filter,
+  and conservative CDN handling.
+
+## [1.1.4] - 2026-09-30
+
+### Fixed
+- Corrected Lazy Load v2 compatibility: Core loading-optimization filters are
+  used only on WordPress 6.4+, while WordPress 5.5–6.3 keeps native behavior.
+- Added offline WordPress 6.3/6.4 source-contract fixtures and all-test CI discovery.
+
+## [1.1.3] - 2026-09-30
+
+### Changed
+- Replaced regex image rewriting and its JavaScript fallback with WordPress
+  Core-managed loading optimization, targeted exclusions, safe thresholds,
+  request gates, and fail-open compatibility behavior.
+
+## [1.1.2] - 2026-09-30
+
+### Added
+- Added local-only, site-aware Recommended Settings v2 with exact preview,
+  allowlisted atomic apply/disable, and audited one-time restore.
+
+## [1.1.1] - 2026-09-30
+
+### Changed
+- Redesigned Predictive Navigation settings with status/benefit guidance,
+  accessible mode cards, exclusions, compatibility/privacy notes, responsive
+  styling, and preserved settings/defaults/backend behavior.
+
+## [1.1.0] - 2026-09-30
+
+### Added
+- Added Predictive Navigation v1 on WordPress 6.8+ through Core speculation
+  rules, with safe/balanced/fast modes, commerce and sensitive-path exclusions,
+  sanitized custom paths, and no telemetry, external call, or polyfill.
+
+## [1.0.11] - 2026-09-25
+
+### Fixed
+- **Buffer-mismatch diagnostic `error_log()` fired unconditionally on
+  production, contradicting its own "intentional WP_DEBUG_LOG diagnostic"
+  comment.** Both `BEPLUSPB_UCSS::buffer_end()` and
+  `BEPLUSPB_JS::advanced_buffer_end()` (added in 1.0.10 alongside the
+  buffer-nesting LIFO fix) guarded the diagnostic with only
+  `function_exists( 'error_log' )` — PHP's built-in `error_log()` always
+  exists, so that check never actually gated anything: the diagnostic
+  would write to the PHP error log on every site where the rare
+  buffer-mismatch condition occurred, regardless of `WP_DEBUG`/
+  `WP_DEBUG_LOG` settings. Found during the 2026-09-25 daily plugin
+  maintenance check. Fixed by additionally requiring
+  `defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG`, matching the existing
+  gating pattern already used elsewhere in the plugin (see
+  `BEPLUSPB_Minify`'s debug logging). Added a standalone regression test
+  (`tests/test-buffer-mismatch-debug-log-gate.php`) asserting both call
+  sites check `WP_DEBUG_LOG` and do not rely solely on
+  `function_exists( 'error_log' )`.
+
 ## [1.0.10] - 2026-09-23
 
 ### Fixed

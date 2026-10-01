@@ -95,6 +95,27 @@ jobs:
             exit 1
           fi
 
+  predictive-navigation-test:
+    name: Predictive Navigation Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run standalone Predictive Navigation tests
+        run: |
+          php -n tests/test-predictive-navigation.php
+          php -n tests/test-predictive-navigation-integration.php
+
+  standalone-tests:
+    name: All Standalone Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run every standalone PHP test
+        run: |
+          for test in tests/test-*.php; do
+            php -n "$test"
+          done
+
   object-cache-warning-test:
     name: Object Cache Admin Warning Regression
     runs-on: ubuntu-latest
@@ -168,6 +189,51 @@ jobs:
           ln -s "$GITHUB_WORKSPACE" /tmp/wordpress/wp-content/plugins/beplus-performance-optimizer
           wp plugin activate beplus-performance-optimizer --path=/tmp/wordpress
           wp plugin deactivate beplus-performance-optimizer --path=/tmp/wordpress
+
+  object-cache-wordpress-integration:
+    name: Real WordPress Object Cache Transaction
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP 8.2 with Redis and WP-CLI
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: redis
+          tools: wp-cli
+      - name: Install redis-tools (redis-cli for purge-boundary assertions)
+        run: sudo apt-get update -y && sudo apt-get install -y redis-tools
+      - name: Run throwaway WordPress foreign drop-in transaction coverage
+        env:
+          BEPLUSPB_TEST_DB_HOST: 127.0.0.1
+          BEPLUSPB_TEST_DB_USER: root
+          BEPLUSPB_TEST_DB_PASSWORD: root
+          BEPLUSPB_TEST_REDIS_HOST: 127.0.0.1
+          BEPLUSPB_TEST_REDIS_PORT: 6379
+          BEPLUSPB_REQUIRE_REDIS: '1'
+        run: tests/test-object-cache-wordpress-integration.sh
 
   security-regression-guard:
     name: Security Regression Guard (v1.0.5 fixes)

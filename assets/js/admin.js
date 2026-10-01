@@ -20,12 +20,30 @@
 	// Tabs that have their own forms and must NOT show the main Save bar.
 	var noSaveBarTabs = { dashboard: true, status: true, ai_optimizer: true };
 
+	// Backward-compat: Fonts, CDN, and Cache Exclusions were merged into a
+	// single "Advanced" tab (v1.1.11). Old hash values / deep-links / saved
+	// sessionStorage values still using these ids are aliased client-side to
+	// 'advanced' — no server-side or unsafe location redirect is performed.
+	var tabIdAliases = { fonts: 'advanced', cdn: 'advanced', exclusions: 'advanced' };
+
+	/**
+	 * Resolve a possibly-stale tab id (from a hash, deep-link, or stored
+	 * session value) to the current tab id, following tabIdAliases.
+	 *
+	 * @param {string} id Raw tab identifier.
+	 * @return {string} Resolved tab identifier.
+	 */
+	function resolveTabId(id) {
+		return Object.prototype.hasOwnProperty.call(tabIdAliases, id) ? tabIdAliases[id] : id;
+	}
+
 	/**
 	 * Activate the tab with the given id, hide all others.
 	 *
 	 * @param {string} id Tab identifier (matches data-tab attribute).
 	 */
 	function activate(id) {
+		id = resolveTabId(id);
 		btns.forEach(function (b) {
 			var active = b.dataset.tab === id;
 			b.classList.toggle('active', active);
@@ -52,14 +70,18 @@
 		});
 	});
 
-	// Switch tabs when a Status-tab recommendation link is clicked (href="#bepluspb-tab-foo").
+	// Switch tabs when a Status-tab recommendation link or the Object Cache
+	// dashboard "Review Object Cache settings" link is clicked
+	// (href="#bepluspb-tab-foo"). Both classes share this one handler and
+	// the same resolveTabId + activate + preventDefault + scrollTo logic
+	// — do not duplicate this logic in a second handler.
 	document.addEventListener('click', function (e) {
-		var a = e.target.closest && e.target.closest('a.bepluspb-rec-link');
+		var a = e.target.closest && e.target.closest('a.bepluspb-rec-link, a.bepluspb-object-cache-settings-link');
 		if (!a) { return; }
 		var href = a.getAttribute('href') || '';
 		var hashIdx = href.indexOf('#bepluspb-tab-');
 		if (hashIdx === -1) { return; }
-		var tabId = href.substring(hashIdx + '#bepluspb-tab-'.length);
+		var tabId = resolveTabId(href.substring(hashIdx + '#bepluspb-tab-'.length));
 		if (document.getElementById('bepluspb-tab-' + tabId)) {
 			e.preventDefault();
 			activate(tabId);
@@ -67,13 +89,26 @@
 		}
 	});
 
+	// Switch tabs on direct #bepluspb-tab-foo deep-links / bookmarks,
+	// including legacy fonts/cdn/exclusions hashes aliased to 'advanced'.
+	if (window.location.hash.indexOf('#bepluspb-tab-') === 0) {
+		var hashTabId = resolveTabId(window.location.hash.substring('#bepluspb-tab-'.length));
+		if (document.getElementById('bepluspb-tab-' + hashTabId)) {
+			activate(hashTabId);
+		}
+	}
+
 	// Restore the last-active tab from sessionStorage, defaulting to the
 	// first tab (Dashboard) when nothing is stored or the stored value no
-	// longer refers to an existing panel.
+	// longer refers to an existing panel. Legacy fonts/cdn/exclusions
+	// values previously stored are aliased to 'advanced'.
 	var saved;
 	try { saved = sessionStorage.getItem('bepluspb_active_tab'); } catch (e) {}
+	saved = saved ? resolveTabId(saved) : saved;
 
-	if (saved && document.getElementById('bepluspb-tab-' + saved)) {
+	if (window.location.hash.indexOf('#bepluspb-tab-') === 0) {
+		// Hash already handled activation above; don't override it here.
+	} else if (saved && document.getElementById('bepluspb-tab-' + saved)) {
 		activate(saved);
 	} else if (btns.length) {
 		activate(btns[0].dataset.tab);
@@ -96,6 +131,17 @@
 	if (jsDelayCheckbox) {
 		jsDelayCheckbox.addEventListener('change', toggleDelaySubRows);
 	}
+
+	// Confirm destructive purge forms and prevent accidental double submission.
+	document.querySelectorAll('form.bepluspb-purge-form').forEach(function (form) {
+		form.addEventListener('submit', function (event) {
+			var message = form.getAttribute('data-confirm');
+			if (message && !window.confirm(message)) { event.preventDefault(); return; }
+			var button = form.querySelector('button[type="submit"]');
+			if (button && button.disabled) { event.preventDefault(); return; }
+			if (button) { button.disabled = true; button.setAttribute('aria-disabled', 'true'); }
+		});
+	});
 
 	// -------------------------------------------------------------------------
 	// Master cache toggle — AJAX save
@@ -186,6 +232,37 @@
 
 
 	// -------------------------------------------------------------------------
+	// Predictive Navigation — progressive dependent state
+	// -------------------------------------------------------------------------
+
+	var predictiveToggle   = document.getElementById('bepluspb-predictive-enabled');
+	var predictiveControls = document.querySelector('[data-predictive-controls]');
+	var predictiveStatus   = document.getElementById('bepluspb-predictive-status');
+	var predictiveHero     = document.querySelector('.bepluspb-predictive-hero');
+
+	function updatePredictiveUI() {
+		if (!predictiveToggle || !predictiveControls) { return; }
+		var enabled = predictiveToggle.checked && !predictiveToggle.disabled;
+		predictiveControls.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+		// Keep values submittable while visually de-emphasising dependent fields.
+		// Native controls remain keyboard reachable so turning the feature off
+		// never silently clears a saved mode or exclusion list.
+		if (predictiveStatus) {
+			predictiveStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+		}
+		if (predictiveHero) {
+			predictiveHero.classList.toggle('is-enabled', enabled);
+			predictiveHero.classList.toggle('is-disabled', !enabled);
+		}
+	}
+
+	if (predictiveToggle) {
+		predictiveToggle.addEventListener('change', updatePredictiveUI);
+		updatePredictiveUI();
+	}
+
+
+	// -------------------------------------------------------------------------
 	// Object Cache — driver toggle (show/hide Redis-only rows)
 	// -------------------------------------------------------------------------
 
@@ -262,5 +339,12 @@
 				});
 		});
 	}
+
+	// Recommended Settings v2 destructive/save confirmation.
+	document.querySelectorAll('[data-recommendation-confirm]').forEach(function (button) {
+		button.addEventListener('click', function (event) {
+			if (!window.confirm(button.getAttribute('data-recommendation-confirm'))) { event.preventDefault(); }
+		});
+	});
 
 })();

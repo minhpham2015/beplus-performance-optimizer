@@ -58,31 +58,11 @@ class BEPLUSPB_CSS {
 	 * Output <link rel="preload" as="font"> tags for each URL in font_preload.
 	 */
 	public static function output_font_preload() {
-		$opts  = bepluspb_get_options();
-		$fonts = bepluspb_parse_exclude_list( $opts['font_preload'] );
-
-		foreach ( $fonts as $font_url ) {
-			if ( empty( $font_url ) ) {
-				continue;
-			}
-			$clean_url = strtok( $font_url, '?' );
-			$ext       = strtolower( pathinfo( $clean_url, PATHINFO_EXTENSION ) );
-			$type_map  = array(
-				'woff2' => 'font/woff2',
-				'woff'  => 'font/woff',
-				'ttf'   => 'font/ttf',
-				'otf'   => 'font/otf',
-				'eot'   => 'application/vnd.ms-fontobject',
-			);
-			$mime_type = isset( $type_map[ $ext ] ) ? $type_map[ $ext ] : 'font/woff2';
-
-			printf(
-				'<link rel="preload" as="font" type="%s" href="%s" crossorigin="anonymous">' . "\n",
-				esc_attr( $mime_type ),
-				esc_url( $font_url )
-			);
-		}
+		$opts = bepluspb_get_options();
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- renderer escapes attributes.
+		echo BEPLUSPB_Font_Preload::render( $opts['font_preload'] );
 	}
+
 
 	// -------------------------------------------------------------------------
 	// Remove CSS handles

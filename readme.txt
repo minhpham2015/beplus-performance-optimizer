@@ -2,8 +2,8 @@
 Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
-Tested up to: 7.1
-Stable tag: 1.0.10
+Tested up to: 7.1.1
+Stable tag: 1.1.12
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -26,7 +26,7 @@ accidentally break the admin panel or your own editing experience.
 * CSS file and inline minification with cache
 * Remove Unused CSS: per-URL cached stripping of unused CSS rules
 * Non-render-blocking stylesheet loading
-* Lazy load images with IntersectionObserver fallback
+* WordPress Core-managed image loading policy with targeted exclusions
 * Remove emoji, wp-embed, Gutenberg CSS, WooCommerce assets on non-shop pages
 * HTML minification and comment stripping
 * Browser cache and gzip/brotli rules via .htaccess
@@ -157,17 +157,17 @@ Recommended for checkout/cart and other heavily dynamic pages.
 **Enable Lazy Loading**
 Default: off
 
-Adds `loading="lazy"` to qualifying `<img>` tags found in post content, featured
-images, widget text, and `<picture>` elements. For browsers that do not support the
-native `loading` attribute, a small IntersectionObserver polyfill is injected into
-`wp_footer` (activates only when native support is absent).
+Uses WordPress Core's native media loading policy without rewriting HTML or adding
+a JavaScript fallback. On WordPress 6.4 or newer, the threshold and exclusion
+settings below adjust Core-generated loading attributes. WordPress 5.5 through 6.3
+retains its native behavior because Core does not expose that attribute filter.
 
 **Skip First N Images**
 Default: 1
 
-Images 1 through N are marked `loading="eager"` instead of `loading="lazy"`.
-Set this to at least 1 to protect the hero/LCP image from being lazy-loaded, which
-would hurt Core Web Vitals. Accepts 0–20.
+On WordPress 6.4 or newer, controls Core's media omission threshold (0–20). The
+default 3 leaves Core's own threshold unchanged. The plugin does not identify or
+promise an LCP image.
 
 **Exclude by CSS Class**
 Default: empty
@@ -465,6 +465,56 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
 
 == Changelog ==
+
+= 1.1.12 =
+* Harden object-cache replacement and restoration with path/symlink checks, non-executable verified backups, authenticated restore manifests, transaction locking, retention protection, metadata restoration, isolated health checks, and automatic rollback.
+* Write Object Cache configuration before installation and correct replacement/settings-tab interactions.
+
+= 1.1.11 =
+* Merge Fonts, CDN, and Cache Exclusions into one Advanced tab without changing saved settings. Existing deep links continue to work; Cloudflare, Predictive Navigation, and Object Cache remain separate tabs.
+
+= 1.1.10 =
+* Add administrator-only preflight, checksum-verified backup-and-replace, and rollback-capable restore for conflicting object-cache drop-ins.
+
+= 1.1.9 =
+* Reorganize Dashboard Cache Actions into clearer optimization, generated-cache, and object-cache groups with disk metrics, availability status, compact actions, and responsive layout.
+
+= 1.1.8 =
+* Move the shared, POST-only Object Cache purge control to the Dashboard and Admin Bar, removing the duplicate Object Cache tab action while retaining settings and health tools.
+
+= 1.1.7 =
+* Add POST-only Purge ALL Cache with structured disk and Cloudflare results.
+* Add separately confirmed, fail-closed Object Cache purge controls. Object Cache remains excluded from Purge ALL.
+* Add an integration hook for third-party page-cache purges.
+
+= 1.1.6 =
+* Harden Font Preload v2 origin deduplication with effective ports and render-time revalidation of filtered entries, and correct the related admin guidance.
+
+= 1.1.5 =
+* Add fail-closed Font Preload v2 URL validation, diagnostics, registry/filter support, and conservative CDN handling.
+
+= 1.1.4 =
+* Correct Lazy Load compatibility: configurable Core attribute policy starts on WordPress 6.4; WordPress 5.5–6.3 retains native Core behavior.
+* Add deterministic WordPress 6.3/6.4 compatibility coverage and automatic CI execution of every standalone test.
+
+= 1.1.3 =
+* Replace regex image rewriting and its JavaScript fallback with WordPress Core-managed loading optimization, targeted exclusions, safe thresholds, request gates, and fail-open compatibility behavior.
+
+= 1.1.2 =
+* Add local-only, site-aware Recommended Settings with exact preview, safe atomic apply/disable, and one-time restore.
+
+= 1.1.1 =
+* Redesign Predictive Navigation settings with clearer status, accessible mode cards, exclusions, compatibility/privacy guidance, responsive styling, and unchanged saved settings and behavior.
+
+= 1.1.0 =
+* Add Predictive Navigation for WordPress 6.8+ through Core Speculation Rules, with safe/balanced/fast modes, commerce and sensitive-path exclusions, sanitized custom paths, and no telemetry or external calls. Disabled by default.
+
+= 1.0.11 =
+* Fix: an internal diagnostic log message related to the 1.0.10 buffer-order
+  fix could write to the PHP error log even when debug logging was not
+  enabled. It now only logs when the site owner has explicitly turned on
+  WordPress debug logging (WP_DEBUG_LOG). No visible behavior change for
+  normal site operation.
 
 = 1.0.10 =
 * Fix: Delay JS (Advanced mode) could silently do nothing when Remove

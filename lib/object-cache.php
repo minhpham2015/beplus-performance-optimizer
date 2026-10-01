@@ -1,5 +1,6 @@
 <?php
 /**
+ * Beplus Performance Booster Object Cache Drop-in.
  * WordPress Object Cache Drop-in — powered by Beplus Performance Booster.
  *
  * Loaded automatically by WordPress when placed at wp-content/object-cache.php.
@@ -12,6 +13,11 @@
  */
 
 defined( 'WPINC' ) || exit;
+
+/** Runtime identity used by the isolated post-install probe. */
+if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.12-20260930' );
+}
 
 // ---------------------------------------------------------------------------
 // Load configuration written by the plugin on settings save.
