@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 class BEPLUSPB_Dropin_Workflow {
-	const SIGNATURE = '// Beplus Performance Booster Object Cache Drop-in';
+	const SIGNATURE = 'Beplus Performance Booster Object Cache Drop-in';
 	private $content_dir;
 	private $source;
 	private $hooks;

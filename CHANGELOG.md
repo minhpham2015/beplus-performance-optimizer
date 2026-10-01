@@ -1,92 +1,103 @@
 # Changelog
 
-## 1.1.9
-
-- Reorganize only the Dashboard Cache Actions card into accessible optimization, generated-cache, and object-cache sections.
-- Add associated disk-cache metrics, compact destructive styling, object availability status, and responsive stacked controls.
-
-## 1.1.8
-
-- Move the shared, POST-only Object Cache purge control to the Dashboard and Admin Bar.
-- Remove the duplicate Object Cache tab action while retaining settings and health tools.
-
-## 1.1.7
-
-- Add POST-only Purge ALL Cache with structured disk and Cloudflare layer reporting.
-- Add fail-closed, separately confirmed Object Cache purge controls; object cache remains excluded from Purge ALL.
-- Document third-party page-cache adapter hook `bepluspb_after_local_cache_purge`.
-
-## 1.1.6
-- Harden Font Preload v2 origin deduplication with effective ports and revalidate filtered entries before rendering.
-- Correct the admin copy to describe render-time validation.
-
-## 1.1.5
-- Add fail-closed Font Preload v2 validation, diagnostics, registry/filter, and conservative CDN handling.
-
 All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.12] - 2026-09-30
+
+### Fixed
+- Hardened object-cache drop-in transactions with canonical path and symlink
+  rejection, non-executable base64 backups, authenticated manifests, identity
+  rechecks, retention protection, portable metadata restoration, transaction
+  locking, isolated post-activation health probes, and automatic rollback.
+- Made config writes precede drop-in installation and corrected the replacement
+  workflow's settings-tab interactions.
+
 ## [1.1.11] - 2026-09-30
 
 ### Changed
-- Merged the Fonts, CDN, and Cache Exclusions admin tabs into a single
-  "Advanced" tab, rendering the three existing sections (Font Optimization,
-  CDN & Asset Delivery, Cache Exclusions) in that order via the unchanged
-  `render_section_fonts()` / `render_section_cdn()` / `render_section_exclusions()`
-  methods. No option names/ids/sanitizers/defaults changed and no DB
-  migration was needed. Old `#bepluspb-tab-fonts` / `#bepluspb-tab-cdn` /
-  `#bepluspb-tab-exclusions` hash deep-links (including the Status tab's
-  recommendation links) are aliased client-side to `#bepluspb-tab-advanced`.
-  Cloudflare, Predictive Navigation, and Object Cache remain separate,
-  unmoved tabs.
+- Merged Fonts, CDN, and Cache Exclusions into one Advanced tab without changing
+  option names, sanitizers, defaults, or stored data. Legacy deep links remain
+  client-side aliases; Cloudflare, Predictive Navigation, and Object Cache stay
+  separate.
 
 ## [1.1.10] - 2026-09-30
 
 ### Added
-- Safe, checksum-verified backup-and-replace and rollback-capable restore for conflicting object-cache drop-ins.
-- Dedicated administrator-only preflight, replacement, and restore actions with explicit acknowledgement.
+- Added guarded, checksum-verified backup-and-replace and rollback-capable
+  restore for conflicting object-cache drop-ins, with administrator-only
+  preflight, replace, and restore actions.
+
+## [1.1.9] - 2026-09-30
+
+### Changed
+- Reorganized the Dashboard Cache Actions card into optimization, generated-cache,
+  and object-cache groups with disk metrics, availability state, compact
+  destructive actions, and responsive stacking.
+
+## [1.1.8] - 2026-09-30
+
+### Changed
+- Moved the shared POST-only Object Cache purge control to the Dashboard and
+  Admin Bar, removing the duplicate Object Cache tab action while retaining
+  settings and health tools.
+
+## [1.1.7] - 2026-09-30
+
+### Added
+- Added POST-only Purge ALL Cache with structured disk and Cloudflare reporting.
+- Added separately confirmed, fail-closed Object Cache purge controls; Object
+  Cache remains excluded from Purge ALL.
+- Added the `bepluspb_after_local_cache_purge` third-party page-cache hook.
+
+## [1.1.6] - 2026-09-30
+
+### Fixed
+- Hardened Font Preload v2 origin deduplication with effective ports and
+  render-time filtered-entry revalidation; corrected the corresponding admin copy.
+
+## [1.1.5] - 2026-09-30
+
+### Added
+- Added fail-closed Font Preload v2 validation, diagnostics, registry/filter,
+  and conservative CDN handling.
 
 ## [1.1.4] - 2026-09-30
 
 ### Fixed
-- Corrected the Lazy Load v2 compatibility boundary: the Core loading
-  optimization attributes filter is used only on WordPress 6.4+, while
-  WordPress 5.5–6.3 keeps its native behavior without plugin HTML rewriting.
-- Updated admin/readme compatibility copy, added offline WordPress 6.3/6.4
-  source-contract fixtures, and made CI execute every standalone PHP test.
+- Corrected Lazy Load v2 compatibility: Core loading-optimization filters are
+  used only on WordPress 6.4+, while WordPress 5.5–6.3 keeps native behavior.
+- Added offline WordPress 6.3/6.4 source-contract fixtures and all-test CI discovery.
 
 ## [1.1.3] - 2026-09-30
 
 ### Changed
-- Replaced regex-based image rewriting and its ineffective JavaScript fallback
-  with WordPress Core-managed loading optimization, targeted exclusions, a safe
-  expert threshold, request gates, and fail-open compatibility behavior.
+- Replaced regex image rewriting and its JavaScript fallback with WordPress
+  Core-managed loading optimization, targeted exclusions, safe thresholds,
+  request gates, and fail-open compatibility behavior.
 
 ## [1.1.2] - 2026-09-30
 
 ### Added
-- Site-aware Recommended Settings v2 with local detection, exact preview, allowlisted atomic apply/disable, and audited one-time restore.
+- Added local-only, site-aware Recommended Settings v2 with exact preview,
+  allowlisted atomic apply/disable, and audited one-time restore.
 
 ## [1.1.1] - 2026-09-30
 
 ### Changed
-- Redesigned the Predictive Navigation settings as a polished native wp-admin
-  workflow with an explicit status and benefit summary, accessible master
-  toggle, keyboard-friendly Safe/Balanced/Fast radio cards, separate exclusion
-  guidance, concise compatibility and privacy callouts, responsive styling,
-  and progressive disabled treatment while preserving all existing settings,
-  defaults, and backend behavior.
+- Redesigned Predictive Navigation settings with status/benefit guidance,
+  accessible mode cards, exclusions, compatibility/privacy notes, responsive
+  styling, and preserved settings/defaults/backend behavior.
 
 ## [1.1.0] - 2026-09-30
 
 ### Added
-- Predictive Navigation v1 on WordPress 6.8+ via Core's native speculation
-  rules filters, with safe/balanced/fast modes, commerce and sensitive-path
-  exclusions, sanitized custom paths, compatibility/risk guidance, and no
-  telemetry, external calls, polyfill, or duplicate script.
+- Added Predictive Navigation v1 on WordPress 6.8+ through Core speculation
+  rules, with safe/balanced/fast modes, commerce and sensitive-path exclusions,
+  sanitized custom paths, and no telemetry, external call, or polyfill.
 
 ## [1.0.11] - 2026-09-25
 

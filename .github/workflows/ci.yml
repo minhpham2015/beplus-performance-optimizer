@@ -190,6 +190,41 @@ jobs:
           wp plugin activate beplus-performance-optimizer --path=/tmp/wordpress
           wp plugin deactivate beplus-performance-optimizer --path=/tmp/wordpress
 
+  object-cache-wordpress-integration:
+    name: Real WordPress Object Cache Transaction
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP 8.2 with Redis and WP-CLI
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: redis
+          tools: wp-cli
+      - name: Run throwaway WordPress foreign drop-in transaction coverage
+        env:
+          BEPLUSPB_TEST_DB_HOST: 127.0.0.1
+          BEPLUSPB_TEST_DB_USER: root
+          BEPLUSPB_TEST_DB_PASSWORD: root
+        run: tests/test-object-cache-wordpress-integration.sh
+
   security-regression-guard:
     name: Security Regression Guard (v1.0.5 fixes)
     runs-on: ubuntu-latest

@@ -73,7 +73,7 @@ Beyond the standard version/syntax checks (see the SEO plugin's
   200" — check the browser console / actual asset URLs).
 
 ```bash
-docker run --rm -v /tmp/release-svn/trunk:/code php:8.1-cli \
+docker run --rm -v /tmp/release-svn/trunk:/code php:8.2-cli \
   sh -c "for f in \$(find /code -name '*.php'); do php -l \$f; done" \
   | grep -v "No syntax errors"
 # Empty output = all files clean.

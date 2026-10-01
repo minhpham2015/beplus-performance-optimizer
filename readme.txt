@@ -467,35 +467,47 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 == Changelog ==
 
 = 1.1.12 =
-* Harden object-cache drop-in backup and restore: canonical path validation before writes, encoded non-executable backups, authenticated manifests, retention-safe restore, metadata preservation, fail-closed syntax checks, identity rechecks, and isolated post-activation health probes with automatic rollback.
-* Write object-cache configuration before installation and fix replacement/settings-tab admin interactions.
+* Harden object-cache replacement and restoration with path/symlink checks, non-executable verified backups, authenticated restore manifests, transaction locking, retention protection, metadata restoration, isolated health checks, and automatic rollback.
+* Write Object Cache configuration before installation and correct replacement/settings-tab interactions.
 
 = 1.1.11 =
-* Merge the Fonts, CDN, and Cache Exclusions tabs into a single Advanced tab (Font Optimization, CDN & Asset Delivery, Cache Exclusions sections, in that order). All option names, ids, sanitization, defaults, and saved values are unchanged — no database migration. Old #bepluspb-tab-fonts / #bepluspb-tab-cdn / #bepluspb-tab-exclusions deep-links are aliased client-side to the new Advanced tab.
+* Merge Fonts, CDN, and Cache Exclusions into one Advanced tab without changing saved settings. Existing deep links continue to work; Cloudflare, Predictive Navigation, and Object Cache remain separate tabs.
 
 = 1.1.10 =
-* Add guarded backup-and-replace and verified restore workflows for conflicting object-cache drop-ins.
-* Keep replacement unavailable when filesystem ownership, backend health, or atomic-write safety checks fail.
+* Add administrator-only preflight, checksum-verified backup-and-replace, and rollback-capable restore for conflicting object-cache drop-ins.
 
 = 1.1.9 =
-* Clarify the Dashboard Cache Actions hierarchy with grouped disk-cache statistics, compact actions, and responsive controls.
+* Reorganize Dashboard Cache Actions into clearer optimization, generated-cache, and object-cache groups with disk metrics, availability status, compact actions, and responsive layout.
 
 = 1.1.8 =
-* Move safe Object Cache purge controls to Dashboard and the WordPress Admin Bar, with availability status and destructive confirmation.
+* Move the shared, POST-only Object Cache purge control to the Dashboard and Admin Bar, removing the duplicate Object Cache tab action while retaining settings and health tools.
 
 = 1.1.7 =
-* Add safe Font Preload v2 validation and diagnostics.
+* Add POST-only Purge ALL Cache with structured disk and Cloudflare results.
+* Add separately confirmed, fail-closed Object Cache purge controls. Object Cache remains excluded from Purge ALL.
+* Add an integration hook for third-party page-cache purges.
+
+= 1.1.6 =
+* Harden Font Preload v2 origin deduplication with effective ports and render-time revalidation of filtered entries, and correct the related admin guidance.
+
+= 1.1.5 =
+* Add fail-closed Font Preload v2 URL validation, diagnostics, registry/filter support, and conservative CDN handling.
 
 = 1.1.4 =
-* Corrected Lazy Load compatibility: configurable Core attribute policy now starts on WordPress 6.4; WordPress 5.5–6.3 retains native Core behavior.
-* Added deterministic WordPress 6.3/6.4 hook contract coverage and automatic CI execution of every standalone test.
+* Correct Lazy Load compatibility: configurable Core attribute policy starts on WordPress 6.4; WordPress 5.5–6.3 retains native Core behavior.
+* Add deterministic WordPress 6.3/6.4 compatibility coverage and automatic CI execution of every standalone test.
+
+= 1.1.3 =
+* Replace regex image rewriting and its JavaScript fallback with WordPress Core-managed loading optimization, targeted exclusions, safe thresholds, request gates, and fail-open compatibility behavior.
 
 = 1.1.2 =
-* Added local-only, site-aware Recommended Settings plans with previewed apply, safe disable, and one-time restore.
+* Add local-only, site-aware Recommended Settings with exact preview, safe atomic apply/disable, and one-time restore.
 
+= 1.1.1 =
+* Redesign Predictive Navigation settings with clearer status, accessible mode cards, exclusions, compatibility/privacy guidance, responsive styling, and unchanged saved settings and behavior.
 
 = 1.1.0 =
-* New: Predictive Navigation for WordPress 6.8+ using Core's native Speculation Rules API. Choose safe prefetch, balanced prefetch, or fast prerender, with conservative defaults and commerce/sensitive-path exclusions. Disabled by default.
+* Add Predictive Navigation for WordPress 6.8+ through Core Speculation Rules, with safe/balanced/fast modes, commerce and sensitive-path exclusions, sanitized custom paths, and no telemetry or external calls. Disabled by default.
 
 = 1.0.11 =
 * Fix: an internal diagnostic log message related to the 1.0.10 buffer-order

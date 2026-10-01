@@ -1,5 +1,6 @@
 <?php
 /**
+ * Beplus Performance Booster Object Cache Drop-in.
  * WordPress Object Cache Drop-in — powered by Beplus Performance Booster.
  *
  * Loaded automatically by WordPress when placed at wp-content/object-cache.php.
