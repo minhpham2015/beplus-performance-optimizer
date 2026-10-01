@@ -209,6 +209,11 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - name: Setup PHP 8.2 with Redis and WP-CLI
@@ -218,11 +223,16 @@ jobs:
           coverage: none
           extensions: redis
           tools: wp-cli
+      - name: Install redis-tools (redis-cli for purge-boundary assertions)
+        run: sudo apt-get update -y && sudo apt-get install -y redis-tools
       - name: Run throwaway WordPress foreign drop-in transaction coverage
         env:
           BEPLUSPB_TEST_DB_HOST: 127.0.0.1
           BEPLUSPB_TEST_DB_USER: root
           BEPLUSPB_TEST_DB_PASSWORD: root
+          BEPLUSPB_TEST_REDIS_HOST: 127.0.0.1
+          BEPLUSPB_TEST_REDIS_PORT: 6379
+          BEPLUSPB_REQUIRE_REDIS: '1'
         run: tests/test-object-cache-wordpress-integration.sh
 
   security-regression-guard:

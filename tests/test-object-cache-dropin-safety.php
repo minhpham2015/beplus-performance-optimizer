@@ -25,7 +25,7 @@ function fixture() {
 	mkdir( $root, 0700, true );
 	mkdir( "$root/plugin", 0700 );
 	$foreign = "<?php\n// Redis Object Cache by Vendor\n";
-	$ours    = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', 'fixture-build' );\n";
+	$ours    = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', '" . BEPLUSPB_Dropin_Workflow::DROPIN_BUILD_ID . "' );\n";
 	file_put_contents( "$root/object-cache.php", $foreign );
 	file_put_contents( "$root/plugin/object-cache.php", $ours );
 	return array( $root, "$root/plugin/object-cache.php", $foreign, $ours );

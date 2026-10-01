@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Replaced the generic, unrestricted-substring drop-in ownership signature
+  with one exact, machine-readable `BEPLUSPB_DROPIN_BUILD_ID` identity shared
+  by the drop-in workflow, the object-cache manager, and the shipped
+  `lib/object-cache.php`, with negative regression tests for foreign files
+  containing the old generic phrase and for files with a wrong build id.
+- Hardened the real-WordPress integration test's outside-symlink fixture so
+  its path is tracked and removed by the script's EXIT trap even if a later
+  assertion fails or the process is signaled, instead of only being cleaned
+  up on the happy path.
+- Added Redis purge-boundary coverage to the real-WordPress integration test:
+  sentinel keys seeded in Redis db 0 and db 14 (representing another site/app
+  and an unrelated adjacent namespace) are asserted byte-identical after the
+  full backup/replace/restore transaction, proving no FLUSHALL/FLUSHDB or
+  cross-namespace key deletion occurs.
+- Corrected `docs/RELEASE.md`'s stated CI PHP range (was `7.4–8.3`) to match
+  the actual `8.2–8.4` CI matrix and the plugin's PHP 8.2 minimum baseline.
+
 ## [1.1.12] - 2026-09-30
 
 ### Fixed

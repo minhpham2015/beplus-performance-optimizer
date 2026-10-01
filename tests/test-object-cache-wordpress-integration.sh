@@ -12,11 +12,86 @@ DB_USER="${BEPLUSPB_TEST_DB_USER:-root}"
 DB_PASSWORD="${BEPLUSPB_TEST_DB_PASSWORD:-}"
 MYSQL=(mysql -h "$DB_HOST" -u "$DB_USER")
 if [[ -n "$DB_PASSWORD" ]]; then MYSQL+=("-p$DB_PASSWORD"); fi
+
+# Redis sentinel setup: proves the drop-in backup/replace/restore transaction
+# never touches Redis namespaces outside the plugin's own configured
+# database (db 15 below). Uses db 14 (an adjacent-but-different db on the
+# same instance) and db 0 (the default db, standing in for another
+# site/app sharing this Redis instance) as sentinels.
+REDIS_HOST="${BEPLUSPB_TEST_REDIS_HOST:-127.0.0.1}"
+REDIS_PORT="${BEPLUSPB_TEST_REDIS_PORT:-6379}"
+REDIS_PASSWORD="${BEPLUSPB_TEST_REDIS_PASSWORD:-}"
+REDIS_CLI=(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT")
+if [[ -n "$REDIS_PASSWORD" ]]; then REDIS_CLI+=(-a "$REDIS_PASSWORD" --no-auth-warning); fi
+REDIS_AVAILABLE=0
+SENTINEL_KEY="bepluspb-sentinel-$(basename "$ROOT")"
+SENTINEL_VALUE="untouched-$(date +%s)-$$"
+
+# Tracks any fixture created OUTSIDE $ROOT so it is removed even if the
+# script dies (failed assertion, signal) between creating it and its own
+# normal cleanup lines below. A plain file path list, one per line.
+OUTSIDE_FIXTURES="$(mktemp /tmp/bepluspb-outside-fixtures-XXXXXX)"
+track_outside() { printf '%s\n' "$1" >> "$OUTSIDE_FIXTURES"; }
 cleanup() {
   "${MYSQL[@]}" -e "DROP DATABASE IF EXISTS \`$DB\`" >/dev/null 2>&1 || true
   rm -rf "$ROOT"
+  if [[ -f "$OUTSIDE_FIXTURES" ]]; then
+    while IFS= read -r path; do
+      [[ -n "$path" ]] && rm -rf "$path"
+    done < "$OUTSIDE_FIXTURES"
+    rm -f "$OUTSIDE_FIXTURES"
+  fi
+  if [[ "$REDIS_AVAILABLE" -eq 1 ]]; then
+    "${REDIS_CLI[@]}" -n 0 DEL "$SENTINEL_KEY" >/dev/null 2>&1 || true
+    "${REDIS_CLI[@]}" -n 14 DEL "$SENTINEL_KEY" >/dev/null 2>&1 || true
+    "${REDIS_CLI[@]}" -n 15 DEL "$SENTINEL_KEY" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT INT TERM
+
+# Redis reachability is checked AFTER the EXIT trap above is armed, so the
+# hard failure below (when BEPLUSPB_REQUIRE_REDIS=1) still cleans up $ROOT
+# and OUTSIDE_FIXTURES instead of leaking them. Retries ride out a container
+# service that is still starting up (avoids CI flakiness from a single
+# immediate ping against a not-yet-ready redis: service container).
+redis_ping_ok=0
+for _attempt in 1 2 3 4 5; do
+  if command -v redis-cli >/dev/null 2>&1 && "${REDIS_CLI[@]}" ping >/dev/null 2>&1; then
+    redis_ping_ok=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$redis_ping_ok" -eq 1 ]]; then
+  REDIS_AVAILABLE=1
+elif [[ "${BEPLUSPB_REQUIRE_REDIS:-0}" == "1" ]]; then
+  # In CI (and anywhere else that opts in) the purge-boundary sentinel
+  # assertion is mandatory, not advisory — a missing redis-cli or an
+  # unreachable Redis must fail the job loudly instead of silently
+  # skipping real coverage while the job still reports green.
+  echo "FAIL: BEPLUSPB_REQUIRE_REDIS=1 but redis-cli is missing or Redis at ${REDIS_HOST}:${REDIS_PORT} is unreachable after 5 attempts; purge-boundary coverage cannot run." >&2
+  exit 1
+fi
+
+# The symlink-rejection fixture below must live outside $ROOT (it is a
+# symlink target that must NOT be inside the WordPress tree we delete), but
+# its path is deterministic (derived from $ROOT, not random) so the EXIT
+# trap can remove it unconditionally even if the PHP integration script
+# dies between creating it and its own normal cleanup lines.
+export BEPLUSPB_TEST_OUTSIDE_FIXTURE="/tmp/bepluspb-outside-$(basename "$ROOT")"
+track_outside "$BEPLUSPB_TEST_OUTSIDE_FIXTURE"
+
+# Seed sentinel keys in Redis namespaces the plugin must never touch:
+# db 0 (default db, standing in for another site/app sharing this Redis
+# instance) and db 14 (an adjacent-but-different db from the plugin's own
+# configured db 15). If these survive byte-identical after the full
+# backup/replace/restore transaction below, the transaction proved it
+# never issued a cross-namespace FLUSHALL/FLUSHDB or deleted foreign keys.
+if [[ "$REDIS_AVAILABLE" -eq 1 ]]; then
+  "${REDIS_CLI[@]}" -n 0 SET "$SENTINEL_KEY" "$SENTINEL_VALUE" >/dev/null
+  "${REDIS_CLI[@]}" -n 14 SET "$SENTINEL_KEY" "$SENTINEL_VALUE" >/dev/null
+  "${REDIS_CLI[@]}" -n 15 SET "$SENTINEL_KEY" "$SENTINEL_VALUE" >/dev/null
+fi
 
 "${MYSQL[@]}" -e "CREATE DATABASE \`$DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
 wp core download --path="$ROOT" --skip-content --quiet
@@ -63,8 +138,12 @@ exec( escapeshellarg( PHP_BINARY ) . ' -n -l ' . escapeshellarg( $source ) . ' 2
 must( is_file( $source ) && is_readable( $source ) && 0 === $lint_rc, 'bundled source usable: ' . PHP_BINARY . ' / ' . implode( ' ', $lint_output ) );
 
 // Real filesystem path/symlink checks in the actual throwaway wp-content.
-$outside = sys_get_temp_dir() . '/bepluspb-outside-' . bin2hex( random_bytes( 4 ) );
-mkdir( $outside, 0700 );
+// Path is supplied by the parent shell script (deterministic, derived from
+// $ROOT) so its EXIT trap can remove it even if this script dies before
+// reaching the unlink()/rmdir() cleanup below.
+$outside = getenv( 'BEPLUSPB_TEST_OUTSIDE_FIXTURE' );
+must( is_string( $outside ) && '' !== $outside, 'outside fixture path provided by harness' );
+must( ! file_exists( $outside ) && mkdir( $outside, 0700 ), 'outside fixture directory created fresh (not pre-existing/attacker-planted)' );
 symlink( $outside, $content . '/bepluspb-backups' );
 must( empty( $workflow->replace()['success'] ), 'symlinked backup directory fails closed' );
 must( array( '.', '..' ) === scandir( $outside ), 'symlink target was not mutated' );
@@ -119,3 +198,21 @@ wp eval-file "$ROOT/integration.php" --path="$ROOT"
 [[ "$(sha256sum "$ROOT/wp-content/object-cache.php" | cut -d' ' -f1)" == "$FOREIGN_SHA" ]]
 [[ "$(stat -c '%a' "$ROOT/wp-content/object-cache.php")" == "$FOREIGN_MODE" ]]
 [[ "$(stat -c '%Y' "$ROOT/wp-content/object-cache.php")" == "$FOREIGN_MTIME" ]]
+
+# Purge-boundary proof: the drop-in backup/replace/restore transaction above
+# touched only its own configured Redis db (15). Sentinels in db 0 (stand-in
+# for another site/app sharing the instance) and db 14 (an adjacent, unrelated
+# db) must be byte-identical and still present — a FLUSHALL/FLUSHDB on the
+# whole instance or a global-transient-style wipe would have erased them.
+if [[ "$REDIS_AVAILABLE" -eq 1 ]]; then
+  for db in 0 14 15; do
+    got="$("${REDIS_CLI[@]}" -n "$db" GET "$SENTINEL_KEY")"
+    if [[ "$got" != "$SENTINEL_VALUE" ]]; then
+      echo "FAIL: Redis db $db sentinel was mutated by the drop-in transaction (expected '$SENTINEL_VALUE', got '$got')" >&2
+      exit 1
+    fi
+  done
+  echo "PASS: object-cache transaction left foreign Redis namespaces (db 0, db 14) and its own db 15 sentinel intact"
+else
+  echo "SKIP: redis-cli not reachable at ${REDIS_HOST}:${REDIS_PORT}; purge-boundary sentinel check not run" >&2
+fi

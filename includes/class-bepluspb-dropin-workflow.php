@@ -10,7 +10,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 class BEPLUSPB_Dropin_Workflow {
-	const SIGNATURE = 'Beplus Performance Booster Object Cache Drop-in';
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+	/**
+	 * Every build id this plugin has ever shipped in lib/object-cache.php.
+	 * Ownership checks on an ALREADY-INSTALLED target (uninstall, restore,
+	 * ".. is this drop-in ours") must recognize any of these, not just the
+	 * current one, or a version bump breaks upgrade/uninstall/restore for
+	 * every site that installed an earlier version's drop-in. Only the
+	 * BUNDLED SOURCE file about to be installed (source_valid_path()) is
+	 * required to match the CURRENT id exactly. Append new ids here on
+	 * future releases; never remove old ones.
+	 */
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
 	private $content_dir;
 	private $source;
 	private $hooks;
@@ -52,8 +63,26 @@ class BEPLUSPB_Dropin_Workflow {
 	}
 	private function same_identity( $path, $identity ) { return $identity && $identity === $this->identity( $path ); }
 	private function source_valid_path( $path ) {
-		$h = @file_get_contents( $path, false, null, 0, 512 );
-		return false !== $h && false !== strpos( $h, self::SIGNATURE );
+		$build_id = $this->build_id( $path );
+		return is_string( $build_id ) && hash_equals( self::DROPIN_BUILD_ID, $build_id );
+	}
+	/**
+	 * Whether a path carries ANY build id this plugin has ever shipped.
+	 * Used to recognize an already-installed Beplus drop-in (e.g. for
+	 * restore's precondition on the active target) across version
+	 * upgrades. Installation of the bundled SOURCE must still use the
+	 * strict current-only source_valid_path() above.
+	 *
+	 * @param  string $path File path.
+	 * @return bool
+	 */
+	private function is_known_dropin_path( $path ) {
+		$build_id = $this->build_id( $path );
+		if ( ! is_string( $build_id ) ) { return false; }
+		foreach ( self::KNOWN_DROPIN_BUILD_IDS as $known ) {
+			if ( hash_equals( $known, $build_id ) ) { return true; }
+		}
+		return false;
 	}
 	private function syntax_valid( $path ) {
 		if ( ! function_exists( 'exec' ) || ! is_executable( PHP_BINARY ) ) { return false; }
@@ -169,7 +198,7 @@ class BEPLUSPB_Dropin_Workflow {
 		if ( ! function_exists( 'exec' ) || ! is_executable( PHP_BINARY ) || ! defined( 'ABSPATH' ) ) { return false; }
 		$bootstrap = rtrim( ABSPATH, '/\\' ) . '/wp-load.php';
 		if ( ! is_file( $bootstrap ) ) { return false; }
-		$expected = $this->build_id( $this->source );
+		$expected = $this->source_valid_path( $this->source ) ? self::DROPIN_BUILD_ID : false;
 		if ( $require_identity && ! $expected ) { return false; }
 		$identity_check = $require_identity ? '!defined("BEPLUSPB_DROPIN_BUILD_ID")||!hash_equals(' . var_export( $expected, true ) . ',BEPLUSPB_DROPIN_BUILD_ID)||' : '';
 		$code = 'require ' . var_export( $bootstrap, true ) . '; $k="bepluspb-health-".bin2hex(random_bytes(8)); $v=bin2hex(random_bytes(16)); if(' . $identity_check . '!function_exists("wp_cache_set")||!wp_cache_set($k,$v,"bepluspb-health",30)||wp_cache_get($k,"bepluspb-health")!==$v||!wp_cache_delete($k,"bepluspb-health")){exit(23);}';
@@ -221,7 +250,7 @@ class BEPLUSPB_Dropin_Workflow {
 	public function restore() {
 		$lock = $this->acquire_lock(); if ( ! $lock ) { return $this->fail( 'Another drop-in transaction is active or the lock file is unsafe.' ); }
 		try {
-		$t = $this->target(); if ( ! $this->identity( $t ) || ! $this->source_valid_path( $t ) ) { return $this->fail( 'Restore requires the active signed Beplus drop-in.' ); }
+		$t = $this->target(); if ( ! $this->identity( $t ) || ! $this->is_known_dropin_path( $t ) ) { return $this->fail( 'Restore requires the active signed Beplus drop-in.' ); }
 		$mf = $this->backup_dir() . '/restore-manifest.json'; $m = json_decode( (string) @file_get_contents( $mf ), true );
 		if ( ! is_array( $m ) || empty( $m['backup'] ) || basename( $m['backup'] ) !== $m['backup'] || empty( $m['mac'] ) || ! hash_equals( (string) $m['mac'], (string) $this->manifest_mac( $m ) ) ) { return $this->fail( 'Restore manifest is invalid or unauthenticated.' ); }
 		$b = $this->backup_dir() . '/' . $m['backup']; $bid = $this->identity( $b );

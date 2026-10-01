@@ -13,7 +13,8 @@ Internal plugin/class prefix: `beplus-performance-booster` / `BEPLUSPB`
 - Branch off `master`: `fix/<short-name>` or `security-fix/<short-name>` for
   anything touching `class-bepluspb-object-cache.php`, `lib/object-cache.php`,
   or `class-bepluspb-htaccess.php`.
-- Open a PR. CI must pass: PHP syntax (7.4–8.3), WPCS, version-consistency
+- Open a PR. CI must pass: PHP syntax (8.2–8.4, matching the CI matrix and
+  the plugin's actual minimum PHP 8.2 baseline), WPCS, version-consistency
   check, AND `security-regression-guard` (checks the two v1.0.5 security
   fixes are still in place — see `CLAUDE.md`).
 - Merge to `master` with a merge commit (not squash) so the fix/feature

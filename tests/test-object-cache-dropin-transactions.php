@@ -16,7 +16,7 @@ function tx_ok( $v, $m ) { global $tx_n; ++$tx_n; if ( ! $v ) { throw new Runtim
 function tx_fixture() {
 	$r = sys_get_temp_dir() . '/bepluspb-tx-' . bin2hex( random_bytes( 5 ) ); mkdir( $r, 0700 ); mkdir( "$r/plugin", 0700 );
 	$foreign = "<?php\n// Foreign object cache\n";
-	$ours = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine('BEPLUSPB_DROPIN_BUILD_ID','fixture-build');\n";
+	$ours = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine('BEPLUSPB_DROPIN_BUILD_ID','" . BEPLUSPB_Dropin_Workflow::DROPIN_BUILD_ID . "');\n";
 	file_put_contents( "$r/object-cache.php", $foreign ); file_put_contents( "$r/plugin/object-cache.php", $ours );
 	return array( $r, "$r/plugin/object-cache.php", $foreign );
 }

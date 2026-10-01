@@ -17,7 +17,7 @@ function sec_fixture() {
 	$root = sys_get_temp_dir() . '/bepluspb-sec-' . bin2hex( random_bytes( 5 ) );
 	mkdir( $root, 0700, true ); mkdir( "$root/plugin", 0700 );
 	$foreign = "<?php\n// Redis Object Cache by Vendor\n";
-	$ours = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', 'fixture-build' );\n";
+	$ours = "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', '" . BEPLUSPB_Dropin_Workflow::DROPIN_BUILD_ID . "' );\n";
 	file_put_contents( "$root/object-cache.php", $foreign ); file_put_contents( "$root/plugin/object-cache.php", $ours );
 	return array( $root, "$root/plugin/object-cache.php", $foreign, $ours );
 }
@@ -42,7 +42,7 @@ sec_ok( $w->restore()['success'] && file_get_contents( "$r/object-cache.php" ) =
 // Retention must not evict the selected manifest backup during restore.
 list($r, $s) = sec_fixture(); $w = sec_wf( $r, $s ); $a = $w->replace(); $selected = $a['backup']; touch( $selected, time() - 10000 );
 for ( $i = 0; $i < 2; ++$i ) { file_put_contents( "$r/object-cache.php", "<?php // filler $i" ); $w->backup_file( "$r/object-cache.php" ); }
-file_put_contents( "$r/object-cache.php", "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', 'fixture-build' );\n" );
+file_put_contents( "$r/object-cache.php", "<?php\n// Beplus Performance Booster Object Cache Drop-in\ndefine( 'BEPLUSPB_DROPIN_BUILD_ID', '" . BEPLUSPB_Dropin_Workflow::DROPIN_BUILD_ID . "' );\n" );
 $z = $w->restore();
 sec_ok( $z['success'] && is_file( $selected ), 'restore retains selected backup' );
 

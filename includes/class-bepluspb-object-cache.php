@@ -19,11 +19,20 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_Object_Cache {
 
+	/** Exact machine-readable identity of the bundled drop-in. */
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+
 	/**
-	 * Drop-in signature — a comment we embed in the drop-in file so we can
-	 * confirm it was installed by this plugin before deleting it.
+	 * Every build id this plugin has ever shipped in lib/object-cache.php.
+	 * Must stay in exact sync with
+	 * BEPLUSPB_Dropin_Workflow::KNOWN_DROPIN_BUILD_IDS (enforced by
+	 * tests/test-object-cache-dropin-identity.php) — duplicated here rather
+	 * than referenced cross-class because this file is loaded standalone
+	 * from uninstall.php, which never loads class-bepluspb-dropin-workflow.php;
+	 * referencing that class's constant here would fatal during uninstall.
+	 * Append new ids on future releases; never remove old ones.
 	 */
-	const DROPIN_SIGNATURE = '// Beplus Performance Booster Object Cache Drop-in';
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
 
 	/**
 	 * Source drop-in file bundled with the plugin.
@@ -227,15 +236,30 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/**
-	 * Read the first 512 bytes of a file and check for our signature.
+	 * Parse and compare the exact machine-readable build identity.
+	 *
+	 * Accepts ANY build id this plugin has ever shipped (see
+	 * BEPLUSPB_Dropin_Workflow::KNOWN_DROPIN_BUILD_IDS), not just the
+	 * current one — this check runs against an ALREADY-INSTALLED target
+	 * (uninstall, install-over-existing, "is it installed" status), so a
+	 * version bump must not make a site's earlier Beplus-installed
+	 * drop-in look foreign and un-removable/un-restorable.
 	 *
 	 * @param  string $path File path.
 	 * @return bool
 	 */
 	private static function is_our_dropin( $path ) {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$head = file_get_contents( $path, false, null, 0, 512 );
-		return $head && false !== strpos( $head, self::DROPIN_SIGNATURE );
+		$head = file_get_contents( $path, false, null, 0, 4096 );
+		if ( false === $head || ! preg_match( "/define\(\s*'BEPLUSPB_DROPIN_BUILD_ID'\s*,\s*'([^']+)'/", $head, $matches ) ) {
+			return false;
+		}
+		foreach ( self::KNOWN_DROPIN_BUILD_IDS as $known ) {
+			if ( hash_equals( $known, $matches[1] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// -------------------------------------------------------------------------
