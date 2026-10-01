@@ -368,6 +368,24 @@ class BEPLUSPB_Admin {
 	}
 
 	/**
+	 * Format a recommendation value for the preview table only.
+	 *
+	 * Stored option values and recommendation behavior remain unchanged.
+	 *
+	 * @param mixed $value Raw recommendation value.
+	 * @return string
+	 */
+	private static function format_recommendation_value( $value ) {
+		if ( 1 === $value || '1' === $value || true === $value ) {
+			return 'Active';
+		}
+		if ( 0 === $value || '0' === $value || false === $value ) {
+			return 'Inactive';
+		}
+		return (string) $value;
+	}
+
+	/**
 	 * Render the full admin settings page with a tabbed interface.
 	 *
 	 * Five tabs:
@@ -670,7 +688,7 @@ class BEPLUSPB_Admin {
 						<?php
 						foreach ( $diff as $key => $change ) :
 							?>
-						<tr><th scope="row"><code><?php echo esc_html( $key ); ?></code></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : (string) $change['from'] ); ?></td><td><?php echo esc_html( (string) $change['to'] ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<tr><th scope="row"><code><?php echo esc_html( $key ); ?></code></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : self::format_recommendation_value( $change['from'] ) ); ?></td><td><?php echo esc_html( self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
 						<?php
 else :
 	?>

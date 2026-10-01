@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- Displayed boolean values in the Recommended Settings preview as `Active`
+  and `Inactive` instead of raw `1` and `0`, without changing stored values
+  or apply/disable/restore behavior.
 - Replaced the generic, unrestricted-substring drop-in ownership signature
   with one exact, machine-readable `BEPLUSPB_DROPIN_BUILD_ID` identity shared
   by the drop-in workflow, the object-cache manager, and the shipped
