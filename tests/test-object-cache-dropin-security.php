@@ -32,6 +32,14 @@ $x = sec_wf( $r, $s )->backup_file( "$r/object-cache.php" );
 sec_ok( empty( $x['success'] ), 'symlinked backup directory rejected' );
 sec_ok( array() === array_values( array_diff( scandir( $outside ), array( '.', '..' ) ) ), 'no write followed backup-directory symlink' );
 
+// No usable PHP CLI (e.g. FPM-only host, exec disabled): fail closed with an actionable message, change nothing.
+list($r, $s, $foreign) = sec_fixture(); $x = sec_wf( $r, $s, array( 'php_cli' => fn() => false ) )->replace();
+sec_ok( empty( $x['success'] ) && false !== strpos( $x['message'], 'PHP CLI' ), 'missing PHP CLI reports actionable error' );
+sec_ok( file_get_contents( "$r/object-cache.php" ) === $foreign, 'missing PHP CLI leaves target untouched' );
+// Real CLI resolution + syntax check works without hooks (health probe still mocked).
+list($r, $s) = sec_fixture(); $x = sec_wf( $r, $s )->preflight();
+sec_ok( ! empty( $x['success'] ), 'real php CLI resolved for syntax validation' );
+
 // Backup directory must deny web access and use unguessable names.
 list($r, $s, $foreign) = sec_fixture(); $x = sec_wf( $r, $s )->backup_file( "$r/object-cache.php" );
 sec_ok( ! empty( $x['success'] ), 'backup succeeds' );
