@@ -126,9 +126,27 @@ class BEPLUSPB_Dropin_Workflow {
 			if ( is_link( $d ) || ! $this->canonical_inside( $d ) ) { @rmdir( $d ); return false; }
 		}
 		@chmod( $d, 0700 );
-		return ! is_link( $d ) && $this->canonical_inside( $d );
+		if ( is_link( $d ) || ! $this->canonical_inside( $d ) ) { return false; }
+		// Backups can hold a foreign drop-in with plaintext cache credentials (Hard Rule #1 class): fail closed unless web access is denied.
+		return $this->protect_backup_dir( $d );
 	}
-	private function token() { return (string) $this->hook( 'unique_token', gmdate( 'Ymd-His' ) . '-' . bin2hex( random_bytes( 4 ) ) ); }
+	/**
+	 * Deny HTTP access to the backup directory (Apache/LiteSpeed via .htaccess, plus an index.php to stop listings).
+	 * nginx ignores .htaccess; backups also use unguessable names and 0600/0700 permissions.
+	 */
+	private function protect_backup_dir( $d ) {
+		$rules = "# Beplus Performance Booster — deny all access\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n</IfModule>\n";
+		$files = array( '.htaccess' => $rules, 'index.php' => "<?php\n// Silence is golden.\n" );
+		foreach ( $files as $name => $body ) {
+			$f = $d . '/' . $name;
+			if ( is_link( $f ) ) { return false; }
+			if ( is_file( $f ) && @file_get_contents( $f ) === $body ) { continue; }
+			if ( false === @file_put_contents( $f, $body, LOCK_EX ) ) { return false; }
+			@chmod( $f, 0644 );
+		}
+		return true;
+	}
+	private function token() { return (string) $this->hook( 'unique_token', gmdate( 'Ymd-His' ) . '-' . bin2hex( random_bytes( 16 ) ) ); }
 	private function manifest_key() {
 		$key = $this->hook( 'manifest_key', null );
 		if ( is_string( $key ) && strlen( $key ) >= 32 ) { return $key; }

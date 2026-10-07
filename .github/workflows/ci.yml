@@ -248,6 +248,13 @@ jobs:
             exit 1
           fi
 
+      - name: Drop-in backup directory must stay web-denied
+        run: |
+          if ! grep -q "protect_backup_dir" includes/class-bepluspb-dropin-workflow.php; then
+            echo "::error::ensure_backup_dir() no longer protects wp-content/bepluspb-backups — backups of a foreign drop-in may hold plaintext cache credentials (CLAUDE.md rule #1 class)."
+            exit 1
+          fi
+
       - name: Object cache drop-in unserialize() must restrict allowed_classes
         run: |
           if ! grep -q "allowed_classes.*=>.*false" lib/object-cache.php; then
