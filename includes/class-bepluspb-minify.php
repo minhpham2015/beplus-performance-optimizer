@@ -481,6 +481,13 @@ class BEPLUSPB_Minify {
 		$real_path = wp_normalize_path( $real_path );
 		$real_base = trailingslashit( wp_normalize_path( $real_base ) );
 
+		// Re-check the extension on the RESOLVED file: a `.css`/`.js`-named symlink
+		// may point at wp-config.php, which the URL-level allowlist alone cannot see.
+		$real_ext = strtolower( pathinfo( $real_path, PATHINFO_EXTENSION ) );
+		if ( 'css' !== $real_ext && 'js' !== $real_ext ) {
+			return false;
+		}
+
 		if ( 0 !== strpos( $real_path, $real_base ) ) {
 			return false;
 		}
@@ -513,9 +520,36 @@ class BEPLUSPB_Minify {
 		);
 
 		$css = preg_replace( '/\/\*[\s\S]*?\*\//', '', $css );
+
+		// Protect quoted strings so whitespace/punctuation inside them is never altered.
+		$strings = array();
+		$css     = preg_replace_callback(
+			'/"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'/',
+			function ( $m ) use ( &$strings ) {
+				$token             = 'BEPLUSPBSTR' . count( $strings ) . 'END';
+				$strings[ $token ] = $m[0];
+				return $token;
+			},
+			$css
+		);
+
 		$css = preg_replace( '/\s+/', ' ', $css );
-		$css = preg_replace( '/\s*([{};:,>~])\s*/', '$1', $css );
+		$css = preg_replace( '/\s*([{};,>~])\s*/', '$1', $css );
+		// Space AFTER a colon is never significant. Space BEFORE a colon is only safe to drop
+		// inside declaration blocks: in a selector, `.a :hover` (descendant) != `.a:hover`.
+		$css = preg_replace( '/:\s+/', ':', $css );
+		$css = preg_replace_callback(
+			'/\{([^{}]*)\}/',
+			function ( $m ) {
+				return '{' . preg_replace( '/\s+:/', ':', $m[1] ) . '}';
+			},
+			$css
+		);
 		$css = str_replace( ';}', '}', $css );
+
+		foreach ( $strings as $token => $literal ) {
+			$css = str_replace( $token, $literal, $css );
+		}
 
 		foreach ( $license_tokens as $token => $comment ) {
 			$css = str_replace( $token, "\n" . $comment . "\n", $css );

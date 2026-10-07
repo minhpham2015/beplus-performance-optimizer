@@ -51,6 +51,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   styling, and preserved settings/defaults/backend behavior.
 
 ### Fixed
+- Minify: `validate_local_path()` re-checks the `.css`/`.js` extension on the
+  resolved real path (a `.css` symlink to `wp-config.php` was cached
+  world-readable); `minify_css()` no longer turns `.a :hover` into `.a:hover`
+  and leaves quoted strings untouched.
 - Object Cache config is no longer written with a password unless the
   `.htaccess` deny rule is confirmed (fail-closed, 0600, locked append); a
   settings error is shown on failure. `handle_quick_enable` now verifies the

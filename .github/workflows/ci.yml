@@ -235,6 +235,51 @@ jobs:
           BEPLUSPB_REQUIRE_REDIS: '1'
         run: tests/test-object-cache-wordpress-integration.sh
 
+  frontend-wordpress-integration:
+    name: Front-end Behavior on Real WordPress + Redis (Minify, CDN, Object Cache)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP 8.2 with Redis and WP-CLI
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: redis, mysqli
+          tools: wp-cli
+      - name: Install redis-tools
+        run: sudo apt-get update -y && sudo apt-get install -y redis-tools
+      - name: Run real-HTTP Minify/CDN/Object Cache integration
+        env:
+          BEPLUSPB_TEST_DB_HOST: 127.0.0.1
+          BEPLUSPB_TEST_DB_USER: root
+          BEPLUSPB_TEST_DB_PASSWORD: root
+          BEPLUSPB_TEST_REDIS_HOST: 127.0.0.1
+          BEPLUSPB_TEST_REDIS_PORT: 6379
+          BEPLUSPB_REQUIRE_REDIS: '1'
+        run: tests/test-frontend-wordpress-integration.sh
+
   security-regression-guard:
     name: Security Regression Guard (v1.0.5 fixes)
     runs-on: ubuntu-latest
