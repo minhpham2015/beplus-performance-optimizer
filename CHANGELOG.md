@@ -51,6 +51,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   styling, and preserved settings/defaults/backend behavior.
 
 ### Fixed
+- Drop-in backup directory (`wp-content/bepluspb-backups/`) is now web-denied
+  (`.htaccess` + `index.php`, fail-closed) and backup names use a 128-bit token.
+- Drop-in syntax check and health probe now use a real PHP CLI binary instead of
+  `PHP_BINARY` (php-fpm under FPM); a clear error is shown when none is usable.
+- Object Cache flush is scoped to this site's key namespace (Redis SCAN by
+  prefix, Memcached flush generation) instead of flushing the whole DB/pool.
+  Drop-in build id bumped; the previous build id is still recognized.
 - Displayed boolean values in the Recommended Settings preview as `Active`
   and `Inactive` instead of raw `1` and `0`, without changing stored values
   or apply/disable/restore behavior.

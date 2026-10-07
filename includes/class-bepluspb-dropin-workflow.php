@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 class BEPLUSPB_Dropin_Workflow {
-	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20261007';
 	/**
 	 * Every build id this plugin has ever shipped in lib/object-cache.php.
 	 * Ownership checks on an ALREADY-INSTALLED target (uninstall, restore,
@@ -21,7 +21,7 @@ class BEPLUSPB_Dropin_Workflow {
 	 * required to match the CURRENT id exactly. Append new ids here on
 	 * future releases; never remove old ones.
 	 */
-	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.12-20260930' );
 	private $content_dir;
 	private $source;
 	private $hooks;
