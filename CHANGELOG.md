@@ -51,6 +51,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   styling, and preserved settings/defaults/backend behavior.
 
 ### Fixed
+- Object Cache config is no longer written with a password unless the
+  `.htaccess` deny rule is confirmed (fail-closed, 0600, locked append); a
+  settings error is shown on failure. `handle_quick_enable` now verifies the
+  nonce before the capability check.
 - Drop-in backup directory (`wp-content/bepluspb-backups/`) is now web-denied
   (`.htaccess` + `index.php`, fail-closed) and backup names use a 128-bit token.
 - Drop-in syntax check and health probe now use a real PHP CLI binary instead of
