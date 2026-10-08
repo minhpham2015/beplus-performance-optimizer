@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class BEPLUSPB_Object_Cache {
 
 	/** Exact machine-readable identity of the bundled drop-in. */
-	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20261007';
 
 	/**
 	 * Every build id this plugin has ever shipped in lib/object-cache.php.
@@ -32,7 +32,7 @@ class BEPLUSPB_Object_Cache {
 	 * referencing that class's constant here would fatal during uninstall.
 	 * Append new ids on future releases; never remove old ones.
 	 */
-	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.12-20260930' );
 
 	/**
 	 * Source drop-in file bundled with the plugin.
@@ -290,10 +290,18 @@ class BEPLUSPB_Object_Cache {
 			return false;
 		}
 
-		self::protect_config_file();
+		// Hard Rule #1: fail closed. Never write a plaintext AUTH password unless the
+		// deny rule is confirmed in place.
+		$protected = self::protect_config_file();
+		if ( ! $protected && '' !== (string) $cfg['password'] ) {
+			return false;
+		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
-		$written = file_put_contents( self::config_file(), $json );
+		$written = file_put_contents( self::config_file(), $json, LOCK_EX );
+		if ( false !== $written ) {
+			@chmod( self::config_file(), 0600 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+		}
 		return false !== $written;
 	}
 
@@ -306,6 +314,8 @@ class BEPLUSPB_Object_Cache {
 	 * Apache/LiteSpeed only — hosts on nginx or other servers must add an
 	 * equivalent `location ~ /\.bepluspb_oc\.json { deny all; }` rule
 	 * manually, since nginx does not read .htaccess files.
+	 *
+	 * @return bool True when the deny rule is present (already or newly written).
 	 */
 	private static function protect_config_file() {
 		$htaccess = WP_CONTENT_DIR . '/.htaccess';
@@ -315,7 +325,7 @@ class BEPLUSPB_Object_Cache {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$existing = file_get_contents( $htaccess );
 			if ( false !== $existing && false !== strpos( $existing, $marker ) ) {
-				return; // Rule already present.
+				return true; // Rule already present.
 			}
 		} else {
 			$existing = '';
@@ -328,8 +338,9 @@ class BEPLUSPB_Object_Cache {
 		$rule .= "  Deny from all\n";
 		$rule .= "</Files>\n";
 
+		// Append under an exclusive lock so a concurrent save cannot clobber other directives.
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
-		file_put_contents( $htaccess, $existing . $rule );
+		return false !== file_put_contents( $htaccess, $rule, FILE_APPEND | LOCK_EX );
 	}
 
 	/**

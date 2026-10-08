@@ -341,7 +341,14 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( $input['object_cache_non_persistent_groups'] ) : '';
 
 		// Write / delete the JSON config file used by the drop-in.
-		BEPLUSPB_Object_Cache::write_config( $sanitized );
+		if ( ! BEPLUSPB_Object_Cache::write_config( $sanitized ) ) {
+			add_settings_error(
+				BEPLUSPB_OPTIONS_KEY,
+				'bepluspb_oc_config_failed',
+				__( 'Object Cache configuration was not written: wp-content/.htaccess could not be updated to protect the password file, or the file is not writable. Fix permissions (nginx: deny .bepluspb_oc.json manually) and save again.', 'beplus-performance-booster' ),
+				'error'
+			);
+		}
 
 		// ---- Master cache switch — preserved from DB when not submitted. ----
 		// cache_enabled lives on the Dashboard tab outside the main <form>, so it
@@ -3449,19 +3456,20 @@ gzip_min_length 1024;'
 	 *   modifying only the targeted key guarantees no other toggle is affected.
 	 */
 	public static function handle_quick_enable() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'You do not have permission to perform this action.', 'beplus-performance-booster' ) );
-		}
+		$option = isset( $_POST['bepluspb_option'] ) ? sanitize_key( wp_unslash( $_POST['bepluspb_option'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified below; the nonce action is keyed on this value.
 
-		$option = isset( $_POST['bepluspb_option'] ) ? sanitize_key( wp_unslash( $_POST['bepluspb_option'] ) ) : '';
-
-		// Validate that this is an allowed option key.
+		// Validate that this is an allowed option key (also required to derive the nonce action).
 		$allowed = array( 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'remove_emoji', 'css_minify', 'cache_headers' );
 		if ( ! in_array( $option, $allowed, true ) ) {
 			wp_die( esc_html__( 'Invalid option key.', 'beplus-performance-booster' ) );
 		}
 
+		// Nonce BEFORE capability, per CLAUDE.md rule #5.
 		check_admin_referer( 'bepluspb_quick_enable_' . $option, 'bepluspb_quick_enable_nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'beplus-performance-booster' ) );
+		}
 
 		// Read RAW from DB (no defaults merged in) so we modify exactly one key
 		// and leave every other previously-saved option untouched.

@@ -154,6 +154,7 @@ $result = $workflow->replace();
 must( ! empty( $result['success'] ), 'foreign drop-in backup and replacement succeeds: ' . ( $result['message'] ?? 'no message' ) );
 must( defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) || false !== strpos( file_get_contents( $content . '/object-cache.php' ), 'BEPLUSPB_DROPIN_BUILD_ID' ), 'installed identity is present' );
 must( hash_equals( hash_file( 'sha256', $source ), hash_file( 'sha256', $content . '/object-cache.php' ) ), 'installed bytes equal bundled drop-in' );
+must( false !== strpos( (string) @file_get_contents( $content . '/bepluspb-backups/.htaccess' ), 'Require all denied' ) && is_file( $content . '/bepluspb-backups/index.php' ), 'backup directory is web-denied' );
 must( is_file( $result['backup'] ) && 0 !== strpos( ltrim( file_get_contents( $result['backup'] ) ), '<?php' ), 'backup is non-executable' );
 must( hash_equals( $sha, hash( 'sha256', base64_decode( file_get_contents( $result['backup'] ), true ) ) ), 'backup decodes byte-perfectly' );
 $manifest = json_decode( file_get_contents( $content . '/bepluspb-backups/restore-manifest.json' ), true );

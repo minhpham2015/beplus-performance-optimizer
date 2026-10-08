@@ -32,6 +32,21 @@ $x = sec_wf( $r, $s )->backup_file( "$r/object-cache.php" );
 sec_ok( empty( $x['success'] ), 'symlinked backup directory rejected' );
 sec_ok( array() === array_values( array_diff( scandir( $outside ), array( '.', '..' ) ) ), 'no write followed backup-directory symlink' );
 
+// No usable PHP CLI (e.g. FPM-only host, exec disabled): fail closed with an actionable message, change nothing.
+list($r, $s, $foreign) = sec_fixture(); $x = sec_wf( $r, $s, array( 'php_cli' => fn() => false ) )->replace();
+sec_ok( empty( $x['success'] ) && false !== strpos( $x['message'], 'PHP CLI' ), 'missing PHP CLI reports actionable error' );
+sec_ok( file_get_contents( "$r/object-cache.php" ) === $foreign, 'missing PHP CLI leaves target untouched' );
+// Real CLI resolution + syntax check works without hooks (health probe still mocked).
+list($r, $s) = sec_fixture(); $x = sec_wf( $r, $s )->preflight();
+sec_ok( ! empty( $x['success'] ), 'real php CLI resolved for syntax validation' );
+
+// Backup directory must deny web access and use unguessable names.
+list($r, $s, $foreign) = sec_fixture(); $x = sec_wf( $r, $s )->backup_file( "$r/object-cache.php" );
+sec_ok( ! empty( $x['success'] ), 'backup succeeds' );
+sec_ok( false !== strpos( (string) @file_get_contents( "$r/bepluspb-backups/.htaccess" ), 'Require all denied' ), 'backup dir has deny-all .htaccess' );
+sec_ok( is_file( "$r/bepluspb-backups/index.php" ), 'backup dir has index.php' );
+sec_ok( 1 === preg_match( '/-[0-9a-f]{32}\\.bak$/', $x['path'] ), 'backup name has 128-bit random token' );
+
 // Backups are non-PHP base64 .bak payloads and restore byte-perfectly.
 list($r, $s, $foreign) = sec_fixture(); $w = sec_wf( $r, $s ); $a = $w->replace();
 sec_ok( ! empty( $a['success'] ) && 'bak' === pathinfo( $a['backup'], PATHINFO_EXTENSION ), 'backup uses .bak extension' );

@@ -16,7 +16,7 @@ defined( 'WPINC' ) || exit;
 
 /** Runtime identity used by the isolated post-install probe. */
 if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
-	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.12-20260930' );
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.12-20261007' );
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +141,13 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		public $cache_hits = 0;
 
 		/**
+		 * Memcached flush generation (part of every key; bumping it orphans old keys).
+		 *
+		 * @var string
+		 */
+		private $flush_gen = '0';
+
+		/**
 		 * Cache misses counter.
 		 *
 		 * @var int
@@ -210,6 +217,8 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 						$this->client->addServer( $host, $port );
 					}
 					$this->connected = true;
+					$gen             = $this->client->get( $this->salt . ':__flush_gen' );
+					$this->flush_gen = $gen ? (string) $gen : '0';
 				}
 			} catch ( Exception $e ) {
 				$this->connected = false;
@@ -230,7 +239,8 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 */
 		private function _key( $key, $group ) {
 			$prefix = $this->_is_global( $group ) ? '' : $this->blog_prefix;
-			return $this->salt . ':' . $prefix . $group . ':' . $key;
+			$gen    = 'memcached' === $this->driver ? 'g' . $this->flush_gen . ':' : '';
+			return $this->salt . ':' . $gen . $prefix . $group . ':' . $key;
 		}
 
 		/**
@@ -449,12 +459,34 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 				return true;
 			}
 
+			// Scope the flush to THIS site's key namespace so other sites/apps sharing the
+			// backend are untouched (core calls wp_cache_flush() on theme switch, imports, etc.).
 			try {
 				if ( 'redis' === $this->driver ) {
-					return (bool) $this->client->flushDB();
-				} else {
-					return (bool) $this->client->flush();
+					$pattern = preg_replace( '/([\\\\*?\\[\\]])/', '\\\\$1', $this->salt ) . ':*';
+					$it      = null;
+					do {
+						$keys = $this->client->scan( $it, $pattern, 500 );
+						if ( is_array( $keys ) && $keys ) {
+							if ( method_exists( $this->client, 'unlink' ) ) {
+								$this->client->unlink( $keys );
+							} else {
+								$this->client->del( $keys );
+							}
+						}
+					} while ( $it > 0 );
+					return true;
 				}
+				$gk = $this->salt . ':__flush_gen';
+				$n  = $this->client->increment( $gk );
+				if ( false === $n ) {
+					$n = $this->client->add( $gk, 1 ) ? 1 : $this->client->increment( $gk );
+				}
+				if ( false === $n ) {
+					return false;
+				}
+				$this->flush_gen = (string) $n;
+				return true;
 			} catch ( Exception $e ) {
 				return false;
 			}

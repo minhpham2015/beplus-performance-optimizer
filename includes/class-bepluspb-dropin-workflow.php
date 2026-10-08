@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 class BEPLUSPB_Dropin_Workflow {
-	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20260930';
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.12-20261007';
 	/**
 	 * Every build id this plugin has ever shipped in lib/object-cache.php.
 	 * Ownership checks on an ALREADY-INSTALLED target (uninstall, restore,
@@ -21,7 +21,7 @@ class BEPLUSPB_Dropin_Workflow {
 	 * required to match the CURRENT id exactly. Append new ids here on
 	 * future releases; never remove old ones.
 	 */
-	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID );
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.12-20260930' );
 	private $content_dir;
 	private $source;
 	private $hooks;
@@ -84,10 +84,34 @@ class BEPLUSPB_Dropin_Workflow {
 		}
 		return false;
 	}
+	/**
+	 * Locate a PHP *CLI* binary. Under PHP-FPM/CGI, PHP_BINARY is the php-fpm
+	 * (or similar) binary, which does not support -l/-r the way the CLI does.
+	 *
+	 * @return string|false Path to a verified CLI binary, or false.
+	 */
+	private function php_cli() {
+		if ( isset( $this->hooks['php_cli'] ) ) { return $this->hook( 'php_cli', false ); }
+		static $cached = null;
+		if ( null !== $cached ) { return $cached; }
+		$cached = false;
+		if ( ! function_exists( 'exec' ) ) { return false; }
+		$v = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+		$cands = ( 'cli' === PHP_SAPI ) ? array( PHP_BINARY ) : array();
+		$dirs  = array_unique( array_filter( array( PHP_BINDIR, dirname( (string) PHP_BINARY ) ) ) );
+		foreach ( $dirs as $dir ) { $cands[] = $dir . '/php' . $v; $cands[] = $dir . '/php'; }
+		foreach ( $cands as $bin ) {
+			if ( ! @is_file( $bin ) || ! @is_executable( $bin ) ) { continue; }
+			$out = array(); $rc = 1; @exec( escapeshellarg( $bin ) . ' -n -v 2>&1', $out, $rc );
+			if ( 0 === $rc && false !== stripos( implode( "\n", $out ), '(cli)' ) ) { return $cached = $bin; }
+		}
+		return false;
+	}
 	private function syntax_valid( $path ) {
-		if ( ! function_exists( 'exec' ) || ! is_executable( PHP_BINARY ) ) { return false; }
+		$php = $this->php_cli();
+		if ( ! $php ) { return false; }
 		$out = array(); $rc = 1;
-		@exec( escapeshellarg( PHP_BINARY ) . ' -n -l ' . escapeshellarg( $path ) . ' 2>&1', $out, $rc );
+		@exec( escapeshellarg( $php ) . ' -n -l ' . escapeshellarg( $path ) . ' 2>&1', $out, $rc );
 		return 0 === $rc;
 	}
 	private function source_valid() {
@@ -105,6 +129,7 @@ class BEPLUSPB_Dropin_Workflow {
 		if ( file_exists( $t ) && ( ! $this->identity( $t ) || ! $this->readable( $t ) ) ) { return $this->fail( 'The existing drop-in is not a readable regular file.' ); }
 		if ( file_exists( $t ) && ! $this->hook( 'target_writable', is_writable( $t ), $t ) ) { return $this->fail( 'The existing drop-in is not writable by PHP (it may be host-managed). Ask the host to replace it manually.' ); }
 		if ( ! $this->hook( 'directory_writable', is_writable( $this->content_dir ), $this->content_dir ) ) { return $this->fail( 'The wp-content directory is not writable by PHP. Ask the host to replace the file manually.' ); }
+		if ( ! $this->php_cli() ) { return $this->fail( 'A PHP CLI binary is required to validate the drop-in but none is usable (exec disabled or no php CLI found next to PHP-FPM). Install the drop-in manually or ask the host.' ); }
 		if ( ! $this->source_valid() || ! $this->syntax_valid( $this->source ) ) { return $this->fail( 'The bundled Beplus drop-in is unreadable or invalid.' ); }
 		$need = @filesize( $this->source ) + ( @filesize( $t ) ?: 0 ) + 8192;
 		$free = @disk_free_space( $this->content_dir );
@@ -126,9 +151,27 @@ class BEPLUSPB_Dropin_Workflow {
 			if ( is_link( $d ) || ! $this->canonical_inside( $d ) ) { @rmdir( $d ); return false; }
 		}
 		@chmod( $d, 0700 );
-		return ! is_link( $d ) && $this->canonical_inside( $d );
+		if ( is_link( $d ) || ! $this->canonical_inside( $d ) ) { return false; }
+		// Backups can hold a foreign drop-in with plaintext cache credentials (Hard Rule #1 class): fail closed unless web access is denied.
+		return $this->protect_backup_dir( $d );
 	}
-	private function token() { return (string) $this->hook( 'unique_token', gmdate( 'Ymd-His' ) . '-' . bin2hex( random_bytes( 4 ) ) ); }
+	/**
+	 * Deny HTTP access to the backup directory (Apache/LiteSpeed via .htaccess, plus an index.php to stop listings).
+	 * nginx ignores .htaccess; backups also use unguessable names and 0600/0700 permissions.
+	 */
+	private function protect_backup_dir( $d ) {
+		$rules = "# Beplus Performance Booster — deny all access\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n</IfModule>\n";
+		$files = array( '.htaccess' => $rules, 'index.php' => "<?php\n// Silence is golden.\n" );
+		foreach ( $files as $name => $body ) {
+			$f = $d . '/' . $name;
+			if ( is_link( $f ) ) { return false; }
+			if ( is_file( $f ) && @file_get_contents( $f ) === $body ) { continue; }
+			if ( false === @file_put_contents( $f, $body, LOCK_EX ) ) { return false; }
+			@chmod( $f, 0644 );
+		}
+		return true;
+	}
+	private function token() { return (string) $this->hook( 'unique_token', gmdate( 'Ymd-His' ) . '-' . bin2hex( random_bytes( 16 ) ) ); }
 	private function manifest_key() {
 		$key = $this->hook( 'manifest_key', null );
 		if ( is_string( $key ) && strlen( $key ) >= 32 ) { return $key; }
@@ -195,14 +238,15 @@ class BEPLUSPB_Dropin_Workflow {
 	}
 	private function health_probe( $require_identity = true ) {
 		if ( isset( $this->hooks['health_probe'] ) ) { return (bool) $this->hook( 'health_probe', false, $this->target(), $require_identity ); }
-		if ( ! function_exists( 'exec' ) || ! is_executable( PHP_BINARY ) || ! defined( 'ABSPATH' ) ) { return false; }
+		$php = $this->php_cli();
+		if ( ! $php || ! defined( 'ABSPATH' ) ) { return false; }
 		$bootstrap = rtrim( ABSPATH, '/\\' ) . '/wp-load.php';
 		if ( ! is_file( $bootstrap ) ) { return false; }
 		$expected = $this->source_valid_path( $this->source ) ? self::DROPIN_BUILD_ID : false;
 		if ( $require_identity && ! $expected ) { return false; }
 		$identity_check = $require_identity ? '!defined("BEPLUSPB_DROPIN_BUILD_ID")||!hash_equals(' . var_export( $expected, true ) . ',BEPLUSPB_DROPIN_BUILD_ID)||' : '';
 		$code = 'require ' . var_export( $bootstrap, true ) . '; $k="bepluspb-health-".bin2hex(random_bytes(8)); $v=bin2hex(random_bytes(16)); if(' . $identity_check . '!function_exists("wp_cache_set")||!wp_cache_set($k,$v,"bepluspb-health",30)||wp_cache_get($k,"bepluspb-health")!==$v||!wp_cache_delete($k,"bepluspb-health")){exit(23);}';
-		$out = array(); $rc = 1; @exec( escapeshellarg( PHP_BINARY ) . ' -d display_errors=0 -r ' . escapeshellarg( $code ) . ' 2>&1', $out, $rc );
+		$out = array(); $rc = 1; @exec( escapeshellarg( $php ) . ' -d display_errors=0 -r ' . escapeshellarg( $code ) . ' 2>&1', $out, $rc );
 		return 0 === $rc;
 	}
 	private function activate( $tmp, $rollback, $before_hook ) {
