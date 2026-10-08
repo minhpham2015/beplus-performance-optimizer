@@ -16,7 +16,7 @@ defined( 'WPINC' ) || exit;
 
 /** Runtime identity used by the isolated post-install probe. */
 if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
-	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.12-20261007' );
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261008' );
 }
 
 // ---------------------------------------------------------------------------
