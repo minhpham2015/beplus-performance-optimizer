@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Standalone Lazy Load v2 behavior test.
  *
@@ -53,7 +54,7 @@ ok(isset($GLOBALS['hooks']['wp_lazy_loading_enabled']) && !isset($GLOBALS['hooks
 $GLOBALS['hooks']=array(); $GLOBALS['wp_version']='6.3'; BEPLUSPB_Images::init($GLOBALS['opts']);
 ok(isset($GLOBALS['hooks']['wp_lazy_loading_enabled']) && !isset($GLOBALS['hooks']['wp_get_loading_optimization_attributes']),'WP 6.3 retains Core behavior because the attributes filter is unavailable');
 $GLOBALS['hooks']=array(); $GLOBALS['wp_version']='5.0'; BEPLUSPB_Images::init($GLOBALS['opts']); ok(array()===$GLOBALS['hooks'],'WP 5.0-5.4 fail open');
-$admin=file_get_contents(dirname(__DIR__).'/includes/class-bepluspb-admin.php');
+$admin=bepluspb_admin_source();
 $readme=file_get_contents(dirname(__DIR__).'/readme.txt');
 $ci=file_get_contents(dirname(__DIR__).'/.github/workflows/ci.yml');
 ok(false!==strpos($admin,'WordPress 6.4 or newer'),'admin UI identifies the configurable compatibility floor');

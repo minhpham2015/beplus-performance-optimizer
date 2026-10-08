@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Standalone Recommended Settings v2 contract test.
  *
@@ -6,7 +7,7 @@
  */
 
 // phpcs:disable
-$root=dirname(__DIR__); $admin=file_get_contents($root.'/includes/class-bepluspb-admin.php'); $css=file_get_contents($root.'/assets/css/admin.css'); $js=file_get_contents($root.'/assets/js/admin.js'); $boot=file_get_contents($root.'/beplus-performance-booster.php');
+$root=dirname(__DIR__); $admin=bepluspb_admin_source(); $css=file_get_contents($root.'/assets/css/admin.css'); $js=file_get_contents($root.'/assets/js/admin.js'); $boot=file_get_contents($root.'/beplus-performance-booster.php');
 function has($n,$h,$m){if(false===strpos($h,$n)){throw new RuntimeException('FAIL: '.$m);}}
 function lacks($n,$h,$m){if(false!==strpos($h,$n)){throw new RuntimeException('FAIL: '.$m);}}
 has("class-bepluspb-recommendations.php",$boot,'engine loaded');

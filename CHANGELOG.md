@@ -51,6 +51,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   styling, and preserved settings/defaults/backend behavior.
 
 ### Fixed
+- Refactor: split the 4.1k-line `BEPLUSPB_Admin` class into the core file plus
+  ten concern-based traits under `includes/admin/` (no behavior change; method
+  inventory and hook callbacks are guarded by `tests/test-admin-class-split.php`).
 - Minify: `validate_local_path()` re-checks the `.css`/`.js` extension on the
   resolved real path (a `.css` symlink to `wp-config.php` was cached
   world-readable); `minify_css()` no longer turns `.a :hover` into `.a:hover`

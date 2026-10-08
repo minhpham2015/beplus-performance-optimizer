@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Contract tests for Object Cache purge control locations and safety.
  *
@@ -6,7 +7,7 @@
  */
 
 $root  = dirname( __DIR__ );
-$admin = file_get_contents( $root . '/includes/class-bepluspb-admin.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$admin = bepluspb_admin_source(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 
 $dashboard_start = strpos( $admin, 'function render_section_dashboard' );
 $dashboard_end   = strpos( $admin, 'function render_section_cache_files', $dashboard_start );

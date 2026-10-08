@@ -17,9 +17,19 @@ checking whether it would break the SVN slug binding).
 
 - `beplus-performance-booster.php` — bootstrap, defines `BEPLUSPB_VERSION`,
   loads `includes/class-bepluspb-*.php`.
-- `includes/class-bepluspb-admin.php` — settings page (8 tabs), AJAX
-  handlers (`toggle_cache`, `test_oc`, `install_oc`, `remove_oc`,
-  `clear_cache`, `quick_enable`, `enable_all_recommended`).
+- `includes/class-bepluspb-admin.php` — `BEPLUSPB_Admin` core: hook
+  registration (`init()`), assets, Settings API registration,
+  `sanitize_options()` and `render_settings_page()`. The rest of the class
+  lives in PHP **traits** under `includes/admin/` (one file per concern:
+  `tabs-basic`, `tabs-delivery`, `tabs-status`, `tabs-misc`,
+  `tabs-object-cache`, `admin-bar`, `actions` (admin-post handlers, master
+  toggle, purge, notices), `meta-box`, `ajax-object-cache`,
+  `ajax-cloudflare`). Traits (not separate classes) keep `self::`/visibility
+  and `array( __CLASS__, '…' )` hook callbacks unchanged. New admin code goes
+  in the matching trait, never back into the main file. Tests that grep admin
+  source must use `bepluspb_admin_source()` (`tests/helpers/admin-source.php`),
+  and `tests/test-admin-class-split.php` guards the method inventory — update
+  `tests/helpers/admin-methods.txt` when you add/remove a method.
 - `includes/class-bepluspb-htaccess.php` — writes browser-cache/gzip/brotli
   rules into the root `.htaccess` via WordPress core's
   `insert_with_markers()`. Rules are hardcoded/static — never make them

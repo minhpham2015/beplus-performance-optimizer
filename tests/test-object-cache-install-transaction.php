@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Object-cache normal install transaction contract.
  *
@@ -7,7 +8,7 @@
 
 // phpcs:disable
 $source = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-object-cache.php' );
-$admin = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-admin.php' );
+$admin = bepluspb_admin_source();
 $checks = array(
 	'transaction API exists' => false !== strpos( $source, 'install_with_config' ),
 	'old config captured' => false !== strpos( $source, '$old_config' ),

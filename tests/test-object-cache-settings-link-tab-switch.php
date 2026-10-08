@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Object Cache "Review Object Cache settings" link tab-switch wiring.
  *
@@ -27,7 +28,7 @@ $checks = array(
 	// The admin PHP still emits the link with this exact class so the
 	// selector above has something to match at runtime.
 	'admin.php emits the settings link class' => (function () {
-		$admin = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-admin.php' );
+		$admin = bepluspb_admin_source();
 		return false !== strpos( $admin, 'bepluspb-object-cache-settings-link' )
 			&& false !== strpos( $admin, '#bepluspb-tab-object_cache' );
 	} )(),

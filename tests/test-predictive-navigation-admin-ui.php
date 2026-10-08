@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Standalone contract tests for the Predictive Navigation admin UI.
  *
@@ -10,7 +11,7 @@
 // phpcs:disable -- Standalone source contract test intentionally uses native file access and exception messages.
 
 $root   = dirname( __DIR__ );
-$admin  = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
+$admin  = bepluspb_admin_source();
 $css    = file_get_contents( $root . '/assets/css/admin.css' );
 $script = file_get_contents( $root . '/assets/js/admin.js' );
 

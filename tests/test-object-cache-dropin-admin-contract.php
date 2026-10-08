@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Admin contract for guarded drop-in workflow.
  *
@@ -6,7 +7,7 @@
  */
 
 // phpcs:disable
-$s = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-admin.php' );
+$s = bepluspb_admin_source();
 $c = array(
 	'actions registered'       => false !== strpos( $s, 'wp_ajax_bepluspb_preflight_oc_replace' ) && false !== strpos( $s, 'wp_ajax_bepluspb_backup_replace_oc' ) && false !== strpos( $s, 'wp_ajax_bepluspb_restore_oc' ),
 	'distinct nonces'          => false !== strpos( $s, "bepluspb_preflight_oc_replace' )" ) && false !== strpos( $s, "bepluspb_backup_replace_oc' )" ) && false !== strpos( $s, "bepluspb_restore_oc' )" ),
