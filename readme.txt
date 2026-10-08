@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.12
+Stable tag: 1.1.13
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -466,6 +466,15 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.1.13 =
+* Security: block web access to the object-cache drop-in backup folder (backups of another plugin's drop-in can contain cache passwords) and use unguessable backup names.
+* Security: stop a stylesheet/script symlink from exposing wp-config.php through the minified-file cache.
+* Security: never save an Object Cache config containing a password unless the file's access protection is confirmed; show a clear error otherwise.
+* Fix: replacing or restoring an object-cache drop-in now works on PHP-FPM hosts (a real PHP CLI is used for validation) and explains clearly when it cannot run.
+* Fix: clearing the Object Cache no longer wipes other sites or apps sharing the same Redis/Memcached server; only this site's entries are removed.
+* Fix: CSS minification no longer changes selectors such as ".a :hover" or text inside quoted strings.
+* Improvement: admin code reorganized into smaller files for easier maintenance (no change in behavior), plus broader automated tests and real WordPress + Redis checks.
+
 = 1.1.12 =
 * Display boolean values in the Recommended Settings preview as Active and Inactive instead of raw 1 and 0, without changing stored values or behavior.
 * Use one exact machine-readable identity across the shipped Object Cache drop-in, ownership checks, and health probes; reject foreign or mismatched drop-ins.
@@ -635,6 +644,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.1.13 =
+Security and reliability update: protects drop-in backups and the minified-file cache from exposing sensitive files, makes Object Cache replacement work on PHP-FPM hosts, and stops cache purges from affecting other sites sharing Redis/Memcached. If you use Object Cache with other sites on the same Redis server, set a unique WP_CACHE_KEY_SALT per site.
 
 = 1.0.9 =
 New Cloudflare integration (cache purge, Development Mode toggle) and

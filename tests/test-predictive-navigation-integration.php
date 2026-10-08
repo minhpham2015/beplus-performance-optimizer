@@ -10,7 +10,8 @@
 // phpcs:disable -- Standalone source regression test uses local filesystem reads.
 $root      = dirname( __DIR__ );
 $bootstrap = file_get_contents( $root . '/beplus-performance-booster.php' );
-$admin     = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
+$admin     = bepluspb_admin_source();
 $readme    = file_get_contents( $root . '/readme.txt' );
 $ci        = file_get_contents( $root . '/.github/workflows/ci.yml' );
 

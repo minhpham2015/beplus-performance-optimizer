@@ -7,7 +7,7 @@
 
 // phpcs:disable
 if ( ! defined( 'ABSPATH' ) ) { define( 'ABSPATH', __DIR__ . '/' ); }
-if ( ! defined( 'BEPLUSPB_VERSION' ) ) { define( 'BEPLUSPB_VERSION', '1.1.12' ); }
+if ( ! defined( 'BEPLUSPB_VERSION' ) ) { define( 'BEPLUSPB_VERSION', '1.1.13' ); }
 if ( ! function_exists( '__' ) ) { function __( $s ) { return $s; } }
 if ( ! function_exists( 'wp_json_encode' ) ) { function wp_json_encode( $v, $f = 0 ) { return json_encode( $v, $f ); } }
 if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return 7; } }

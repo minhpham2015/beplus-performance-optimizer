@@ -4,7 +4,7 @@ parameters:
 			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'
 			identifier: constant.notFound
 			count: 1
-			path: includes/class-bepluspb-admin.php
+			path: includes/admin/trait-bepluspb-admin-tabs-status.php
 
 		-
 			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'

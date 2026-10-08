@@ -4,6 +4,55 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.13] - 2026-10-08
+
+### Security
+- Drop-in backup directory (`wp-content/bepluspb-backups/`): backups of a
+  foreign `object-cache.php` can contain plaintext cache credentials and were
+  reachable over HTTP. The directory is now web-denied (`.htaccess` deny-all +
+  `index.php`, fail-closed — no backup is made if protection cannot be
+  written) and backup file names use a 128-bit random token.
+- Minify: `validate_local_path()` now re-checks the `.css`/`.js` extension on
+  the *resolved* real path. A `.css`-named symlink pointing at `wp-config.php`
+  passed the URL-level allowlist and was minified into the world-readable
+  cache directory (Hard Rule #3).
+- Object Cache config (`.bepluspb_oc.json`): `write_config()` now fails closed
+  — it refuses to write a plaintext AUTH password unless the `.htaccess` deny
+  rule is confirmed. The rule is appended under an exclusive lock (no
+  read-modify-write race), the file is written `0600`, and a settings error
+  tells the admin when protection or the write failed (Hard Rule #1).
+- `handle_quick_enable()` verifies the nonce before the capability check
+  (Hard Rule #5).
+
+### Fixed
+- Replacing/restoring an object-cache drop-in never worked on most hosts:
+  syntax check and health probe ran `PHP_BINARY`, which is `php-fpm` under
+  FPM and does not support `-l`/`-r`. A real PHP CLI binary is now located and
+  verified; when none is usable (exec disabled, no CLI next to FPM) the admin
+  gets an actionable message and nothing is changed.
+- `wp_cache_flush()` ran Redis `FLUSHDB` / Memcached `flush`, wiping every
+  other site or application sharing the backend (core calls it on theme
+  switch, imports, etc.). Redis now `SCAN`+`UNLINK`s only this site's
+  `WP_CACHE_KEY_SALT` namespace; Memcached bumps a flush-generation key.
+  Sites sharing one backend should set distinct `WP_CACHE_KEY_SALT` values.
+  The drop-in build id is bumped; previous ids are still recognized.
+- `minify_css()` rewrote `.a :hover` to `.a:hover` (changing the selector's
+  meaning) and altered whitespace/punctuation inside quoted strings
+  (e.g. `content:"a ; b"`). Strings are now protected and whitespace before a
+  colon is only removed inside declaration blocks.
+
+### Improved
+- Split the 4,119-line `BEPLUSPB_Admin` class into a ~550-line core plus ten
+  concern-based traits under `includes/admin/` (tabs, admin bar, actions,
+  meta box, Object Cache AJAX, Cloudflare AJAX). No behavior change: a
+  line-level comparison shows nothing removed, and hook callbacks, visibility
+  and `self::` semantics are identical.
+- Tests/CI: added executable behavior tests for Minify/CDN
+  (`tests/test-minify-cdn-behavior.php`), a regression test guarding the admin
+  class split, and a CI job that runs a real WordPress + MySQL + Redis over
+  HTTP (Minify output, CDN rewriting, Object Cache population and scoped
+  flush). New CI guard keeps the backup directory web-denied.
+
 ## [1.1.12] - 2026-10-01
 
 ### Added
@@ -51,21 +100,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   styling, and preserved settings/defaults/backend behavior.
 
 ### Fixed
-- Minify: `validate_local_path()` re-checks the `.css`/`.js` extension on the
-  resolved real path (a `.css` symlink to `wp-config.php` was cached
-  world-readable); `minify_css()` no longer turns `.a :hover` into `.a:hover`
-  and leaves quoted strings untouched.
-- Object Cache config is no longer written with a password unless the
-  `.htaccess` deny rule is confirmed (fail-closed, 0600, locked append); a
-  settings error is shown on failure. `handle_quick_enable` now verifies the
-  nonce before the capability check.
-- Drop-in backup directory (`wp-content/bepluspb-backups/`) is now web-denied
-  (`.htaccess` + `index.php`, fail-closed) and backup names use a 128-bit token.
-- Drop-in syntax check and health probe now use a real PHP CLI binary instead of
-  `PHP_BINARY` (php-fpm under FPM); a clear error is shown when none is usable.
-- Object Cache flush is scoped to this site's key namespace (Redis SCAN by
-  prefix, Memcached flush generation) instead of flushing the whole DB/pool.
-  Drop-in build id bumped; the previous build id is still recognized.
 - Displayed boolean values in the Recommended Settings preview as `Active`
   and `Inactive` instead of raw `1` and `0`, without changing stored values
   or apply/disable/restore behavior.

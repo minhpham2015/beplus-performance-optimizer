@@ -5,8 +5,9 @@
  * @package Beplus_Performance_Booster
  */
 
-$root   = dirname( __DIR__ );
-$admin  = file_get_contents( $root . '/includes/class-bepluspb-admin.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
+$root = dirname( __DIR__ );
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
+$admin  = bepluspb_admin_source(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 $minify = file_get_contents( $root . '/includes/class-bepluspb-minify.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 $object = file_get_contents( $root . '/includes/class-bepluspb-object-cache.php' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 $js     = file_get_contents( $root . '/assets/js/admin.js' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.

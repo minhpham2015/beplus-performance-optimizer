@@ -11,7 +11,8 @@
 // phpcs:disable -- Standalone source contract test intentionally uses native file access and exception messages.
 
 $root   = dirname( __DIR__ );
-$admin  = file_get_contents( $root . '/includes/class-bepluspb-admin.php' );
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
+$admin  = bepluspb_admin_source();
 $script = file_get_contents( $root . '/assets/js/admin.js' );
 
 function assert_true( $cond, $message ) {
