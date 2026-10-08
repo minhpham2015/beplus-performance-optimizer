@@ -1,6 +1,6 @@
 <?php
 /**
- * write_config() must never persist a plaintext password unless the deny rule is in place (Hard Rule #1).
+ * Object Cache config writes must fail closed (Hard Rule #1): never persist a plaintext password unless the deny rule is in place.
  *
  * @package Beplus_Performance_Booster
  */
