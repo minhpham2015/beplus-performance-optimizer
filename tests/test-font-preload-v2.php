@@ -5,8 +5,6 @@
  * @package Beplus_Performance_Booster
  */
 
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
-
 // phpcs:disable
 if(!defined('ABSPATH')){define('ABSPATH',__DIR__);}
 $GLOBALS['filters']=array(); $GLOBALS['ctx']=array();
@@ -28,6 +26,7 @@ $httpports=BEPLUSPB_Font_Preload::validate("/a.woff2\nhttp://example.com:80/a.wo
 $GLOBALS['filters']['bepluspb_font_preload_entries']=function($entries){return array(array('url'=>'javascript:x','type'=>'font/woff2'),array('url'=>'/safe.woff2','type'=>'text/html'),'broken','/added.woff2','/added.woff2','/b.woff','/c.ttf','/d.otf','/e.eot');};
 set_error_handler(function($severity,$message){throw new RuntimeException($message);}); $filtered=BEPLUSPB_Font_Preload::render('/original.woff2','https://example.com'); restore_error_handler(); ok(false===strpos($filtered,'javascript')&&false===strpos($filtered,'text/html'),'filtered values cannot bypass URL or MIME validation'); ok(1===substr_count($filtered,'/added.woff2'),'filtered duplicates removed'); ok(4===substr_count($filtered,'data-bepluspb-font-preload'),'filtered entries hard-capped'); unset($GLOBALS['filters']['bepluspb_font_preload_entries']);
 foreach(array('admin','feed','ajax','rest') as $gate){$GLOBALS['ctx']=array($gate=>1);ok(!BEPLUSPB_Font_Preload::is_frontend_html_request(),'request gate '.$gate);} $GLOBALS['ctx']=array();ok(BEPLUSPB_Font_Preload::is_frontend_html_request(),'frontend allowed');
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 $admin=bepluspb_admin_source(); $main=file_get_contents(dirname(__DIR__).'/beplus-performance-booster.php'); $cdn=file_get_contents(dirname(__DIR__).'/includes/class-bepluspb-cdn.php'); $readme=file_get_contents(dirname(__DIR__).'/readme.txt'); $ci=file_get_contents(dirname(__DIR__).'/.github/workflows/ci.yml');
 foreach(array('aria-describedby','aria-live="polite"','font-display','above-the-fold','DevTools','HTTP Link header','bepluspb_font_preload_entries') as $needle){ok(false!==strpos($admin.$main.$readme,$needle),'UI/docs contract '.$needle);} ok(false!==strpos($admin,'Invalid rows remain saved but are skipped when preload tags are rendered.'),'UI accurately describes render-time validation'); ok(false===strpos($admin,'Validation runs when settings are saved'),'UI does not claim save-time validation'); ok(false===strpos($admin,'Exact final preload tag preview'),'UI does not claim a missing preview'); ok(false!==strpos($cdn,'protect_preload_tags'),'CDN excludes preload tags from rewriting'); ok(false!==strpos($main,'bepluspb_font_preload_changed'),'change hook exists'); ok(false!==strpos($ci,'for test in tests/test-*.php'),'CI discovers test');
 echo "PASS: Font Preload v2 behavior (35+ assertions)\n";

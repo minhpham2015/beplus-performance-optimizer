@@ -5,10 +5,9 @@
  * @package Beplus_Performance_Booster
  */
 
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
-
 // phpcs:disable
 $source = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-object-cache.php' );
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 $admin = bepluspb_admin_source();
 $checks = array(
 	'transaction API exists' => false !== strpos( $source, 'install_with_config' ),

@@ -11,8 +11,6 @@
  * @package Beplus_Performance_Booster
  */
 
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
-
 // phpcs:disable
 $js = file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
 
@@ -29,6 +27,7 @@ $checks = array(
 	// The admin PHP still emits the link with this exact class so the
 	// selector above has something to match at runtime.
 	'admin.php emits the settings link class' => (function () {
+		require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 		$admin = bepluspb_admin_source();
 		return false !== strpos( $admin, 'bepluspb-object-cache-settings-link' )
 			&& false !== strpos( $admin, '#bepluspb-tab-object_cache' );

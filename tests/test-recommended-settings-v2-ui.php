@@ -5,9 +5,8 @@
  * @package Beplus_Performance_Booster
  */
 
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
-
 // phpcs:disable
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 $root=dirname(__DIR__); $admin=bepluspb_admin_source(); $css=file_get_contents($root.'/assets/css/admin.css'); $js=file_get_contents($root.'/assets/js/admin.js'); $boot=file_get_contents($root.'/beplus-performance-booster.php');
 function has($n,$h,$m){if(false===strpos($h,$n)){throw new RuntimeException('FAIL: '.$m);}}
 function lacks($n,$h,$m){if(false!==strpos($h,$n)){throw new RuntimeException('FAIL: '.$m);}}

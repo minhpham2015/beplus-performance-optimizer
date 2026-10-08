@@ -5,9 +5,8 @@
  * @package Beplus_Performance_Booster
  */
 
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
-
 $root  = dirname( __DIR__ );
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 $admin = bepluspb_admin_source(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 $css   = file_get_contents( $root . '/assets/css/admin.css' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- standalone CLI test harness (php -n, no WordPress loaded); reads this plugin's own local source file, not a remote URL, so wp_remote_get() is not applicable.
 
