@@ -112,10 +112,18 @@ curl -fs "$BASE/" >/dev/null; curl -fs "$BASE/?s=a" >/dev/null
 OWN_BEFORE="$("${REDIS_CLI[@]}" --scan --pattern 'fxsite:*' | wc -l)"
 [[ "$OWN_BEFORE" -gt 0 ]] || fail "real page loads populated Redis (found $OWN_BEFORE keys)"
 "${REDIS_CLI[@]}" SET foreign:key keep >/dev/null
-wp eval 'if ( ! wp_cache_flush() ) { exit( 1 ); }' --path="$ROOT" || fail "wp_cache_flush() reported failure"
-OWN_AFTER="$("${REDIS_CLI[@]}" --scan --pattern 'fxsite:*' | wc -l)"
-[[ "$OWN_AFTER" -eq 0 ]] || fail "flush removed this site's keys (left: $OWN_AFTER)"
-[[ "$("${REDIS_CLI[@]}" GET foreign:key)" == "keep" ]] || fail "flush must not delete foreign keys sharing the Redis DB"
+# Flush and inspect Redis inside the SAME process, before any shutdown-time cache writes can
+# repopulate keys (a later scan would race with WordPress writing keys back).
+R_HOST="$REDIS_HOST" R_PORT="$REDIS_PORT" wp eval '
+wp_cache_set( "canary", "v", "fxgrp" );
+$r = new Redis(); $r->connect( getenv( "R_HOST" ), (int) getenv( "R_PORT" ) ); $r->select( 15 );
+$scan = static function () use ( $r ) { $out = array(); $it = null; do { $k = $r->scan( $it, "fxsite:*", 500 ); if ( is_array( $k ) ) { $out = array_merge( $out, $k ); } } while ( $it > 0 ); return $out; };
+if ( ! in_array( "fxsite:fxgrp:canary", $scan(), true ) ) { fwrite( STDERR, "canary key not persisted to Redis: " . implode( ",", $scan() ) . "\n" ); exit( 2 ); }
+if ( ! wp_cache_flush() ) { fwrite( STDERR, "wp_cache_flush() returned false\n" ); exit( 3 ); }
+$left = $scan();
+if ( $left ) { fwrite( STDERR, "keys left after flush: " . implode( ",", $left ) . "\n" ); exit( 4 ); }
+if ( "keep" !== $r->get( "foreign:key" ) ) { fwrite( STDERR, "foreign key was deleted by flush\n" ); exit( 5 ); }
+' --path="$ROOT" || fail "scoped flush check failed (exit $?)"
 HTTP_AFTER="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")"
 [[ "$HTTP_AFTER" == "200" ]] || fail "front page still 200 after flush (got $HTTP_AFTER)"
 echo "PASS: real WordPress + Redis front-end behavior integration"
