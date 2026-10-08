@@ -1,5 +1,4 @@
 <?php
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Source-level integration regression tests for Predictive Navigation.
  *
@@ -7,6 +6,8 @@ require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
  *
  * @package Beplus_Performance_Booster
  */
+
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 
 // phpcs:disable -- Standalone source regression test uses local filesystem reads.
 $root      = dirname( __DIR__ );

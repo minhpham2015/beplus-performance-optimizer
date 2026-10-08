@@ -1,6 +1,6 @@
 <?php
 /**
- * admin-post handlers, master cache toggle, purge actions and admin notices.
+ * Admin-post handlers, master cache toggle, purge actions and admin notices.
  *
  * Part of BEPLUSPB_Admin, split out of class-bepluspb-admin.php. A trait is used
  * (rather than a separate class) so every method keeps its exact `self::`/`static`

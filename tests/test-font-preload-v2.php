@@ -1,10 +1,11 @@
 <?php
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Standalone Font Preload v2 behavior test.
  *
  * @package Beplus_Performance_Booster
  */
+
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 
 // phpcs:disable
 if(!defined('ABSPATH')){define('ABSPATH',__DIR__);}

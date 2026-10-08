@@ -1,5 +1,4 @@
 <?php
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Standalone contract tests for the Predictive Navigation admin UI.
  *
@@ -7,6 +6,8 @@ require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
  *
  * @package Beplus_Performance_Booster
  */
+
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 
 // phpcs:disable -- Standalone source contract test intentionally uses native file access and exception messages.
 

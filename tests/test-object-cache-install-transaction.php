@@ -1,10 +1,11 @@
 <?php
-require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 /**
  * Object-cache normal install transaction contract.
  *
  * @package Beplus_Performance_Booster
  */
+
+require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 
 // phpcs:disable
 $source = file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-object-cache.php' );
