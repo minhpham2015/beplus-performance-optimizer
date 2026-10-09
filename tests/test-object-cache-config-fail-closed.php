@@ -38,10 +38,12 @@ exec( $command, $included, $include_status );
 t_ok( 0 === $include_status && array() === $included, 'direct PHP execution emits no credential bytes' );
 clean_cfg();
 
-// Valid legacy config migrates through the guarded writer and is removed only after verification.
+// Valid legacy config migrates through the guarded writer and is removed only after verified activation.
 file_put_contents( $legacy, json_encode( array( 'enabled' => true, 'password' => 'legacy-secret' ) ) );
+BEPLUSPB_Object_Cache::set_filesystem_hooks( array( 'runtime_compatible' => static function () { return true; } ) );
 $result = BEPLUSPB_Object_Cache::install_dropin();
-t_ok( ! is_file( $legacy ) && is_file( $cfg ), 'valid legacy config migrated and removed before install' );
+BEPLUSPB_Object_Cache::set_filesystem_hooks();
+t_ok( ! empty( $result['success'] ) && ! is_file( $legacy ) && is_file( $cfg ), 'valid legacy config removed after verified install' );
 t_ok( false !== strpos( file_get_contents( $cfg ), 'legacy-secret' ), 'migration preserves legacy settings' );
 clean_cfg(); @unlink( WP_CONTENT_DIR . '/object-cache.php' );
 
