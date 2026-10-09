@@ -53,12 +53,82 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/**
-	 * Path to the JSON config file read by the drop-in at bootstrap time.
+	 * Path to the guarded config file read by the drop-in at bootstrap time.
 	 *
 	 * @return string Absolute path.
 	 */
 	private static function config_file() {
-		return WP_CONTENT_DIR . '/.bepluspb_oc.json';
+		return WP_CONTENT_DIR . '/.bepluspb_oc.php';
+	}
+
+	/** Exact executable guard before the JSON payload. */
+	private const CONFIG_GUARD = "<?php exit; ?>\n";
+
+	/**
+	 * Read and validate a guarded config file.
+	 *
+	 * @param string $path Config path.
+	 * @return array|false Parsed config or false.
+	 */
+	private static function read_config_file( $path ) {
+		$raw = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( false === $raw || 0 !== strpos( $raw, self::CONFIG_GUARD ) ) {
+			return false;
+		}
+		$cfg = json_decode( substr( $raw, strlen( self::CONFIG_GUARD ) ), true );
+		return is_array( $cfg ) ? $cfg : false;
+	}
+
+	/**
+	 * Atomically write and verify a guarded config.
+	 *
+	 * @param array $cfg Config values.
+	 * @return bool Whether the verified write succeeded.
+	 */
+	private static function write_config_file( $cfg ) {
+		$json = wp_json_encode( $cfg, JSON_PRETTY_PRINT );
+		if ( ! $json ) {
+			return false;
+		}
+		$tmp = tempnam( WP_CONTENT_DIR, '.bepluspb_oc-' );
+		if ( false === $tmp ) {
+			return false;
+		}
+		$bytes = self::CONFIG_GUARD . $json;
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
+		$ok = false !== file_put_contents( $tmp, $bytes, LOCK_EX );
+		$ok = $ok && chmod( $tmp, 0600 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+		$ok = $ok && rename( $tmp, self::config_file() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+		if ( ! $ok ) {
+			@unlink( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
+			return false;
+		}
+		$verified = self::read_config_file( self::config_file() );
+		return is_array( $verified ) && $verified === $cfg;
+	}
+
+	/** Move the former exposed JSON config into the guarded config. */
+	private static function migrate_legacy_config() {
+		$legacy = WP_CONTENT_DIR . '/.bepluspb_oc.json';
+		$target = self::config_file();
+		if ( ! is_file( $legacy ) ) {
+			return true;
+		}
+		if ( is_file( $target ) && false !== self::read_config_file( $target ) ) {
+			wp_delete_file( $legacy );
+			return ! is_file( $legacy );
+		}
+		$raw = file_get_contents( $legacy ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$cfg = false !== $raw ? json_decode( $raw, true ) : null;
+		if ( ! is_array( $cfg ) || empty( $cfg['enabled'] ) ) {
+			wp_delete_file( $legacy );
+			return false;
+		}
+		if ( ! self::write_config_file( $cfg ) ) {
+			return false;
+		}
+		wp_delete_file( $legacy );
+		return ! is_file( $legacy );
 	}
 
 	// -------------------------------------------------------------------------
@@ -116,6 +186,12 @@ class BEPLUSPB_Object_Cache {
 	 * }
 	 */
 	public static function install_dropin() {
+		if ( ! self::migrate_legacy_config() ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Object Cache configuration migration failed.', 'beplus-performance-booster' ),
+			);
+		}
 		$src = self::source_file();
 		$dst = self::target_file();
 
@@ -144,8 +220,7 @@ class BEPLUSPB_Object_Cache {
 				'message' => __( 'No Object Cache configuration found yet. Save your Redis/Memcached settings first (this writes the config the drop-in needs) before installing.', 'beplus-performance-booster' ),
 			);
 		}
-		$cfg_raw = file_get_contents( $cfg_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$cfg     = $cfg_raw ? json_decode( $cfg_raw, true ) : null;
+		$cfg = self::read_config_file( $cfg_file );
 		if ( ! is_array( $cfg ) || empty( $cfg['enabled'] ) ) {
 			return array(
 				'success' => false,
@@ -273,6 +348,9 @@ class BEPLUSPB_Object_Cache {
 	 * @return bool        True on success.
 	 */
 	public static function write_config( $opts ) {
+		if ( ! self::migrate_legacy_config() ) {
+			return false;
+		}
 		$cfg = array(
 			'enabled'               => ! empty( $opts['object_cache_enabled'] ),
 			'driver'                => ( 'memcached' === ( $opts['object_cache_driver'] ?? 'redis' ) ) ? 'memcached' : 'redis',
@@ -285,75 +363,35 @@ class BEPLUSPB_Object_Cache {
 			'non_persistent_groups' => array_values( array_filter( array_map( 'trim', explode( "\n", $opts['object_cache_non_persistent_groups'] ?? '' ) ) ) ),
 		);
 
-		$json = wp_json_encode( $cfg, JSON_PRETTY_PRINT );
-		if ( ! $json ) {
-			return false;
+		$written = self::write_config_file( $cfg );
+		if ( $written && is_file( WP_CONTENT_DIR . '/.bepluspb_oc.json' ) ) {
+			wp_delete_file( WP_CONTENT_DIR . '/.bepluspb_oc.json' );
+			return ! is_file( WP_CONTENT_DIR . '/.bepluspb_oc.json' );
 		}
-
-		// Hard Rule #1: fail closed. Never write a plaintext AUTH password unless the
-		// deny rule is confirmed in place.
-		$protected = self::protect_config_file();
-		if ( ! $protected && '' !== (string) $cfg['password'] ) {
-			return false;
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
-		$written = file_put_contents( self::config_file(), $json, LOCK_EX );
-		if ( false !== $written ) {
-			@chmod( self::config_file(), 0600 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-		}
-		return false !== $written;
+		return $written;
 	}
 
 	/**
-	 * Deny direct HTTP access to the JSON config file (it may contain a
-	 * plaintext Redis/Memcached AUTH password) by placing an .htaccess
-	 * rule in wp-content/ next to it, similar to how the cache directory
-	 * is protected. Written once; safe to call on every save.
-	 *
-	 * Apache/LiteSpeed only — hosts on nginx or other servers must add an
-	 * equivalent `location ~ /\.bepluspb_oc\.json { deny all; }` rule
-	 * manually, since nginx does not read .htaccess files.
-	 *
-	 * @return bool True when the deny rule is present (already or newly written).
-	 */
-	private static function protect_config_file() {
-		$htaccess = WP_CONTENT_DIR . '/.htaccess';
-		$marker   = 'Beplus Performance Booster — deny .bepluspb_oc.json';
-
-		if ( file_exists( $htaccess ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-			$existing = file_get_contents( $htaccess );
-			if ( false !== $existing && false !== strpos( $existing, $marker ) ) {
-				return true; // Rule already present.
-			}
-		} else {
-			$existing = '';
-		}
-
-		$rule  = "\n# {$marker}\n";
-		$rule .= "<Files \".bepluspb_oc.json\">\n";
-		$rule .= "  Require all denied\n";
-		$rule .= "  Order allow,deny\n";
-		$rule .= "  Deny from all\n";
-		$rule .= "</Files>\n";
-
-		// Append under an exclusive lock so a concurrent save cannot clobber other directives.
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents
-		return false !== file_put_contents( $htaccess, $rule, FILE_APPEND | LOCK_EX );
-	}
-
-	/**
-	 * Delete the JSON config file.
+	 * Delete guarded and legacy config files.
 	 *
 	 * @return bool
 	 */
 	public static function delete_config() {
-		$cfg = self::config_file();
-		if ( file_exists( $cfg ) ) {
-			wp_delete_file( $cfg );
+		$files = array(
+			self::config_file(),
+			WP_CONTENT_DIR . '/.bepluspb_oc.json',
+		);
+		foreach ( $files as $file ) {
+			if ( file_exists( $file ) ) {
+				wp_delete_file( $file );
+			}
 		}
-		return ! file_exists( $cfg );
+		foreach ( $files as $file ) {
+			if ( file_exists( $file ) ) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// -------------------------------------------------------------------------

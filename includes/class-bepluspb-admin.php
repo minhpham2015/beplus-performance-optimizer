@@ -362,12 +362,12 @@ class BEPLUSPB_Admin {
 		$sanitized['object_cache_non_persistent_groups'] = isset( $input['object_cache_non_persistent_groups'] )
 			? sanitize_textarea_field( $input['object_cache_non_persistent_groups'] ) : '';
 
-		// Write / delete the JSON config file used by the drop-in.
+		// Write the guarded config file used by the drop-in.
 		if ( ! BEPLUSPB_Object_Cache::write_config( $sanitized ) ) {
 			add_settings_error(
 				BEPLUSPB_OPTIONS_KEY,
 				'bepluspb_oc_config_failed',
-				__( 'Object Cache configuration was not written: wp-content/.htaccess could not be updated to protect the password file, or the file is not writable. Fix permissions (nginx: deny .bepluspb_oc.json manually) and save again.', 'beplus-performance-booster' ),
+				__( 'Object Cache configuration was not written because the guarded configuration file could not be created, verified, or migrated. Check wp-content permissions and save again.', 'beplus-performance-booster' ),
 				'error'
 			);
 		}

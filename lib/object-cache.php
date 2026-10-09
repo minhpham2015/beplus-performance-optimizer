@@ -46,12 +46,13 @@ $_bepluspb_oc_cfg = array(
 	'non_persistent_groups' => array( 'users', 'site-transient', 'comment', 'counts', 'plugins' ),
 );
 
-$_bepluspb_oc_config_file = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR . '/.bepluspb_oc.json' : '';
+$_bepluspb_oc_config_file = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR . '/.bepluspb_oc.php' : '';
+$_bepluspb_oc_guard       = "<?php exit; ?>\n";
 
 if ( $_bepluspb_oc_config_file && file_exists( $_bepluspb_oc_config_file ) ) {
 	$_bepluspb_oc_json = file_get_contents( $_bepluspb_oc_config_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-	if ( $_bepluspb_oc_json ) {
-		$_bepluspb_oc_parsed = json_decode( $_bepluspb_oc_json, true );
+	if ( $_bepluspb_oc_json && 0 === strpos( $_bepluspb_oc_json, $_bepluspb_oc_guard ) ) {
+		$_bepluspb_oc_parsed = json_decode( substr( $_bepluspb_oc_json, strlen( $_bepluspb_oc_guard ) ), true );
 		if ( is_array( $_bepluspb_oc_parsed ) ) {
 			$_bepluspb_oc_cfg = array_merge( $_bepluspb_oc_cfg, $_bepluspb_oc_parsed );
 		}
@@ -164,7 +165,9 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 
 			$this->driver                = isset( $cfg['driver'] ) ? $cfg['driver'] : 'redis';
 			$this->blog_prefix           = is_multisite() ? (int) $blog_id . ':' : '';
-			$this->salt                  = defined( 'WP_CACHE_KEY_SALT' ) ? WP_CACHE_KEY_SALT : 'bepluspb';
+			$site_root                   = realpath( ABSPATH );
+			$site_root                   = false !== $site_root ? $site_root : ABSPATH;
+			$this->salt                  = defined( 'WP_CACHE_KEY_SALT' ) ? WP_CACHE_KEY_SALT : 'bepluspb-' . substr( hash( 'sha256', $site_root ), 0, 20 );
 			$this->global_groups         = ! empty( $cfg['global_groups'] ) ? (array) $cfg['global_groups'] : array();
 			$this->non_persistent_groups = ! empty( $cfg['non_persistent_groups'] ) ? (array) $cfg['non_persistent_groups'] : array();
 
@@ -211,7 +214,7 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 					if ( ! class_exists( 'Memcached' ) ) {
 						return;
 					}
-					$pid          = $persistent ? 'bepluspb' : null;
+					$pid          = $persistent ? 'bepluspb-' . substr( hash( 'sha256', $this->salt ), 0, 16 ) : null;
 					$this->client = new Memcached( $pid );
 					if ( empty( $this->client->getServerList() ) ) {
 						$this->client->addServer( $host, $port );
