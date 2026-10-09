@@ -87,6 +87,7 @@ class BEPLUSPB_Object_Cache {
 
 	/** Exact hashes of historical Beplus drop-ins shipped before build IDs. */
 	const KNOWN_LEGACY_DROPIN_HASHES = array(
+		'c63608062a5a62de5c170206106459f5ef90825dd99551a643a9f8ac38d7f15b',
 		'36ca640f3f758241f46603edc25b3f752fe39a891e58497856f0c94fbebf08ea',
 		'e5a6ffc74d53aa4056782dd14850dcbb5e11e338bbbc756ef9b082de74c2038f',
 		'ddb15433750cd3440e17b5f7e60fea623ead7c3bb38cd744158c7fc6bb55d9e8',
