@@ -211,7 +211,7 @@ else :
 					<?php esc_html_e( 'Documentation', 'beplus-performance-booster' ); ?>
 				</a>
 				<span class="bepluspb-info-sep">·</span>
-				<a href="https://beplusthemes.com/support/" target="_blank" rel="noopener noreferrer">
+				<a href="https://beplusthemes.com/contact/" target="_blank" rel="noopener noreferrer">
 					<?php esc_html_e( 'Support', 'beplus-performance-booster' ); ?>
 				</a>
 				<span class="bepluspb-info-sep">·</span>

@@ -32,4 +32,51 @@ tx_ok( empty($x['success']) && file_get_contents("$r/object-cache.php") === $for
 // Signed record authenticates restoration metadata, not merely payload fields.
 list($r,$s)=tx_fixture(); $w=tx_wf($r,$s); $a=$w->replace(); $mf="$r/bepluspb-backups/restore-manifest.json"; $m=json_decode(file_get_contents($mf),true); $m['metadata']['mode']='0777'; file_put_contents($mf,json_encode($m));
 tx_ok( empty($w->restore()['success']), 'tampered signed metadata rejected' );
+// A failed staged rename must restore and verify the exact original target.
+list($r,$s,$foreign)=tx_fixture();
+$rename_calls=0;
+$x=tx_wf($r,$s,array('fs_rename'=>function($from,$to) use (&$rename_calls) { ++$rename_calls; if (2===$rename_calls) { return false; } return rename($from,$to); }))->replace();
+tx_ok( empty($x['success']) && !empty($x['rolled_back']), 'staged rename failure reports verified rollback' );
+tx_ok( $foreign === file_get_contents("$r/object-cache.php"), 'staged rename failure restores exact target bytes' );
+// If both activation and rollback renames fail, copy restoration is attempted
+// and the ordinary rollback result is allowed only after hash verification.
+list($r,$s,$foreign)=tx_fixture();
+$rename_calls=0;
+$copy_calls=0;
+$x=tx_wf($r,$s,array(
+	'fs_rename'=>function($from,$to) use (&$rename_calls) { ++$rename_calls; if ($rename_calls >= 2) { return false; } return rename($from,$to); },
+	'fs_copy'=>function($from,$to) use (&$copy_calls) { ++$copy_calls; return copy($from,$to); },
+))->replace();
+tx_ok( empty($x['success']) && !empty($x['rolled_back']) && $copy_calls > 0, 'rollback rename failure uses verified copy restoration' );
+tx_ok( $foreign === file_get_contents("$r/object-cache.php"), 'copy fallback restores exact target bytes' );
+// If no restoration path can recreate and verify the target, return an
+// explicit critical/uncertain result rather than an ordinary failure.
+list($r,$s,$foreign)=tx_fixture();
+$rename_calls=0;
+$x=tx_wf($r,$s,array(
+	'fs_rename'=>function($from,$to) use (&$rename_calls) { ++$rename_calls; if ($rename_calls >= 2) { return false; } return rename($from,$to); },
+	'fs_copy'=>fn()=>false,
+))->replace();
+tx_ok( empty($x['success']) && !empty($x['critical']) && !empty($x['uncertain']) && empty($x['rolled_back']), 'unverifiable restoration returns explicit critical uncertainty' );
+// Restore activation failure after moving the active target must invoke exact
+// verified rollback, not infer rollback merely because some target exists.
+list($r,$s,$foreign)=tx_fixture(); $w=tx_wf($r,$s); tx_ok(!empty($w->replace()['success']), 'restore setup replacement succeeds');
+$active=file_get_contents("$r/object-cache.php"); $rename_calls=0;
+$x=tx_wf($r,$s,array('fs_rename'=>function($from,$to) use (&$rename_calls) { ++$rename_calls; if (2===$rename_calls) { return false; } return rename($from,$to); }))->restore();
+tx_ok(empty($x['success']) && !empty($x['rolled_back']), 'restore staged rename failure reports exact verified rollback');
+tx_ok($active === file_get_contents("$r/object-cache.php"), 'restore staged rename failure restores exact active bytes');
+// An impossible restore after activation failure must be critical and uncertain.
+list($r,$s)=tx_fixture(); $w=tx_wf($r,$s); tx_ok(!empty($w->replace()['success']), 'critical restore setup succeeds'); $rename_calls=0;
+$x=tx_wf($r,$s,array(
+    'fs_rename'=>function($from,$to) use (&$rename_calls) { ++$rename_calls; if ($rename_calls >= 2) { return false; } return rename($from,$to); },
+    'fs_copy'=>fn()=>false,
+))->restore();
+tx_ok(empty($x['success']) && !empty($x['critical']) && !empty($x['uncertain']) && empty($x['rolled_back']), 'impossible restore rollback is critical and uncertain');
+// Rollback-artifact cleanup is transactional on both successful paths.
+list($r,$s,$foreign)=tx_fixture();
+$x=tx_wf($r,$s,array('fs_unlink'=>fn($path)=>false))->replace();
+tx_ok(empty($x['success']) && !empty($x['rolled_back']) && $foreign === file_get_contents("$r/object-cache.php"), 'replace cleanup failure restores and verifies original');
+list($r,$s)=tx_fixture(); $w=tx_wf($r,$s); tx_ok(!empty($w->replace()['success']), 'restore cleanup setup succeeds'); $active=file_get_contents("$r/object-cache.php");
+$x=tx_wf($r,$s,array('fs_unlink'=>fn($path)=>false))->restore();
+tx_ok(empty($x['success']) && !empty($x['rolled_back']) && $active === file_get_contents("$r/object-cache.php"), 'restore cleanup failure restores and verifies active target');
 echo "PASS: $tx_n assertions\n";

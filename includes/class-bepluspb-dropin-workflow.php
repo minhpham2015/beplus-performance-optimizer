@@ -33,6 +33,9 @@ class BEPLUSPB_Dropin_Workflow {
 	private function hook( $name, $default = true, ...$args ) {
 		return isset( $this->hooks[ $name ] ) ? call_user_func( $this->hooks[ $name ], ...$args ) : $default;
 	}
+	private function fs_rename( $from, $to ) { return isset( $this->hooks['fs_rename'] ) ? (bool) $this->hook( 'fs_rename', false, $from, $to ) : @rename( $from, $to ); }
+	private function fs_copy( $from, $to ) { return isset( $this->hooks['fs_copy'] ) ? (bool) $this->hook( 'fs_copy', false, $from, $to ) : @copy( $from, $to ); }
+	private function fs_unlink( $path ) { return isset( $this->hooks['fs_unlink'] ) ? (bool) $this->hook( 'fs_unlink', false, $path ) : @unlink( $path ); }
 	private function target() { return $this->content_dir . '/object-cache.php'; }
 	private function lock_path() { return $this->content_dir . '/.bepluspb-dropin.lock'; }
 	private function acquire_lock() {
@@ -249,39 +252,54 @@ class BEPLUSPB_Dropin_Workflow {
 		$out = array(); $rc = 1; @exec( escapeshellarg( $php ) . ' -d display_errors=0 -r ' . escapeshellarg( $code ) . ' 2>&1', $out, $rc );
 		return 0 === $rc;
 	}
-	private function activate( $tmp, $rollback, $before_hook ) {
+	private function activate( $tmp, $rollback, $before_hook, $expected_hash = null ) {
 		$t = $this->target(); $target_id = file_exists( $t ) ? $this->identity( $t ) : null;
 		if ( file_exists( $t ) && ! $target_id ) { return false; }
 		if ( ! $this->hook( $before_hook, true ) || ( $target_id && ! $this->same_identity( $t, $target_id ) ) ) { return false; }
-		if ( file_exists( $t ) && ! @rename( $t, $rollback ) ) { return false; }
-		if ( ! @rename( $tmp, $t ) ) { if ( file_exists( $rollback ) ) { @rename( $rollback, $t ); } return false; }
+		if ( file_exists( $t ) && ! $this->fs_rename( $t, $rollback ) ) { return false; }
+		if ( null !== $expected_hash && ( ! is_file( $rollback ) || ! hash_equals( $expected_hash, (string) hash_file( 'sha256', $rollback ) ) ) ) { return false; }
+		if ( ! $this->fs_rename( $tmp, $t ) ) { return false; }
 		return true;
 	}
-	private function rollback( $rollback ) {
-		$t = $this->target(); @unlink( $t );
-		return file_exists( $rollback ) && @rename( $rollback, $t );
+	private function restore_target( $rollback, $expected_hash ) {
+		$t = $this->target();
+		if ( is_file( $t ) && hash_equals( $expected_hash, (string) hash_file( 'sha256', $t ) ) ) { return true; }
+		if ( ! is_file( $rollback ) ) { return false; }
+		@unlink( $t );
+		if ( ! $this->fs_rename( $rollback, $t ) && ! $this->fs_copy( $rollback, $t ) ) { return false; }
+		return is_file( $t ) && hash_equals( $expected_hash, (string) hash_file( 'sha256', $t ) );
+	}
+	private function rollback( $rollback, $expected_hash ) {
+		return $this->restore_target( $rollback, $expected_hash );
 	}
 	public function replace() {
 		$lock = $this->acquire_lock(); if ( ! $lock ) { return $this->fail( 'Another drop-in transaction is active or the lock file is unsafe.' ); }
 		try {
 			$p = $this->preflight( 'replace' ); if ( empty( $p['success'] ) ) { return $p; }
-			$t = $this->target(); $original_id = file_exists( $t ) ? $this->identity( $t ) : null; $backup = null; $backup_hash = null; $backup_meta = null; $st = @stat( $t );
+			$t = $this->target(); $original_id = file_exists( $t ) ? $this->identity( $t ) : null; $original_hash = $original_id ? (string) hash_file( 'sha256', $t ) : null; $backup = null; $backup_hash = null; $backup_meta = null; $st = @stat( $t );
 			if ( file_exists( $t ) ) { $b = $this->backup_file( $t, 'foreign' ); if ( empty( $b['success'] ) || ! $this->same_identity( $t, $original_id ) ) { return $this->fail( 'Target changed before activation.' ); } $backup = $b['path']; $backup_hash = $b['sha256']; $backup_meta = json_decode( (string) @file_get_contents( $backup . '.json' ), true ); }
 			$source_id = $this->identity( $this->source ); $bytes = @file_get_contents( $this->source );
 			if ( false === $bytes || ! $this->same_identity( $this->source, $source_id ) ) { return $this->fail( 'Bundled source changed during replacement.' ); }
 			$tmp = $this->write_temp( $bytes, '.bepluspb-new-' );
 			if ( ! $tmp || ! $this->syntax_valid( $tmp ) || ! $this->build_id( $tmp ) || ! hash_equals( hash( 'sha256', $bytes ), (string) hash_file( 'sha256', $tmp ) ) ) { if ( $tmp ) { @unlink( $tmp ); } return $this->fail( 'Replacement validation failed.' ); }
 			$this->preserve( $tmp, $st ); $rollback = $this->content_dir . '/.bepluspb-rollback-' . bin2hex( random_bytes( 4 ) );
-			if ( ! $this->activate( $tmp, $rollback, 'before_activate' ) ) { @unlink( $tmp ); $rb = ! file_exists( $rollback ) || @rename( $rollback, $t ); return $this->fail( 'Replacement failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb ) ); }
+			if ( ! $this->activate( $tmp, $rollback, 'before_activate', $original_hash ) ) {
+				@unlink( $tmp ); $rb = null === $original_hash ? ! file_exists( $t ) : $this->restore_target( $rollback, $original_hash );
+				return $this->fail( 'Replacement failed; rollback ' . ( $rb ? 'succeeded.' : 'could not be verified; critical manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) );
+			}
 			$hash = hash( 'sha256', $bytes );
-			if ( ! $this->identity( $t ) || ! hash_equals( $hash, (string) hash_file( 'sha256', $t ) ) || ! $this->health_probe() ) { $rb = $this->rollback( $rollback ); return $this->fail( 'Post-activation health verification failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb ) ); }
+			if ( ! $this->identity( $t ) || ! hash_equals( $hash, (string) hash_file( 'sha256', $t ) ) || ! $this->health_probe() ) { $rb = null !== $original_hash ? $this->rollback( $rollback, $original_hash ) : ! file_exists( $t ); return $this->fail( 'Post-activation health verification failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) ); }
 			if ( $backup ) {
 				$manifest = array( 'backup' => basename( $backup ), 'sha256' => $backup_hash, 'created_at' => gmdate( 'c' ), 'metadata' => $backup_meta ); $manifest['mac'] = $this->manifest_mac( $manifest );
 				$manifest_path = $this->backup_dir() . '/restore-manifest.json'; $json = wp_json_encode( $manifest, JSON_PRETTY_PRINT );
 				$written = isset( $this->hooks['manifest_write'] ) ? $this->hook( 'manifest_write', false, $manifest_path, $json ) : $this->write_temp_manifest( $manifest_path, $json );
-				if ( ! $manifest['mac'] || ! $written ) { $rb = $this->rollback( $rollback ); return $this->fail( 'Restore manifest publication failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb ) ); }
+				if ( ! $manifest['mac'] || ! $written ) { $rb = null !== $original_hash ? $this->rollback( $rollback, $original_hash ) : ! file_exists( $t ); return $this->fail( 'Restore manifest publication failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) ); }
 			}
-			@unlink( $rollback ); $this->retain( $backup );
+			if ( is_file( $rollback ) && ( ! $this->fs_unlink( $rollback ) || file_exists( $rollback ) ) ) {
+				$rb = null !== $original_hash ? $this->rollback( $rollback, $original_hash ) : ! file_exists( $t );
+				return $this->fail( 'Rollback cleanup failed; prior state restoration ' . ( $rb ? 'succeeded.' : 'could not be verified; critical manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) );
+			}
+			$this->retain( $backup );
 			return array( 'success' => true, 'message' => 'The previous drop-in was backed up, Beplus was installed, and the isolated cache health probe passed.', 'backup' => $backup );
 		} finally { $this->release_lock( $lock ); }
 	}
@@ -305,9 +323,10 @@ class BEPLUSPB_Dropin_Workflow {
 		if ( ! $tmp || ! is_array( $meta ) || ! isset( $meta['mode'], $meta['mtime'] ) || ! preg_match( '/^0[0-7]{3}$/', (string) $meta['mode'] ) || ! is_numeric( $meta['mtime'] ) || ! $this->preserve( $tmp, array( 'mode' => octdec( (string) $meta['mode'] ), 'uid' => $meta['uid'] ?? null, 'gid' => $meta['gid'] ?? null, 'mtime' => (int) $meta['mtime'] ), true ) ) { if ( $tmp ) { @unlink( $tmp ); } return $this->fail( 'Authenticated backup metadata is invalid or could not be restored.' ); }
 		$rollback = $this->content_dir . '/.bepluspb-restore-rollback-' . bin2hex( random_bytes( 4 ) );
 		if ( ! $tmp || ! $this->syntax_valid( $tmp ) ) { if ( $tmp ) { @unlink( $tmp ); } return $this->fail( 'Restore validation failed before activation; the active drop-in was unchanged.', array( 'rolled_back' => true ) ); }
-		if ( ! $this->activate( $tmp, $rollback, 'before_restore_activate' ) ) { @unlink( $tmp ); return $this->fail( 'Restore activation failed; the active drop-in was unchanged or rolled back.', array( 'rolled_back' => is_file( $t ) ) ); }
-		if ( ! hash_equals( (string) $m['sha256'], (string) hash_file( 'sha256', $t ) ) || ! $this->health_probe( false ) ) { $rb = $this->rollback( $rollback ); return $this->fail( 'Restore health verification failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb ) ); }
-		@unlink( $rollback );
+		$active_hash = (string) $current['sha256'];
+		if ( ! $this->activate( $tmp, $rollback, 'before_restore_activate', $active_hash ) ) { @unlink( $tmp ); $rb = $this->restore_target( $rollback, $active_hash ); return $this->fail( 'Restore activation failed; exact active-state rollback ' . ( $rb ? 'succeeded.' : 'could not be verified; critical manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) ); }
+		if ( ! hash_equals( (string) $m['sha256'], (string) hash_file( 'sha256', $t ) ) || ! $this->health_probe( false ) ) { $rb = $this->rollback( $rollback, $active_hash ); return $this->fail( 'Restore health verification failed; rollback ' . ( $rb ? 'succeeded.' : 'failed and manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) ); }
+		if ( is_file( $rollback ) && ( ! $this->fs_unlink( $rollback ) || file_exists( $rollback ) ) ) { $rb = $this->rollback( $rollback, $active_hash ); return $this->fail( 'Rollback cleanup failed; prior active state restoration ' . ( $rb ? 'succeeded.' : 'could not be verified; critical manual recovery is required.' ), array( 'rolled_back' => $rb, 'critical' => ! $rb, 'uncertain' => ! $rb ) ); }
 		return array( 'success' => true, 'message' => 'The authenticated previous drop-in was restored and the isolated cache health probe passed.', 'current_backup' => $current['path'] );
 		} finally { $this->release_lock( $lock ); }
 	}

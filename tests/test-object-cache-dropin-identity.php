@@ -42,6 +42,10 @@ identity_ok( ! $workflow_method->invoke( $workflow, $foreign ), 'workflow reject
 identity_ok( ! $manager_method->invoke( null, $foreign ), 'manager rejects generic product phrase' );
 identity_ok( ! $workflow_method->invoke( $workflow, $crafted ), 'workflow rejects wrong build identity' );
 identity_ok( ! $manager_method->invoke( null, $crafted ), 'manager rejects wrong build identity' );
+$historical = __DIR__ . '/fixtures/object-cache-legacy-f4149be.fixture';
+identity_ok( is_file( $historical ), 'historical f4149be fixture exists' );
+identity_ok( 'c63608062a5a62de5c170206106459f5ef90825dd99551a643a9f8ac38d7f15b' === hash_file( 'sha256', $historical ), 'historical f4149be fixture has the exact reviewed hash' );
+identity_ok( $manager_method->invoke( null, $historical ), 'manager recognizes exact historical f4149be drop-in' );
 identity_ok( BEPLUSPB_Dropin_Workflow::DROPIN_BUILD_ID === BEPLUSPB_Object_Cache::DROPIN_BUILD_ID, 'both owners share exact build identity' );
 identity_ok(
 	BEPLUSPB_Dropin_Workflow::KNOWN_DROPIN_BUILD_IDS === BEPLUSPB_Object_Cache::KNOWN_DROPIN_BUILD_IDS,
@@ -53,4 +57,4 @@ identity_ok( $workflow_is_known->invoke( $workflow, $shipped ), 'workflow recogn
 identity_ok( ! $workflow_is_known->invoke( $workflow, $crafted ), 'workflow known-ids check still rejects a wrong/foreign build id' );
 unlink( $foreign );
 unlink( $crafted );
-echo "PASS: exact drop-in build identity (10 assertions)\n";
+echo "PASS: exact drop-in build identity (13 assertions)\n";
