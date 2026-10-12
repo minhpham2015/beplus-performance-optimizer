@@ -286,10 +286,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Object Cache config file must stay .htaccess-protected
+      - name: Object Cache config file must stay executable-guarded
         run: |
-          if ! grep -q "protect_config_file" includes/class-bepluspb-object-cache.php; then
-            echo "::error::write_config() no longer calls protect_config_file() — the .bepluspb_oc.json config file (can contain a plaintext Redis/Memcached password) would be served over HTTP again. Fixed in v1.0.5, see CLAUDE.md rule #1."
+          file=includes/class-bepluspb-object-cache.php
+          dropin=lib/object-cache.php
+          if ! grep -Fq ".bepluspb_oc.php" "$file" || \
+             ! grep -Fq 'CONFIG_GUARD = "<?php exit; ?>\n"' "$file" || \
+             ! grep -Fq 'chmod( $tmp, 0600 )' "$file" || \
+             ! grep -Fq 'self::read_config_file( self::config_file() )' "$file" || \
+             ! grep -Fq '$_bepluspb_oc_guard       = "<?php exit; ?>\n"' "$dropin"; then
+            echo "::error::The object-cache config must remain a .php file with an executable exit guard, mode 0600, atomic verified write, and matching guarded reader. It can contain a plaintext Redis/Memcached password."
+            exit 1
+          fi
+          if grep -Fq "WP_CONTENT_DIR . '/.bepluspb_oc.json'" "$dropin"; then
+            echo "::error::The runtime drop-in must not read the legacy web-addressable JSON config."
+            exit 1
+          fi
+          if ! grep -Fq "WP_CONTENT_DIR . '/.bepluspb_oc.json'" "$file"; then
+            echo "::error::Legacy JSON migration/removal support disappeared."
             exit 1
           fi
 

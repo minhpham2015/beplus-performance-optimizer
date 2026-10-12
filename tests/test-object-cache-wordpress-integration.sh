@@ -100,9 +100,27 @@ wp core install --path="$ROOT" --url=http://bepluspb-integration.invalid --title
 mkdir -p "$ROOT/wp-content/plugins"
 cp -a "$PLUGIN_DIR" "$ROOT/wp-content/plugins/beplus-performance-optimizer"
 wp plugin activate beplus-performance-optimizer --path="$ROOT" --quiet
-cat > "$ROOT/wp-content/.bepluspb_oc.json" <<'JSON'
-{"enabled":true,"driver":"redis","host":"127.0.0.1","port":6379,"password":"","db":15,"persistent":false,"global_groups":[],"non_persistent_groups":[]}
-JSON
+# Seed the CURRENT guarded runtime config, not the retired web-addressable
+# .bepluspb_oc.json format. The runtime drop-in intentionally no longer reads
+# that legacy file; migration coverage for it lives in the standalone tests.
+# Use the exact Redis host/port/password supplied to this harness so local and
+# CI health probes exercise the same backend as the sentinel assertions.
+php -r '
+$cfg = array(
+    "enabled" => true,
+    "driver" => "redis",
+    "host" => $argv[1],
+    "port" => (int) $argv[2],
+    "password" => $argv[3],
+    "db" => 15,
+    "persistent" => false,
+    "global_groups" => array(),
+    "non_persistent_groups" => array(),
+);
+$file = $argv[4];
+$bytes = "<?php exit; ?>\n" . json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if (false === file_put_contents($file, $bytes, LOCK_EX) || ! chmod($file, 0600)) { exit(1); }
+' -- "$REDIS_HOST" "$REDIS_PORT" "$REDIS_PASSWORD" "$ROOT/wp-content/.bepluspb_oc.php"
 
 # Core's cache.php is a complete, executable foreign drop-in. The extra marker
 # makes provider detection deterministic without changing its behavior.
