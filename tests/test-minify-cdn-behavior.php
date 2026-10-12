@@ -114,4 +114,8 @@ cdn_with_accept( 'image/webp,*/*' );             t_ok( substr( BEPLUSPB_CDN::rew
 cdn_with_accept( 'text/html' );                  t_ok( substr( BEPLUSPB_CDN::rewrite_url( $pj ), -9 ) === 'photo.jpg', 'no swap when browser does not accept modern formats' );
 cdn_with_accept( 'image/avif,image/webp' );      t_ok( substr( BEPLUSPB_CDN::rewrite_url( $lj ), -10 ) === 'lonely.jpg', 'no swap when sibling file does not exist' );
 
+// Accept-dependent output must be declared to shared caches.
+$cdn_src = file_get_contents( __DIR__ . '/../includes/class-bepluspb-cdn.php' );
+t_ok( (bool) preg_match( '/webp_avif_enabled[^\n]*headers_sent\(\)[^}]*header\(\s*\'Vary: Accept\',\s*false/s', $cdn_src ), 'WebP/AVIF swap sends Vary: Accept (non-replacing)' );
+
 echo "PASS: $n minify/CDN behavior assertions\n";

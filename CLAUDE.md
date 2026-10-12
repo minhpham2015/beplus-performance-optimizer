@@ -36,8 +36,13 @@ checking whether it would break the SVN slug binding).
   accept unsanitized user input.
 - `includes/class-bepluspb-object-cache.php` — manages the object-cache
   drop-in lifecycle (install/remove `wp-content/object-cache.php`, write/
-  read `wp-content/.bepluspb_oc.json` config, connection test). **This is
-  the highest-risk file in the plugin — see Hard Rules below.**
+  read the guarded `wp-content/.bepluspb_oc.php` config, connection test).
+  **This is the highest-risk file in the plugin — see Hard Rules below.**
+- `includes/class-bepluspb-dropin-workflow.php` — transactional replace/
+  backup/restore of a *foreign* `object-cache.php` (identity checks, backups
+  in `wp-content/bepluspb-backups/` which must stay web-denied, and `exec()`
+  of a verified PHP CLI binary for lint/probe). Arguments must always go
+  through `escapeshellarg()`, and it must fail safe when `exec` is disabled.
 - `lib/object-cache.php` — the actual drop-in WordPress core loads directly
   into `wp-content/object-cache.php`. Runs extremely early in bootstrap,
   before most WordPress security machinery. Any bug here has an outsized
@@ -59,6 +64,10 @@ checking whether it would break the SVN slug binding).
   exists on disk (checked via `sibling_file_exists()`, which realpath()s
   and prefix-checks against `ABSPATH` per Hard Rule #3), the sibling path
   is swapped in (AVIF preferred over WebP when both exist/are accepted).
+  Because the HTML then varies by `Accept`, `buffer_start()` sends
+  `Vary: Accept` (non-replacing) whenever this option is on — keep it, or
+  page caches/Cloudflare will serve AVIF/WebP URLs to browsers that can't
+  decode them.
   This class still never creates/converts images itself — only swaps the
   URL when the file is already present (produced by WP core 6.5+, a theme
   build step, or another plugin/service).
@@ -71,7 +80,7 @@ checking whether it would break the SVN slug binding).
   status. **API Token auth only** (`Authorization: Bearer`), no legacy
   Global API Key support. Token/zone are stored as plain `wp_options`
   fields (`cloudflare_api_token`, `cloudflare_zone_id`, `cloudflare_zone_name`)
-  — deliberately NOT a separate file like `.bepluspb_oc.json`, since a DB
+  — deliberately NOT a separate file like `.bepluspb_oc.php`, since a DB
   option is not servable over HTTP the way a static file is. `zone_id`/
   `zone_name` are never accepted from the settings form directly (see
   `sanitize_options()`) — they are only ever written by the "Test
@@ -87,14 +96,17 @@ checking whether it would break the SVN slug binding).
 
 ## Hard rules — do not violate
 
-1. **`wp-content/.bepluspb_oc.json` must always be `.htaccess`-protected.**
-   It can contain a plaintext Redis/Memcached AUTH password.
-   `BEPLUSPB_Object_Cache::write_config()` must always call
-   `protect_config_file()` before writing the file. This was a live,
-   verified vulnerability (fixed v1.0.5) — `curl` against
-   `wp-content/.bepluspb_oc.json` returned the full config including the
-   password field before the fix. CI enforces this
-   (`security-regression-guard` job) but never remove the call manually.
+1. **The object-cache config must never be web-readable plaintext.**
+   It can contain a plaintext Redis/Memcached AUTH password. It now lives in
+   `wp-content/.bepluspb_oc.php`: a PHP file whose first line is
+   `<?php exit; ?>` (`CONFIG_GUARD`) followed by JSON, written atomically
+   (temp file, `chmod 0600`, rename) and verified by `read_config_file()`;
+   the drop-in reads it with the same guard. The legacy
+   `.bepluspb_oc.json` is only migrated/removed, never read at runtime. The
+   original leak (fixed v1.0.5) let `curl` on the `.json` file return the
+   full config including the password. CI (`security-regression-guard`)
+   enforces the guard, mode and verified write — never weaken them or
+   reintroduce a web-addressable config format.
 
 2. **`lib/object-cache.php`'s `unserialize($raw, ...)` must always pass
    `['allowed_classes' => false]`.** The drop-in runs before most of
@@ -161,7 +173,8 @@ php -l includes/class-bepluspb-whatever.php
 #    all 8 settings tabs checking for Fatal error / Warning / Notice.
 # 3. If you touched Object Cache: after saving settings, curl the config
 #    file directly — it MUST return 403, not 200:
-curl -s -o /dev/null -w "%{http_code}\n" http://your-test-site/wp-content/.bepluspb_oc.json
+curl -s http://your-test-site/wp-content/.bepluspb_oc.php   # body must be empty or 403/404 — never JSON/password
+curl -s -o /dev/null -w "%{http_code}\n" http://your-test-site/wp-content/.bepluspb_oc.json   # legacy file: must not be 200
 # 4. If you touched Minify/CDN: load a real front-end page, confirm no
 #    Fatal error, confirm assets still render (view-source, check enqueued
 #    script/style URLs actually resolve).

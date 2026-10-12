@@ -473,6 +473,13 @@ class BEPLUSPB_CDN {
 	public static function buffer_start() {
 		self::$buffer_level = null;
 
+		// The WebP/AVIF swap makes the HTML depend on the Accept header, so
+		// shared caches (page cache, Cloudflare, proxies) must key on it or
+		// they will serve AVIF/WebP URLs to browsers that cannot decode them.
+		if ( self::$webp_avif_enabled && ! headers_sent() ) {
+			header( 'Vary: Accept', false );
+		}
+
 		if ( BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return;
 		}
