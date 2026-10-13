@@ -12,7 +12,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Minify: logged-in visitors who aren't served cached assets return before any
   minification or disk write.
 
+### Added
+- Object Cache drop-in: native `wp_cache_get_multiple/set_multiple/
+  add_multiple/delete_multiple`, `wp_cache_flush_group` (Redis),
+  `wp_cache_flush_runtime` and `wp_cache_supports`. Redis reads use `MGET`,
+  writes/deletes are pipelined, so cache-heavy pages need far fewer round
+  trips. Drop-in build id is now `bepluspb-1.1.13-20261013`; the previous id
+  stays in `KNOWN_DROPIN_BUILD_IDS` so existing installs are recognised and
+  can be updated. `allowed_classes => false` applies to the new read path.
+
 ### Fixed
+- HTML minify/comment stripping no longer runs on feeds, robots.txt, XML
+  requests or sitemaps.
+- Minify: the pre-minified skip now matches the file extension only, so a URL
+  that merely contains `.min.js`/`.min.css` elsewhere is still minified.
 - Minify: cache files are written via temp file + rename (no half-written
   file can be served and cached); superseded variants of the same handle are
   deleted when a source file changes.

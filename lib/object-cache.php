@@ -16,7 +16,7 @@ defined( 'WPINC' ) || exit;
 
 /** Runtime identity used by the isolated post-install probe. */
 if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
-	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261008' );
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261013' );
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +451,255 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		}
 
 		/**
+		 * Retrieves several items in one backend round trip (MGET / getMulti).
+		 *
+		 * @param  array  $keys  Cache keys.
+		 * @param  string $group Cache group.
+		 * @param  bool   $force Skip the local copy and re-read from the backend.
+		 * @return array key => value (false for misses).
+		 */
+		public function get_multiple( $keys, $group = 'default', $force = false ) {
+			$values  = array();
+			$missing = array();
+
+			foreach ( $keys as $key ) {
+				if ( ! $force ) {
+					$from_memory = $this->_get_from_memory( $key, $group );
+					if ( false !== $from_memory ) {
+						++$this->cache_hits;
+						$values[ $key ] = $from_memory;
+						continue;
+					}
+				}
+				$values[ $key ] = false;
+				$missing[]      = $key;
+			}
+
+			if ( ! $missing ) {
+				return $values;
+			}
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				$this->cache_misses += count( $missing );
+				return $values;
+			}
+
+			try {
+				$backend_keys = array();
+				foreach ( $missing as $key ) {
+					$backend_keys[] = $this->_key( $key, $group );
+				}
+
+				if ( 'redis' === $this->driver ) {
+					$raws = $this->client->mGet( $backend_keys );
+					$raws = is_array( $raws ) ? array_values( $raws ) : array();
+				} else {
+					$found = $this->client->getMulti( $backend_keys );
+					$raws  = array();
+					foreach ( $backend_keys as $i => $backend_key ) {
+						$raws[ $i ] = is_array( $found ) && isset( $found[ $backend_key ] ) ? $found[ $backend_key ] : false;
+					}
+				}
+
+				foreach ( $missing as $i => $key ) {
+					$raw = isset( $raws[ $i ] ) ? $raws[ $i ] : false;
+					if ( false === $raw || null === $raw ) {
+						++$this->cache_misses;
+						continue;
+					}
+					// Same object-injection restriction as get() — see the note there.
+					$data = unserialize( $raw, array( 'allowed_classes' => false ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
+					$this->_store_in_memory( $key, $data, $group );
+					++$this->cache_hits;
+					$values[ $key ] = $data;
+				}
+			} catch ( Exception $e ) {
+				$this->cache_misses += count( $missing );
+			}
+
+			return $values;
+		}
+
+		/**
+		 * Sets several items; Redis writes are pipelined into one round trip.
+		 *
+		 * @param  array  $data   key => value.
+		 * @param  string $group  Cache group.
+		 * @param  int    $expire Expiry in seconds (0 = none).
+		 * @return array key => bool.
+		 */
+		public function set_multiple( $data, $group = 'default', $expire = 0 ) {
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) || 'redis' !== $this->driver ) {
+				$results = array();
+				foreach ( $data as $key => $value ) {
+					$results[ $key ] = $this->set( $key, $value, $group, $expire );
+				}
+				return $results;
+			}
+
+			$results = array();
+			try {
+				$pipe = $this->client->pipeline();
+				foreach ( $data as $key => $value ) {
+					$this->_store_in_memory( $key, $value, $group );
+					$payload = serialize( $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
+					if ( $expire ) {
+						$pipe->setEx( $this->_key( $key, $group ), $expire, $payload );
+					} else {
+						$pipe->set( $this->_key( $key, $group ), $payload );
+					}
+				}
+				$replies = $pipe->exec();
+				$i       = 0;
+				foreach ( $data as $key => $value ) {
+					$results[ $key ] = ! is_array( $replies ) || ! empty( $replies[ $i ] );
+					++$i;
+				}
+			} catch ( Exception $e ) {
+				foreach ( $data as $key => $value ) {
+					$this->_store_in_memory( $key, $value, $group );
+					$results[ $key ] = true; // In-memory copy succeeded, as in set().
+				}
+			}
+
+			return $results;
+		}
+
+		/**
+		 * Adds several items that don't already exist.
+		 *
+		 * @param  array  $data   key => value.
+		 * @param  string $group  Cache group.
+		 * @param  int    $expire Expiry in seconds (0 = none).
+		 * @return array key => bool.
+		 */
+		public function add_multiple( $data, $group = 'default', $expire = 0 ) {
+			$results = array();
+			foreach ( $data as $key => $value ) {
+				$results[ $key ] = $this->add( $key, $value, $group, $expire );
+			}
+			return $results;
+		}
+
+		/**
+		 * Deletes several items; Redis deletes are pipelined into one round trip.
+		 *
+		 * @param  array  $keys  Cache keys.
+		 * @param  string $group Cache group.
+		 * @return array key => bool.
+		 */
+		public function delete_multiple( $keys, $group = 'default' ) {
+			$results = array();
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				foreach ( $keys as $key ) {
+					$this->_delete_from_memory( $key, $group );
+					$results[ $key ] = true;
+				}
+				return $results;
+			}
+
+			try {
+				if ( 'redis' === $this->driver ) {
+					$pipe = $this->client->pipeline();
+					foreach ( $keys as $key ) {
+						$this->_delete_from_memory( $key, $group );
+						$pipe->del( $this->_key( $key, $group ) );
+					}
+					$replies = $pipe->exec();
+					$i       = 0;
+					foreach ( $keys as $key ) {
+						$results[ $key ] = ! is_array( $replies ) || ! empty( $replies[ $i ] );
+						++$i;
+					}
+				} else {
+					$backend_keys = array();
+					foreach ( $keys as $key ) {
+						$this->_delete_from_memory( $key, $group );
+						$backend_keys[ $key ] = $this->_key( $key, $group );
+					}
+					$replies = $this->client->deleteMulti( array_values( $backend_keys ) );
+					foreach ( $backend_keys as $key => $backend_key ) {
+						$results[ $key ] = is_array( $replies ) && isset( $replies[ $backend_key ] ) && true === $replies[ $backend_key ];
+					}
+				}
+			} catch ( Exception $e ) {
+				foreach ( $keys as $key ) {
+					$results[ $key ] = false;
+				}
+			}
+
+			return $results;
+		}
+
+		/**
+		 * Whether a cache API feature is available with the current backend.
+		 *
+		 * @param  string $feature Feature name.
+		 * @return bool
+		 */
+		public function supports( $feature ) {
+			switch ( $feature ) {
+				case 'add_multiple':
+				case 'set_multiple':
+				case 'get_multiple':
+				case 'delete_multiple':
+				case 'flush_runtime':
+					return true;
+				case 'flush_group':
+					return 'redis' === $this->driver;
+				default:
+					return false;
+			}
+		}
+
+		/**
+		 * Clears only the per-request in-memory copy; the backend is untouched.
+		 *
+		 * @return bool
+		 */
+		public function flush_runtime() {
+			$this->cache = array();
+			return true;
+		}
+
+		/**
+		 * Flushes one group. Redis only (SCAN of this site's keys in the group);
+		 * Memcached cannot enumerate keys, so it reports false.
+		 *
+		 * @param  string $group Cache group.
+		 * @return bool
+		 */
+		public function flush_group( $group ) {
+			unset( $this->cache[ $group ] );
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return true;
+			}
+			if ( 'redis' !== $this->driver ) {
+				return false;
+			}
+
+			try {
+				$pattern = preg_replace( '/([\\\\*?\\[\\]])/', '\\\\$1', $this->_key( '', $group ) ) . '*';
+				$it      = null;
+				do {
+					$keys = $this->client->scan( $it, $pattern, 500 );
+					if ( is_array( $keys ) && $keys ) {
+						if ( method_exists( $this->client, 'unlink' ) ) {
+							$this->client->unlink( $keys );
+						} else {
+							$this->client->del( $keys );
+						}
+					}
+				} while ( $it > 0 );
+				return true;
+			} catch ( Exception $e ) {
+				return false;
+			}
+		}
+
+		/**
 		 * Flushes the entire object cache.
 		 *
 		 * @return bool
@@ -715,6 +964,89 @@ function wp_cache_decr( $key, $offset = 1, $group = '' ) {
 function wp_cache_flush() {
 	global $wp_object_cache;
 	return $wp_object_cache->flush();
+}
+
+/**
+ * Retrieve several cache items at once.
+ *
+ * @param array  $keys  Cache keys.
+ * @param string $group Cache group.
+ * @param bool   $force Whether to bypass the local copy.
+ * @return array
+ */
+function wp_cache_get_multiple( $keys, $group = '', $force = false ) {
+	global $wp_object_cache;
+	return $wp_object_cache->get_multiple( $keys, $group ? $group : 'default', $force );
+}
+
+/**
+ * Save several cache items at once.
+ *
+ * @param array  $data   key => value.
+ * @param string $group  Cache group.
+ * @param int    $expire Expire time in seconds.
+ * @return array
+ */
+function wp_cache_set_multiple( $data, $group = '', $expire = 0 ) {
+	global $wp_object_cache;
+	return $wp_object_cache->set_multiple( $data, $group ? $group : 'default', (int) $expire );
+}
+
+/**
+ * Add several cache items at once.
+ *
+ * @param array  $data   key => value.
+ * @param string $group  Cache group.
+ * @param int    $expire Expire time in seconds.
+ * @return array
+ */
+function wp_cache_add_multiple( $data, $group = '', $expire = 0 ) {
+	global $wp_object_cache;
+	return $wp_object_cache->add_multiple( $data, $group ? $group : 'default', (int) $expire );
+}
+
+/**
+ * Delete several cache items at once.
+ *
+ * @param array  $keys  Cache keys.
+ * @param string $group Cache group.
+ * @return array
+ */
+function wp_cache_delete_multiple( $keys, $group = '' ) {
+	global $wp_object_cache;
+	return $wp_object_cache->delete_multiple( $keys, $group ? $group : 'default' );
+}
+
+/**
+ * Clear the per-request in-memory cache only.
+ *
+ * @return bool
+ */
+function wp_cache_flush_runtime() {
+	global $wp_object_cache;
+	return $wp_object_cache->flush_runtime();
+}
+
+/**
+ * Remove all items in one cache group.
+ *
+ * @param string $group Cache group.
+ * @return bool
+ */
+function wp_cache_flush_group( $group ) {
+	global $wp_object_cache;
+	return $wp_object_cache->flush_group( $group );
+}
+
+/**
+ * Whether this cache implementation supports a feature.
+ *
+ * @param string $feature Feature name.
+ * @return bool
+ */
+function wp_cache_supports( $feature ) {
+	global $wp_object_cache;
+	return $wp_object_cache->supports( $feature );
 }
 
 /**

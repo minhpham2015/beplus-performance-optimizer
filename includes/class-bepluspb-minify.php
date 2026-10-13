@@ -122,7 +122,7 @@ class BEPLUSPB_Minify {
 			return $src;
 		}
 
-		if ( false !== strpos( $src, '.min.css' ) ) {
+		if ( self::is_pre_minified( $src, 'css' ) ) {
 			self::debug_log( "CSS skip (pre-minified): {$handle} -> {$src}" );
 			return $src;
 		}
@@ -142,7 +142,7 @@ class BEPLUSPB_Minify {
 			return $src;
 		}
 
-		if ( false !== strpos( $src, '.min.js' ) ) {
+		if ( self::is_pre_minified( $src, 'js' ) ) {
 			self::debug_log( "JS skip (pre-minified): {$handle} -> {$src}" );
 			return $src;
 		}
@@ -152,6 +152,20 @@ class BEPLUSPB_Minify {
 		}
 
 		return self::cached_asset_url( $src, $handle, 'js' );
+	}
+
+	/**
+	 * Whether $src already points at a *.min.css / *.min.js file.
+	 *
+	 * Matches the file extension of the path only, so a directory or query
+	 * string that merely contains ".min.js" no longer causes a skip.
+	 *
+	 * @param  string $src Asset URL.
+	 * @param  string $ext 'css' or 'js'.
+	 * @return bool
+	 */
+	private static function is_pre_minified( $src, $ext ) {
+		return 1 === preg_match( '/\.min\.' . $ext . '$/i', (string) strtok( $src, '?#' ) );
 	}
 
 	/**

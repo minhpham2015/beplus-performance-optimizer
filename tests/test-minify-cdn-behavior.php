@@ -107,6 +107,11 @@ $ucss_lock = BEPLUSPB_CACHE_DIR . '.ucss-lock-test'; file_put_contents( $ucss_lo
 $r = BEPLUSPB_Minify::clear_cache();
 t_ok( ! file_exists( $ucss_lock ) && 'success' === $r['status'], 'clear_cache removes dot-prefixed lock files' );
 
+// .min detection is anchored to the file extension, not a substring of the URL.
+t_ok( $u . 'ok.min.css?ver=1' === BEPLUSPB_Minify::maybe_minify_css( $u . 'ok.min.css?ver=1', 'm2' ), '.min.css with query still skipped' );
+mkdir( "$root/wp/wp-content/themes/t/vendor.min.js-assets", 0777, true ); file_put_contents( "$root/wp/wp-content/themes/t/vendor.min.js-assets/plain.js", "var a = 1; // c\n" );
+t_ok( false !== strpos( BEPLUSPB_Minify::maybe_minify_js( $u . 'vendor.min.js-assets/plain.js', 'plain' ), '/bepluspb-cache/plain-' ), 'directory containing .min.js no longer skips minification' );
+
 // --- CDN -------------------------------------------------------------------
 BEPLUSPB_CDN::init( array( 'cdn_enabled' => 1, 'cdn_url' => 'cdn.example.net', 'cdn_exclude' => "skip-me\n", 'cdn_file_types' => '', 'cdn_webp_avif' => 0 ) );
 t_ok( 'https://cdn.example.net/wp-content/uploads/2026/photo.jpg?x=1' === BEPLUSPB_CDN::rewrite_url( 'http://example.test/wp-content/uploads/2026/photo.jpg?x=1' ), 'local asset rewritten to CDN, query kept' );

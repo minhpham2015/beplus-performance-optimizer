@@ -72,8 +72,37 @@ class BEPLUSPB_HTML {
 			return;
 		}
 
+		if ( ! self::is_html_response() ) {
+			return;
+		}
+
 		self::$buffer_level = ob_get_level();
 		ob_start();
+	}
+
+	/**
+	 * Whether the current request renders an HTML document.
+	 *
+	 * Feeds, robots.txt, trackbacks, sitemaps and other XML responses must be
+	 * passed through untouched: collapsing whitespace or stripping comments
+	 * can alter CDATA content or break the format.
+	 *
+	 * @return bool
+	 */
+	private static function is_html_response() {
+		if ( is_feed() || is_robots() || is_trackback() ) {
+			return false;
+		}
+
+		if ( function_exists( 'wp_is_xml_request' ) && wp_is_xml_request() ) {
+			return false;
+		}
+
+		if ( get_query_var( 'sitemap' ) || get_query_var( 'sitemap-stylesheet' ) ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
