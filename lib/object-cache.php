@@ -295,7 +295,10 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 
 			try {
 				if ( 'redis' === $this->driver ) {
-					$options = $expire ? array( 'nx', 'ex' => (int) $expire ) : array( 'nx' );
+					$options = array( 'nx' );
+					if ( $expire ) {
+						$options['ex'] = (int) $expire;
+					}
 					$added   = (bool) $this->client->set( $backend_key, $payload, $options );
 				} else {
 					$added = (bool) $this->client->add( $backend_key, $payload, $expire );
@@ -445,7 +448,7 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return int|false
 		 */
 		public function decr( $key, $offset = 1, $group = 'default' ) {
-			return $this->_adjust( $key, -(int) $offset, $group );
+			return $this->_adjust( $key, 0 - (int) $offset, $group );
 		}
 
 		/**

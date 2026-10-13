@@ -19,7 +19,7 @@ class BEPLUSPB_Utils {
 	/**
 	 * Return $result only when a string transform of $original succeeded.
 	 *
-	 * preg_replace()/preg_replace_callback() return null on PCRE failure
+	 * The preg_replace() family returns null on PCRE failure
 	 * (backtrack/JIT limits on very large pages), and a later step fed that
 	 * null yields an empty string. Echoing either would send a blank page,
 	 * so fall back to the untouched input instead.
