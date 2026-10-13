@@ -118,72 +118,16 @@ class BEPLUSPB_Minify {
 		}
 
 		if ( self::is_css_file_excluded( $src ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS skip (excluded): {$handle} -> {$src}" ); // phpcs:ignore
-			}
+			self::debug_log( "CSS skip (excluded): {$handle} -> {$src}" );
 			return $src;
 		}
 
-		if ( false !== strpos( $src, '.min.css' ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS skip (pre-minified): {$handle} -> {$src}" ); // phpcs:ignore
-			}
+		if ( self::is_pre_minified( $src, 'css' ) ) {
+			self::debug_log( "CSS skip (pre-minified): {$handle} -> {$src}" );
 			return $src;
 		}
 
-		$file_path = self::url_to_path( $src );
-		if ( ! $file_path ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS skip (url_to_path failed): {$handle} -> {$src}" ); // phpcs:ignore
-			}
-			return $src;
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$content = @file_get_contents( $file_path );
-		if ( false === $content || '' === trim( $content ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS skip (unreadable): {$handle} -> {$file_path}" ); // phpcs:ignore
-			}
-			return $src;
-		}
-
-		$hash       = substr( md5( $content ), 0, 12 );
-		$cache_name = sanitize_file_name( $handle ) . '-' . $hash . '.css';
-		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
-		$cache_url  = self::cache_url() . $cache_name;
-
-		if ( ! file_exists( $cache_file ) ) {
-			if ( ! self::ensure_cache_dir() ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-					error_log( "[BEPLUSPB] CSS skip (cache dir not writable): " . BEPLUSPB_CACHE_DIR ); // phpcs:ignore
-				}
-				return $src;
-			}
-			$minified = self::minify_css( $content );
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents
-			$written = @file_put_contents( $cache_file, $minified );
-			if ( false === $written ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-					error_log( "[BEPLUSPB] CSS WRITE FAILED: {$cache_file}" ); // phpcs:ignore
-				}
-				return $src;
-			}
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS cached: {$handle} -> {$cache_file} ({$written} bytes)" ); // phpcs:ignore
-			}
-		} elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] CSS cache hit: {$handle} -> {$cache_name}" ); // phpcs:ignore
-
-		}
-
-		$opts = bepluspb_get_options();
-		if ( empty( $opts['cache_for_logged_in'] ) && is_user_logged_in() ) {
-			return $src;
-		}
-
-		$query = wp_parse_url( $src, PHP_URL_QUERY );
-		return $query ? $cache_url . '?' . $query : $cache_url;
+		return self::cached_asset_url( $src, $handle, 'css' );
 	}
 
 	/**
@@ -198,10 +142,8 @@ class BEPLUSPB_Minify {
 			return $src;
 		}
 
-		if ( false !== strpos( $src, '.min.js' ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] JS skip (pre-minified): {$handle} -> {$src}" ); // phpcs:ignore
-			}
+		if ( self::is_pre_minified( $src, 'js' ) ) {
+			self::debug_log( "JS skip (pre-minified): {$handle} -> {$src}" );
 			return $src;
 		}
 
@@ -209,59 +151,152 @@ class BEPLUSPB_Minify {
 			return $src;
 		}
 
-		$file_path = self::url_to_path( $src );
-		if ( ! $file_path ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] JS skip (url_to_path failed): {$handle} -> {$src}" ); // phpcs:ignore
-			}
-			return $src;
-		}
+		return self::cached_asset_url( $src, $handle, 'js' );
+	}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$content = @file_get_contents( $file_path );
-		if ( false === $content || '' === trim( $content ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] JS skip (unreadable): {$handle} -> {$file_path}" ); // phpcs:ignore
-			}
-			return $src;
-		}
+	/**
+	 * Whether $src already points at a *.min.css / *.min.js file.
+	 *
+	 * Matches the file extension of the path only, so a directory or query
+	 * string that merely contains ".min.js" no longer causes a skip.
+	 *
+	 * @param  string $src Asset URL.
+	 * @param  string $ext 'css' or 'js'.
+	 * @return bool
+	 */
+	private static function is_pre_minified( $src, $ext ) {
+		return 1 === preg_match( '/\.min\.' . $ext . '$/i', (string) strtok( $src, '?#' ) );
+	}
 
-		$hash       = substr( md5( $content ), 0, 12 );
-		$cache_name = sanitize_file_name( $handle ) . '-' . $hash . '.js';
-		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
-		$cache_url  = self::cache_url() . $cache_name;
-
-		if ( ! file_exists( $cache_file ) ) {
-			if ( ! self::ensure_cache_dir() ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-					error_log( "[BEPLUSPB] JS skip (cache dir not writable): " . BEPLUSPB_CACHE_DIR ); // phpcs:ignore
-				}
-				return $src;
-			}
-			$minified = self::minify_js( $content );
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents
-			$written = @file_put_contents( $cache_file, $minified );
-			if ( false === $written ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-					error_log( "[BEPLUSPB] JS WRITE FAILED: {$cache_file}" ); // phpcs:ignore
-				}
-				return $src;
-			}
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] JS cached: {$handle} -> {$cache_file} ({$written} bytes)" ); // phpcs:ignore
-			}
-		} elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-				error_log( "[BEPLUSPB] JS cache hit: {$handle} -> {$cache_name}" ); // phpcs:ignore
-
-		}
-
-		$opts = bepluspb_get_options();
+	/**
+	 * Resolve $src to its minified cache copy, generating it on a miss.
+	 *
+	 * The cache key is derived from the source file's path, mtime and size, so
+	 * a cache hit costs two stat() calls instead of reading and hashing the
+	 * whole file on every request. Logged-in visitors who are not served cached
+	 * assets bail out before any minification work is done.
+	 *
+	 * @param  string $src    Asset URL.
+	 * @param  string $handle Registered handle.
+	 * @param  string $ext    'css' or 'js'.
+	 * @return string Cached asset URL, or $src when it cannot be cached.
+	 */
+	private static function cached_asset_url( $src, $handle, $ext ) {
+		$label = strtoupper( $ext );
+		$opts  = bepluspb_get_options();
 		if ( empty( $opts['cache_for_logged_in'] ) && is_user_logged_in() ) {
 			return $src;
 		}
 
-		$query = wp_parse_url( $src, PHP_URL_QUERY );
+		$file_path = self::url_to_path( $src );
+		if ( ! $file_path ) {
+			self::debug_log( "{$label} skip (url_to_path failed): {$handle} -> {$src}" );
+			return $src;
+		}
+
+		clearstatcache( true, $file_path );
+		$mtime = @filemtime( $file_path );
+		$size  = @filesize( $file_path );
+		if ( false === $mtime || false === $size || 0 === $size ) {
+			self::debug_log( "{$label} skip (unreadable): {$handle} -> {$file_path}" );
+			return $src;
+		}
+
+		$prefix     = sanitize_file_name( $handle ) . '-';
+		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size ), 0, 12 );
+		$cache_name = $prefix . $hash . '.' . $ext;
+		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
+
+		if ( ! file_exists( $cache_file ) ) {
+			if ( ! self::ensure_cache_dir() ) {
+				self::debug_log( "{$label} skip (cache dir not writable): " . BEPLUSPB_CACHE_DIR );
+				return $src;
+			}
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+			$content = @file_get_contents( $file_path );
+			if ( false === $content || '' === trim( $content ) ) {
+				self::debug_log( "{$label} skip (unreadable): {$handle} -> {$file_path}" );
+				return $src;
+			}
+
+			$minified = 'css' === $ext ? self::minify_css( $content ) : self::minify_js( $content );
+			if ( ! self::write_cache_file_atomic( $cache_file, $minified ) ) {
+				self::debug_log( "{$label} WRITE FAILED: {$cache_file}" );
+				return $src;
+			}
+
+			self::delete_stale_variants( $prefix, $ext, $cache_name );
+			self::debug_log( "{$label} cached: {$handle} -> {$cache_file}" );
+		}
+
+		$cache_url = self::cache_url() . $cache_name;
+		$query     = wp_parse_url( $src, PHP_URL_QUERY );
 		return $query ? $cache_url . '?' . $query : $cache_url;
+	}
+
+	/**
+	 * Write a cache file via temp file + rename so a concurrent request can
+	 * never see (and permanently cache) a half-written file.
+	 *
+	 * @param  string $cache_file Destination path.
+	 * @param  string $content    Minified content.
+	 * @return bool
+	 */
+	private static function write_cache_file_atomic( $cache_file, $content ) {
+		$dir  = dirname( $cache_file ) . '/';
+		$temp = tempnam( $dir, '.bepluspb-tmp-' );
+		if ( false === $temp ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents
+		if ( false === @file_put_contents( $temp, $content ) ) {
+			wp_delete_file( $temp );
+			return false;
+		}
+
+		@chmod( $temp, 0644 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( ! @rename( $temp, $cache_file ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rename_rename
+			wp_delete_file( $temp );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Remove older content-hash generations of the same handle once a new one
+	 * is in place, so source updates don't leave orphaned files behind.
+	 *
+	 * @param string $prefix  "{handle}-" filename prefix.
+	 * @param string $ext     'css' or 'js'.
+	 * @param string $current Filename of the generation to keep.
+	 */
+	private static function delete_stale_variants( $prefix, $ext, $current ) {
+		$files = glob( BEPLUSPB_CACHE_DIR . $prefix . '*.' . $ext );
+		if ( ! is_array( $files ) ) {
+			return;
+		}
+
+		$pattern = '/^' . preg_quote( $prefix, '/' ) . '[a-f0-9]{12}\.' . $ext . '$/';
+		foreach ( $files as $file ) {
+			$name = basename( $file );
+			if ( $name !== $current && preg_match( $pattern, $name ) ) {
+				wp_delete_file( $file );
+			}
+		}
+	}
+
+	/**
+	 * Emit a diagnostic line when WP_DEBUG and WP_DEBUG_LOG are both on.
+	 *
+	 * @param string $message Message without the plugin prefix.
+	 */
+	private static function debug_log( $message ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+			error_log( '[BEPLUSPB] ' . $message ); // phpcs:ignore
+		}
 	}
 
 	// -------------------------------------------------------------------------
@@ -634,6 +669,19 @@ class BEPLUSPB_Minify {
 		if ( ! file_exists( $dir ) || ! is_dir( $dir ) ) {
 			delete_transient( 'bepluspb_cache_stats' );
 			return $result;
+		}
+
+		// Dot-prefixed UCSS lock files and interrupted temp files are not matched
+		// by the *.{css,js} glob below, so remove them explicitly.
+		foreach ( array( '.ucss-*', '.bepluspb-tmp-*' ) as $hidden ) {
+			$leftovers = glob( $dir . $hidden );
+			if ( is_array( $leftovers ) ) {
+				foreach ( $leftovers as $leftover ) {
+					if ( is_file( $leftover ) ) {
+						wp_delete_file( $leftover );
+					}
+				}
+			}
 		}
 
 		$files             = glob( $dir . '*.{css,js}', GLOB_BRACE );
