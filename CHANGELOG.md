@@ -4,6 +4,24 @@ All notable changes to this project are documented here (dev-facing —
 see `readme.txt` for the user-facing WordPress.org changelog).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Performance
+- Minify: cache key is now path + mtime + size, so a cache hit no longer
+  reads and hashes every enqueued CSS/JS file on each request.
+- Minify: logged-in visitors who aren't served cached assets return before any
+  minification or disk write.
+
+### Fixed
+- Minify: cache files are written via temp file + rename (no half-written
+  file can be served and cached); superseded variants of the same handle are
+  deleted when a source file changes.
+- Remove Unused CSS: no longer generates cache files for 404, search, preview,
+  logged-in or non-GET/HEAD requests (anonymous disk-fill / slowdown vector);
+  total files capped via the `bepluspb_ucss_max_files` filter (default 2000).
+- Clear Cache / UCSS purge now also remove dot-prefixed `.ucss-*` lock files
+  and interrupted temp files.
+
 ## [1.1.13] - 2026-10-08
 
 ### Security

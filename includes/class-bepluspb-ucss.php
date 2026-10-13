@@ -253,7 +253,18 @@ class BEPLUSPB_UCSS {
 		}
 
 		$deleted = 0;
-		$files   = glob( $dir . 'ucss-*.css' );
+
+		// Per-generation lock files are dot-prefixed and would otherwise pile up.
+		$locks = glob( $dir . '.ucss-*' );
+		if ( is_array( $locks ) ) {
+			foreach ( $locks as $lock ) {
+				if ( is_file( $lock ) ) {
+					wp_delete_file( $lock );
+				}
+			}
+		}
+
+		$files = glob( $dir . 'ucss-*.css' );
 		if ( ! $files ) {
 			return 0;
 		}
@@ -323,12 +334,32 @@ class BEPLUSPB_UCSS {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Whether this request may create new used-only CSS cache files.
+	 *
+	 * Cache names are keyed on the request path, so unbounded URL spaces
+	 * (404s, searches) would let anonymous visitors create unlimited files.
+	 * Logged-in and preview renders also contain markup (admin bar, draft
+	 * content) that must not decide the stylesheet served to everyone else.
+	 * Already-cached files are still served to all of these requests.
+	 *
+	 * @return bool
+	 */
+	private static function is_generation_allowed() {
+		if ( is_404() || is_search() || is_preview() || is_customize_preview() || is_user_logged_in() ) {
+			return false;
+		}
+
+		$method = isset( $_SERVER['REQUEST_METHOD'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : 'GET';
+		return in_array( $method, array( 'GET', 'HEAD' ), true );
+	}
+
+	/**
 	 * Start buffering the full page output.
 	 */
 	public static function buffer_start() {
 		self::$buffer_level = null;
 
-		if ( is_admin() ) {
+		if ( is_admin() || ! self::is_generation_allowed() ) {
 			return;
 		}
 		self::$buffering    = true;
@@ -387,10 +418,23 @@ class BEPLUSPB_UCSS {
 		$opts     = bepluspb_get_options();
 		$safelist = bepluspb_parse_exclude_list( $opts['css_unused_safelist'] );
 
+		/**
+		 * Filters the maximum number of used-only CSS cache files kept on disk.
+		 *
+		 * @param int $max Default 2000.
+		 */
+		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
+		$existing  = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
+		$existing  = is_array( $existing ) ? count( $existing ) : 0;
+
 		foreach ( self::$seen_styles as $handle => $path ) {
 			$cache_file = self::cache_path( $handle, $path );
 			if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
 				continue; // Already fresh.
+			}
+
+			if ( $max_files > 0 && $existing >= $max_files ) {
+				break; // Cache is full; keep serving the original stylesheet.
 			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
@@ -402,7 +446,9 @@ class BEPLUSPB_UCSS {
 			$filtered = self::filter_css( $css, $used, $safelist );
 			$filtered = BEPLUSPB_Minify::minify_css( $filtered );
 
-			self::write_deduplicated_cache( $cache_file, $filtered );
+			if ( self::write_deduplicated_cache( $cache_file, $filtered ) ) {
+				++$existing;
+			}
 		}
 	}
 

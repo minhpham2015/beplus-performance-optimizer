@@ -27,6 +27,7 @@ function content_url() { return 'http://example.test/wp-content'; }
 function includes_url() { return 'http://example.test/wp-includes/'; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function add_filter() {} function add_action() {}
+function wp_delete_file( $f ) { @unlink( $f ); } function delete_transient() {}
 function sanitize_file_name( $n ) { return preg_replace( '/[^A-Za-z0-9._-]/', '-', $n ); }
 function wp_upload_dir() { return array( 'baseurl' => 'http://example.test/wp-content/uploads' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
@@ -93,6 +94,18 @@ t_ok( $u . 'evil.css' === BEPLUSPB_Minify::maybe_minify_css( $u . 'evil.css', 'e
 foreach ( glob( BEPLUSPB_CACHE_DIR . '*' ) as $f ) { t_ok( false === strpos( (string) file_get_contents( $f ), 'TOP-SECRET' ), 'no secret leaked into cache dir' ); }
 $jout = BEPLUSPB_Minify::maybe_minify_js( $u . 'app.js', 'theme-app' );
 t_ok( false !== strpos( $jout, '/bepluspb-cache/theme-app-' ), 'js src rewritten' );
+
+// Cache hit must not depend on re-reading content; source change replaces (not accumulates) the variant.
+t_ok( $out === BEPLUSPB_Minify::maybe_minify_css( $u . 'style.css?ver=9', 'theme-style' ), 'second call is a stable cache hit' );
+$css_path = "$root/wp/wp-content/themes/t/style.css";
+file_put_contents( $css_path, "body { color : blue ; }\n/* changed */" ); touch( $css_path, time() + 5 );
+$out2 = BEPLUSPB_Minify::maybe_minify_css( $u . 'style.css?ver=9', 'theme-style' );
+t_ok( $out2 !== $out, 'changed source gets a new cache name' );
+t_ok( ! is_file( $cached ) && 1 === count( glob( BEPLUSPB_CACHE_DIR . 'theme-style-*.css' ) ), 'stale variant for same handle removed' );
+t_ok( 0 === count( glob( BEPLUSPB_CACHE_DIR . '.bepluspb-tmp-*' ) ), 'no temp files left behind' );
+$ucss_lock = BEPLUSPB_CACHE_DIR . '.ucss-lock-test'; file_put_contents( $ucss_lock, '' );
+$r = BEPLUSPB_Minify::clear_cache();
+t_ok( ! file_exists( $ucss_lock ) && 'success' === $r['status'], 'clear_cache removes dot-prefixed lock files' );
 
 // --- CDN -------------------------------------------------------------------
 BEPLUSPB_CDN::init( array( 'cdn_enabled' => 1, 'cdn_url' => 'cdn.example.net', 'cdn_exclude' => "skip-me\n", 'cdn_file_types' => '', 'cdn_webp_avif' => 0 ) );
