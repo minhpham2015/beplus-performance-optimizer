@@ -121,16 +121,16 @@ class BEPLUSPB_CSS {
 
 		if ( $opts['css_inline_all'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = self::inline_all_css( $html, $exclude );
+			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude ), $html );
 		}
 
 		if ( $opts['css_non_blocking'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = self::make_non_blocking( $html, $exclude );
+			$html    = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude ), $html );
 		}
 
 		if ( $opts['css_minify'] ) {
-			$html = self::minify_inline_styles( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::minify_inline_styles( $html ), $html );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

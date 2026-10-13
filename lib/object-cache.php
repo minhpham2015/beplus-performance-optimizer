@@ -16,7 +16,7 @@ defined( 'WPINC' ) || exit;
 
 /** Runtime identity used by the isolated post-install probe. */
 if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
-	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261013' );
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261014' );
 }
 
 // ---------------------------------------------------------------------------
@@ -280,10 +280,35 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return bool
 		 */
 		public function add( $key, $data, $group = 'default', $expire = 0 ) {
-			if ( $this->_get_from_memory( $key, $group ) !== false ) {
+			if ( $this->_memory_has( $key, $group ) ) {
 				return false;
 			}
-			return $this->set( $key, $data, $group, $expire );
+
+			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+				return $this->set( $key, $data, $group, $expire );
+			}
+
+			// Atomic across PHP processes: only succeeds when the backend key is
+			// absent, so a concurrent request's newer value is never overwritten.
+			$backend_key = $this->_key( $key, $group );
+			$payload     = serialize( $data ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
+
+			try {
+				if ( 'redis' === $this->driver ) {
+					$options = $expire ? array( 'nx', 'ex' => (int) $expire ) : array( 'nx' );
+					$added   = (bool) $this->client->set( $backend_key, $payload, $options );
+				} else {
+					$added = (bool) $this->client->add( $backend_key, $payload, $expire );
+				}
+			} catch ( Exception $e ) {
+				$this->_store_in_memory( $key, $data, $group );
+				return true; // Backend unavailable: in-memory add succeeded, as in set().
+			}
+
+			if ( $added ) {
+				$this->_store_in_memory( $key, $data, $group );
+			}
+			return $added;
 		}
 
 		/**
@@ -329,13 +354,10 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return mixed|false Data on success, false on failure.
 		 */
 		public function get( $key, $group = 'default', $force = false, &$found = null ) {
-			if ( ! $force ) {
-				$from_memory = $this->_get_from_memory( $key, $group );
-				if ( false !== $from_memory ) {
-					++$this->cache_hits;
-					$found = true;
-					return $from_memory;
-				}
+			if ( ! $force && $this->_memory_has( $key, $group ) ) {
+				++$this->cache_hits;
+				$found = true;
+				return $this->_get_from_memory( $key, $group );
 			}
 
 			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
@@ -411,23 +433,11 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return int|false
 		 */
 		public function incr( $key, $offset = 1, $group = 'default' ) {
-			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
-				return false;
-			}
-			try {
-				$backend_key = $this->_key( $key, $group );
-				if ( 'redis' === $this->driver ) {
-					return $this->client->incrBy( $backend_key, $offset );
-				} else {
-					return $this->client->increment( $backend_key, $offset );
-				}
-			} catch ( Exception $e ) {
-				return false;
-			}
+			return $this->_adjust( $key, (int) $offset, $group );
 		}
 
 		/**
-		 * Decrements a numeric item's value.
+		 * Decrements a numeric item's value (never below zero).
 		 *
 		 * @param  string $key    Cache key.
 		 * @param  int    $offset Decrement amount.
@@ -435,19 +445,41 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return int|false
 		 */
 		public function decr( $key, $offset = 1, $group = 'default' ) {
-			if ( ! $this->connected || $this->_is_non_persistent( $group ) ) {
+			return $this->_adjust( $key, -(int) $offset, $group );
+		}
+
+		/**
+		 * Shared incr/decr implementation.
+		 *
+		 * Values are stored serialized, so the backend's native INCRBY cannot be
+		 * used (it rejects "i:5;" and would create a raw, unreadable key when
+		 * the item is missing). Read-modify-write instead, keeping the remaining
+		 * TTL on Redis, and keep the in-memory copy in sync.
+		 *
+		 * @param  string $key    Cache key.
+		 * @param  int    $delta  Signed amount.
+		 * @param  string $group  Cache group.
+		 * @return int|false False when the item does not exist or is not numeric.
+		 */
+		private function _adjust( $key, $delta, $group ) {
+			$persistent = $this->connected && ! $this->_is_non_persistent( $group );
+			$value      = $persistent ? $this->get( $key, $group, true, $found ) : $this->get( $key, $group, false, $found );
+			if ( ! $found || ! is_numeric( $value ) ) {
 				return false;
 			}
-			try {
-				$backend_key = $this->_key( $key, $group );
-				if ( 'redis' === $this->driver ) {
-					return $this->client->decrBy( $backend_key, $offset );
-				} else {
-					return $this->client->decrement( $backend_key, $offset );
+
+			$value  = max( 0, (int) $value + $delta );
+			$expire = 0;
+			if ( $persistent && 'redis' === $this->driver ) {
+				try {
+					$ttl    = $this->client->ttl( $this->_key( $key, $group ) );
+					$expire = is_int( $ttl ) && $ttl > 0 ? $ttl : 0;
+				} catch ( Exception $e ) {
+					$expire = 0;
 				}
-			} catch ( Exception $e ) {
-				return false;
 			}
+			$this->set( $key, $value, $group, $expire );
+			return $value;
 		}
 
 		/**
@@ -463,13 +495,10 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 			$missing = array();
 
 			foreach ( $keys as $key ) {
-				if ( ! $force ) {
-					$from_memory = $this->_get_from_memory( $key, $group );
-					if ( false !== $from_memory ) {
-						++$this->cache_hits;
-						$values[ $key ] = $from_memory;
-						continue;
-					}
+				if ( ! $force && $this->_memory_has( $key, $group ) ) {
+					++$this->cache_hits;
+					$values[ $key ] = $this->_get_from_memory( $key, $group );
+					continue;
 				}
 				$values[ $key ] = false;
 				$missing[]      = $key;
@@ -556,6 +585,7 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 					++$i;
 				}
 			} catch ( Exception $e ) {
+				$this->_leave_pipeline();
 				foreach ( $data as $key => $value ) {
 					$this->_store_in_memory( $key, $value, $group );
 					$results[ $key ] = true; // In-memory copy succeeded, as in set().
@@ -624,12 +654,28 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 					}
 				}
 			} catch ( Exception $e ) {
+				$this->_leave_pipeline();
 				foreach ( $keys as $key ) {
 					$results[ $key ] = false;
 				}
 			}
 
 			return $results;
+		}
+
+		/**
+		 * Abandon a half-built Redis pipeline so a persistent connection is not
+		 * left in pipeline mode for the next request.
+		 */
+		private function _leave_pipeline() {
+			if ( 'redis' !== $this->driver || ! $this->client ) {
+				return;
+			}
+			try {
+				$this->client->discard();
+			} catch ( Exception $e ) {
+				$this->connected = false; // Unrecoverable: fall back to in-memory only.
+			}
 		}
 
 		/**
@@ -820,6 +866,17 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		}
 
 		/**
+		 * Whether the local in-memory cache holds $key (including false/null values).
+		 *
+		 * @param  string $key   Cache key.
+		 * @param  string $group Group.
+		 * @return bool
+		 */
+		private function _memory_has( $key, $group ) {
+			return isset( $this->cache[ $group ] ) && array_key_exists( $key, $this->cache[ $group ] );
+		}
+
+		/**
 		 * Retrieve value from local in-memory cache.
 		 *
 		 * @param  string $key   Cache key.
@@ -827,7 +884,7 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 		 * @return mixed|false
 		 */
 		private function _get_from_memory( $key, $group ) {
-			if ( isset( $this->cache[ $group ][ $key ] ) ) {
+			if ( $this->_memory_has( $key, $group ) ) {
 				$val = $this->cache[ $group ][ $key ];
 				return is_object( $val ) ? clone $val : $val;
 			}

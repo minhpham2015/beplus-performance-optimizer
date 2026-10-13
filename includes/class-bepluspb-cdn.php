@@ -503,7 +503,7 @@ class BEPLUSPB_CDN {
 		self::$buffer_level = null;
 
 		if ( ! empty( $html ) ) {
-			$html = self::rewrite_html( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::rewrite_html( $html ), $html );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

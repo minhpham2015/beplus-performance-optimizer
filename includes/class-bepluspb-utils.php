@@ -16,6 +16,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_Utils {
 
+	/**
+	 * Return $result only when a string transform of $original succeeded.
+	 *
+	 * preg_replace()/preg_replace_callback() return null on PCRE failure
+	 * (backtrack/JIT limits on very large pages), and a later step fed that
+	 * null yields an empty string. Echoing either would send a blank page,
+	 * so fall back to the untouched input instead.
+	 *
+	 * @param  mixed  $result   Output of a transform.
+	 * @param  string $original Input given to that transform.
+	 * @return string
+	 */
+	public static function guard_transform( $result, $original ) {
+		if ( is_string( $result ) && ( '' !== $result || '' === $original ) ) {
+			return $result;
+		}
+		return $original;
+	}
+
 	// -------------------------------------------------------------------------
 	// JavaScript comment stripping
 	// -------------------------------------------------------------------------
