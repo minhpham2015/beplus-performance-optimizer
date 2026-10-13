@@ -72,7 +72,7 @@ class BEPLUSPB_HTML {
 			return;
 		}
 
-		if ( ! self::is_html_response() ) {
+		if ( ! self::is_html_response() || BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return;
 		}
 

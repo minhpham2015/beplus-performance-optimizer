@@ -276,9 +276,10 @@ location ~* \.(ico|jpg|jpeg|png|gif|webp|avif|svg|woff|woff2|ttf|otf|eot)$ {
     add_header Cache-Control "public, immutable";
 }
 
+# CSS/JS — 30 days (long-term immutable only if every URL is versioned)
 location ~* \.(css|js)$ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
+    expires 30d;
+    add_header Cache-Control "public";
 }
 
 # HTML — always revalidate

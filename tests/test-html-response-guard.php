@@ -16,6 +16,8 @@ function wp_is_xml_request() { return $GLOBALS['xml']; }
 function get_query_var( $k ) { return isset( $GLOBALS['q'][ $k ] ) ? $GLOBALS['q'][ $k ] : ''; }
 function wp_is_json_request() { return false; }
 function add_action() {}
+function is_customize_preview() { return ! empty( $GLOBALS['q']['customize'] ); }
+require dirname( __DIR__ ) . '/includes/class-bepluspb-utils.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-html.php';
 
 function run_case( $label, $q, $xml, $expect_buffer ) {
@@ -32,4 +34,9 @@ run_case( 'robots skipped', array( 'robots' => 1 ), false, false );
 run_case( 'xml request skipped', array(), true, false );
 run_case( 'sitemap skipped', array( 'sitemap' => 'posts' ), false, false );
 run_case( 'sitemap stylesheet skipped', array( 'sitemap-stylesheet' => 'sitemap' ), false, false );
-echo "PASS: HTML buffer guard (6 assertions)\n";
+run_case( 'customizer preview skipped', array( 'customize' => 1 ), false, false );
+$_GET['elementor-preview'] = '1';
+run_case( 'page-builder preview skipped', array(), false, false );
+unset( $_GET['elementor-preview'] );
+run_case( 'normal page buffered again', array(), false, true );
+echo "PASS: HTML buffer guard (9 assertions)\n";

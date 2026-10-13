@@ -351,7 +351,7 @@ class BEPLUSPB_UCSS {
 	 * @return bool
 	 */
 	private static function is_generation_allowed() {
-		if ( is_404() || is_search() || is_preview() || is_customize_preview() || is_user_logged_in() ) {
+		if ( is_404() || is_search() || is_preview() || is_customize_preview() || is_user_logged_in() || BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return false;
 		}
 

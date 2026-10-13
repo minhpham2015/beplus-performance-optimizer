@@ -95,6 +95,13 @@ class BEPLUSPB_CSS {
 	 * another plugin on top of ours.
 	 */
 	public static function buffer_start() {
+		self::$buffer_level = null;
+
+		// Page-builder editors, Customizer/post previews, AMP, REST/JSON, login.
+		if ( BEPLUSPB_Utils::is_buffer_excluded_request() ) {
+			return;
+		}
+
 		self::$buffer_level = ob_get_level();
 		ob_start();
 	}

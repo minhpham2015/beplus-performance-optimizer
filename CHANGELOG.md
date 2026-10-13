@@ -12,7 +12,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   superseded generations are removed), instead of being rebuilt on every page.
 - CDN WebP/AVIF swap: sibling-file lookups are memoized per request.
 
+### Changed
+- Admins: JS defer/delay now honours the same "administrators see the
+  untouched page" gate as the CSS/HTML/CDN steps (it used to still run, so an
+  admin's view matched neither visitors nor the raw site). Return true from the
+  new `bepluspb_optimize_for_admins` filter to preview what visitors get.
+
 ### Fixed
+- HTML minify, Remove Unused CSS and the CSS `wp_head` buffer now honour
+  `BEPLUSPB_Utils::is_buffer_excluded_request()` (page-builder editors/previews,
+  AMP, login, REST/JSON), which also now covers the Customizer preview.
+- `.htaccess` rules: PHP/HTML use `Header setIfEmpty` so an app-set
+  `Cache-Control` (e.g. `no-store`/`private`) is no longer replaced; CSS/JS get
+  `immutable` + 1 year only when the URL has `?ver=`/`?v=`/`?version=` (30 days
+  otherwise); feeds and `text/plain` (robots.txt) are no longer covered by the
+  1-month `ExpiresDefault`. Existing sites pick this up when rules are re-saved.
+- Cleanup: no longer removes core's `wp_filter_oembed_result` oEmbed
+  sanitization; "Remove Block CSS" is skipped on block themes.
 - Delay JS (advanced): `onload`/`onerror` interception no longer rewrites
   markup inside inline `<script>` strings/templates (it produced JS syntax
   errors); it now runs while inline bodies are still stashed.

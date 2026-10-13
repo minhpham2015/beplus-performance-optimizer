@@ -203,6 +203,11 @@ class BEPLUSPB_Utils {
 			return true;
 		}
 
+		// Customizer preview frame.
+		if ( function_exists( 'is_customize_preview' ) && is_customize_preview() ) {
+			return true;
+		}
+
 		// Login page.
 		if ( isset( $GLOBALS['pagenow'] ) && 'wp-login.php' === $GLOBALS['pagenow'] ) {
 			return true;

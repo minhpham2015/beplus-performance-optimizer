@@ -216,7 +216,8 @@ Default: off
 
 Dequeues `wp-block-library`, `wp-block-library-theme`, and `global-styles`
 stylesheets on the front-end. Disable if your theme or content depends on
-Gutenberg block styles.
+Gutenberg block styles. Automatically skipped on block (full-site-editing)
+themes, whose design is delivered through those stylesheets.
 
 **Disable WooCommerce Assets on Non-Shop Pages**
 Default: off
@@ -267,10 +268,15 @@ labelled block that is never duplicated:
 
 * **Gzip compression** (mod_deflate) for HTML, CSS, JS, JSON, SVG, and fonts.
 * **Brotli compression** (mod_brotli, Apache 2.4.26+) for the same types.
-* **Expires headers** (mod_expires): 1-year cache for static assets; no-cache
-  for HTML and API responses.
+* **Expires headers** (mod_expires): 1-year cache for images and fonts, 1 month
+  for CSS/JS; no-cache for HTML, feeds, plain text and API responses.
 * **Cache-Control headers** (mod_headers): `max-age=31536000, public, immutable`
-  for CSS, JS, images, and fonts.
+  for images and fonts, and for CSS/JS requested with a version query string
+  (`?ver=`, `?v=`, `?version=`); unversioned CSS/JS get 30 days. PHP/HTML get
+  `no-cache, must-revalidate` only when the application set no Cache-Control
+  of its own.
+* Rules are written when you save settings, so re-save the Advanced tab after
+  updating to refresh an existing block.
 
 Disabling this option or deactivating the plugin removes the injected block cleanly.
 
