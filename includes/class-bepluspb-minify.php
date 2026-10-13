@@ -256,7 +256,7 @@ class BEPLUSPB_Minify {
 			return false;
 		}
 
-		@chmod( $temp, 0644 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.chmod_chmod,WordPress.PHP.NoSilencedErrors.Discouraged
+		@chmod( $temp, 0644 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( ! @rename( $temp, $cache_file ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rename_rename
 			wp_delete_file( $temp );
 			return false;

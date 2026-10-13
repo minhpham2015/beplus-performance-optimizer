@@ -3,7 +3,10 @@
  * Native *_multiple / flush_group support in lib/object-cache.php against a
  * real Redis. Skips (exit 0) when redis-server or the phpredis extension is
  * missing. Run: php tests/test-object-cache-multi-ops.php
+ *
+ * @package Beplus_Performance_Booster
  */
+
 // phpcs:disable
 $bin = trim( (string) shell_exec( 'command -v redis-server 2>/dev/null' ) );
 if ( '' === $bin || ! class_exists( 'Redis' ) ) { echo "SKIP: redis-server/phpredis not available\n"; exit( 0 ); }

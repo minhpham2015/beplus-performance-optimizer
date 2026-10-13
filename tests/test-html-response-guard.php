@@ -2,7 +2,10 @@
 /**
  * HTML buffer must only open for HTML documents (not feeds/robots/XML/sitemaps).
  * Run: php -n tests/test-html-response-guard.php
+ *
+ * @package Beplus_Performance_Booster
  */
+
 // phpcs:disable
 define( 'ABSPATH', __DIR__ );
 $GLOBALS['q'] = array(); $GLOBALS['xml'] = false;
