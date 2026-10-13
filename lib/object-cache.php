@@ -299,7 +299,7 @@ if ( ! class_exists( 'WP_Object_Cache' ) ) :
 					if ( $expire ) {
 						$options['ex'] = (int) $expire;
 					}
-					$added   = (bool) $this->client->set( $backend_key, $payload, $options );
+					$added = (bool) $this->client->set( $backend_key, $payload, $options );
 				} else {
 					$added = (bool) $this->client->add( $backend_key, $payload, $expire );
 				}
