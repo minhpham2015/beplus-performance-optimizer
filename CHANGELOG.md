@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Performance
+- Inline all CSS: per-stylesheet result (url() rewrite + minify) is cached in
+  the cache dir (`bepluspb-inline-*.css`, keyed on path, URL, mtime and size;
+  superseded generations are removed), instead of being rebuilt on every page.
+- CDN WebP/AVIF swap: sibling-file lookups are memoized per request.
+
 ### Fixed
 - Delay JS (advanced): `onload`/`onerror` interception no longer rewrites
   markup inside inline `<script>` strings/templates (it produced JS syntax

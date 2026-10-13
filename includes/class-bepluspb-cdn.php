@@ -85,6 +85,14 @@ class BEPLUSPB_CDN {
 	private static $accepted_formats = null;
 
 	/**
+	 * Per-request memo of sibling_file_exists() results (path => bool), so a
+	 * page repeating the same image does not re-run realpath()/is_file().
+	 *
+	 * @var array<string,bool>
+	 */
+	private static $sibling_exists = array();
+
+	/**
 	 * The ob_get_level() value recorded immediately before we call ob_start().
 	 *
 	 * Stored so buffer_end() can verify it is consuming only the buffer it
@@ -136,6 +144,7 @@ class BEPLUSPB_CDN {
 		self::$excludes          = bepluspb_parse_exclude_list( $opts['cdn_exclude'] );
 		self::$webp_avif_enabled = ! empty( $opts['cdn_webp_avif'] );
 		self::$accepted_formats  = null; // Reset per-request cache; init() runs once per request.
+		self::$sibling_exists    = array();
 
 		$types = ! empty( $opts['cdn_file_types'] ) ? $opts['cdn_file_types'] : self::default_file_types();
 		$exts  = array_filter( array_map( 'trim', explode( ',', $types ) ) );
@@ -315,6 +324,21 @@ class BEPLUSPB_CDN {
 	 * @return bool
 	 */
 	private static function sibling_file_exists( $path ) {
+		if ( isset( self::$sibling_exists[ $path ] ) ) {
+			return self::$sibling_exists[ $path ];
+		}
+
+		self::$sibling_exists[ $path ] = self::check_sibling_file( $path );
+		return self::$sibling_exists[ $path ];
+	}
+
+	/**
+	 * Uncached filesystem check behind sibling_file_exists().
+	 *
+	 * @param  string $path URL path of the candidate sibling image.
+	 * @return bool
+	 */
+	private static function check_sibling_file( $path ) {
 		$relative = ltrim( $path, '/' );
 		if ( '' === $relative ) {
 			return false;
