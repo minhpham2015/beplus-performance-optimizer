@@ -333,11 +333,17 @@ function bepluspb_boot_frontend() {
 	}
 
 	BEPLUSPB_Minify::init( $opts );
-	BEPLUSPB_JS::init( $opts );
 
-	if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+	// Administrators see the untouched page so they can edit and debug it.
+	// Previously only the CSS/HTML/CDN steps honoured this while JS defer/delay
+	// still ran, so an admin's view matched neither visitors nor the raw site.
+	// Return true from this filter to preview exactly what visitors get.
+	$optimize_admins = (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+	if ( ! $optimize_admins && is_user_logged_in() && current_user_can( 'manage_options' ) ) {
 		return;
 	}
+
+	BEPLUSPB_JS::init( $opts );
 
 	BEPLUSPB_Cleanup::init( $opts );
 	BEPLUSPB_CSS::init( $opts );

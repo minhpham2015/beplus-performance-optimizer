@@ -72,7 +72,7 @@ class BEPLUSPB_HTML {
 			return;
 		}
 
-		if ( ! self::is_html_response() ) {
+		if ( ! self::is_html_response() || BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return;
 		}
 
@@ -125,20 +125,22 @@ class BEPLUSPB_HTML {
 
 		$opts = bepluspb_get_options();
 
+		// Each step is guarded: a PCRE failure keeps the previous HTML instead
+		// of blanking the page.
 		if ( $opts['html_remove_js_comments'] ) {
-			$html = self::strip_inline_js_comments( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::strip_inline_js_comments( $html ), $html );
 		}
 
 		if ( $opts['html_remove_css_comments'] ) {
-			$html = self::strip_inline_css_comments( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::strip_inline_css_comments( $html ), $html );
 		}
 
 		if ( $opts['html_remove_comments'] ) {
-			$html = self::strip_html_comments( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::strip_html_comments( $html ), $html );
 		}
 
 		if ( $opts['html_minify'] ) {
-			$html = self::minify( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::minify( $html ), $html );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

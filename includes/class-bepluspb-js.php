@@ -120,7 +120,17 @@ class BEPLUSPB_JS {
 			return $tag;
 		}
 
-		return str_replace( ' src=', ' defer src=', $tag );
+		// An inline script attached with wp_add_inline_script( ..., 'after' )
+		// runs immediately; deferring the file it depends on would make it
+		// throw "X is not defined".
+		if ( function_exists( 'wp_scripts' ) && wp_scripts()->get_data( $handle, 'after' ) ) {
+			return $tag;
+		}
+
+		// Touch only the first <script ... src=> so inline before/after blocks
+		// that happen to contain " src=" are left alone.
+		$deferred = preg_replace( '/(<script\b[^>]*?)\ssrc=/i', '$1 defer src=', $tag, 1 );
+		return is_string( $deferred ) ? $deferred : $tag;
 	}
 
 	// =========================================================================
@@ -292,6 +302,16 @@ class BEPLUSPB_JS {
 	 * @return string Rewritten HTML (or original if not applicable).
 	 */
 	public static function advanced_rewrite( $buffer ) {
+		return BEPLUSPB_Utils::guard_transform( self::rewrite_scripts( $buffer ), $buffer );
+	}
+
+	/**
+	 * Do the actual rewrite for advanced_rewrite() (which guards the result).
+	 *
+	 * @param  string $buffer The full HTML page output.
+	 * @return string
+	 */
+	private static function rewrite_scripts( $buffer ) {
 		// Only rewrite text/html responses.
 		foreach ( headers_list() as $header ) {
 			if ( preg_match( '/^content-type/i', $header )
@@ -478,19 +498,10 @@ class BEPLUSPB_JS {
 		);
 
 		// ------------------------------------------------------------------
-		// Pass 3 — restore stashed inline-script content.
-		// ------------------------------------------------------------------
-		$buffer = preg_replace_callback(
-			'/' . preg_quote( $delimiter, '/' ) . '\[(\d+)\]' . preg_quote( $delimiter, '/' ) . '/',
-			function ( $m ) use ( &$replacements ) {
-				return $replacements[ (int) $m[1] ];
-			},
-			$buffer
-		);
-
-		// ------------------------------------------------------------------
-		// Pass 4 — intercept onload / onerror inline handlers on html, body,
+		// Pass 3 — intercept onload / onerror inline handlers on html, body,
 		// img, and iframe elements so the runtime can replay them correctly.
+		// Runs while inline-script bodies are still stashed so markup inside JS
+		// strings/templates is never rewritten.
 		// ------------------------------------------------------------------
 		$event_name = 'fpo:element-loaded';
 		$buffer     = preg_replace_callback(
@@ -518,6 +529,17 @@ class BEPLUSPB_JS {
 				);
 
 				return $result;
+			},
+			$buffer
+		);
+
+		// ------------------------------------------------------------------
+		// Pass 4 — restore stashed inline-script content.
+		// ------------------------------------------------------------------
+		$buffer = preg_replace_callback(
+			'/' . preg_quote( $delimiter, '/' ) . '\[(\d+)\]' . preg_quote( $delimiter, '/' ) . '/',
+			function ( $m ) use ( &$replacements ) {
+				return $replacements[ (int) $m[1] ];
 			},
 			$buffer
 		);

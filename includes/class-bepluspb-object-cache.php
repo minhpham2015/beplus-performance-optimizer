@@ -71,7 +71,7 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/** Exact machine-readable identity of the bundled drop-in. */
-	const DROPIN_BUILD_ID = 'bepluspb-1.1.13-20261013';
+	const DROPIN_BUILD_ID = 'bepluspb-1.1.13-20261014';
 
 	/**
 	 * Every build id this plugin has ever shipped in lib/object-cache.php.
@@ -83,7 +83,7 @@ class BEPLUSPB_Object_Cache {
 	 * referencing that class's constant here would fatal during uninstall.
 	 * Append new ids on future releases; never remove old ones.
 	 */
-	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.13-20261008', 'bepluspb-1.1.12-20261007', 'bepluspb-1.1.12-20260930' );
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.13-20261013', 'bepluspb-1.1.13-20261008', 'bepluspb-1.1.12-20261007', 'bepluspb-1.1.12-20260930' );
 
 	/** Exact hashes of historical Beplus drop-ins shipped before build IDs. */
 	const KNOWN_LEGACY_DROPIN_HASHES = array(

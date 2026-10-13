@@ -45,4 +45,27 @@ t_ok( 1 === count( $bkey ), 'seeded key present' );
 $probe->set( $bkey[0], serialize( new ArrayObject( array( 1 ) ) ) );
 $g = wp_cache_get_multiple( array( 'b' ), 'grp', true );
 t_ok( is_object( $g['b'] ) && ! ( $g['b'] instanceof ArrayObject ), 'allowed_classes => false enforced in get_multiple' );
-echo "PASS: object-cache multi-ops (10 assertions)\n";
+// --- add(): atomic across processes ----------------------------------------
+$probe->set( ( new ReflectionMethod( $wp_object_cache, '_key' ) )->invoke( $wp_object_cache, 'lock', 'grp' ), serialize( 'other-process' ) );
+t_ok( false === wp_cache_add( 'lock', 'mine', 'grp' ), 'add() does not overwrite a value another process wrote' );
+t_ok( 'other-process' === wp_cache_get( 'lock', 'grp', true ), 'backend value untouched by failed add()' );
+t_ok( true === wp_cache_add( 'fresh', 'v', 'grp', 60 ) && false === wp_cache_add( 'fresh', 'v2', 'grp' ), 'add() succeeds once, then fails' );
+
+// --- incr/decr work on serialized values and keep TTL ----------------------
+wp_cache_set( 'n', 5, 'grp', 120 );
+t_ok( 8 === wp_cache_incr( 'n', 3, 'grp' ), 'incr() on stored integer' );
+wp_cache_flush_runtime();
+t_ok( 8 === wp_cache_get( 'n', 'grp' ), 'incr() result persisted in Redis (readable via get)' );
+t_ok( 3 === wp_cache_decr( 'n', 5, 'grp' ) && 0 === wp_cache_decr( 'n', 99, 'grp' ), 'decr() works and floors at 0' );
+t_ok( false === wp_cache_incr( 'missing', 1, 'grp' ), 'incr() on a missing key returns false and creates nothing' );
+$nk = $probe->keys( '*:grp:n' );
+t_ok( 1 === count( $nk ) && $probe->ttl( $nk[0] ) > 0, 'TTL preserved across incr/decr' );
+t_ok( 0 === count( $probe->keys( '*:grp:missing' ) ), 'no raw key created for a missing counter' );
+
+// --- cached false is a hit, not a miss -------------------------------------
+wp_cache_set( 'f', false, 'grp' );
+$hits = $wp_object_cache->cache_hits;
+$val  = wp_cache_get( 'f', 'grp', false, $found );
+t_ok( false === $val && true === $found && $wp_object_cache->cache_hits === $hits + 1, 'cached false is served from memory as a hit' );
+
+echo "PASS: object-cache multi-ops (19 assertions)\n";

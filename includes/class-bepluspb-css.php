@@ -95,6 +95,13 @@ class BEPLUSPB_CSS {
 	 * another plugin on top of ours.
 	 */
 	public static function buffer_start() {
+		self::$buffer_level = null;
+
+		// Page-builder editors, Customizer/post previews, AMP, REST/JSON, login.
+		if ( BEPLUSPB_Utils::is_buffer_excluded_request() ) {
+			return;
+		}
+
 		self::$buffer_level = ob_get_level();
 		ob_start();
 	}
@@ -121,16 +128,16 @@ class BEPLUSPB_CSS {
 
 		if ( $opts['css_inline_all'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = self::inline_all_css( $html, $exclude );
+			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude ), $html );
 		}
 
 		if ( $opts['css_non_blocking'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = self::make_non_blocking( $html, $exclude );
+			$html    = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude ), $html );
 		}
 
 		if ( $opts['css_minify'] ) {
-			$html = self::minify_inline_styles( $html );
+			$html = BEPLUSPB_Utils::guard_transform( self::minify_inline_styles( $html ), $html );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -171,14 +178,10 @@ class BEPLUSPB_CSS {
 					return $tag;
 				}
 
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-				$content = @file_get_contents( $path );
-				if ( false === $content || '' === trim( $content ) ) {
+				$minified = self::get_inline_css( $path, $href );
+				if ( null === $minified ) {
 					return $tag;
 				}
-
-				$content  = self::rewrite_relative_urls( $content, $href );
-				$minified = BEPLUSPB_Minify::minify_css( $content );
 
 				$media = '';
 				if ( preg_match( '/\bmedia=[\'"]([^\'"]*)[\'"]/', $tag, $media_m ) ) {
@@ -189,6 +192,58 @@ class BEPLUSPB_CSS {
 			},
 			$html
 		);
+	}
+
+	/**
+	 * Minified, URL-rewritten CSS for one stylesheet, cached on disk.
+	 *
+	 * Inlining runs on every page view, so the expensive part (url() rewriting
+	 * and minification) is cached per stylesheet, keyed on its path, public URL
+	 * (the rewrite depends on it), mtime and size. Superseded generations of the
+	 * same stylesheet are deleted when a new one is written.
+	 *
+	 * @param  string $path Absolute filesystem path of the stylesheet.
+	 * @param  string $href Public URL the <link> pointed at.
+	 * @return string|null Minified CSS, or null when the file is empty/unreadable.
+	 */
+	private static function get_inline_css( $path, $href ) {
+		clearstatcache( true, $path );
+		$mtime = @filemtime( $path );
+		$size  = @filesize( $path );
+
+		$cache_file = null;
+		$prefix     = '';
+		$name       = '';
+		if ( false !== $mtime && false !== $size && $size > 0 ) {
+			$prefix     = 'bepluspb-inline-' . substr( md5( $path . '|' . strtok( $href, '?' ) ), 0, 10 ) . '-';
+			$name       = $prefix . substr( md5( $mtime . '|' . $size ), 0, 12 ) . '.css';
+			$cache_file = BEPLUSPB_CACHE_DIR . $name;
+
+			if ( is_file( $cache_file ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+				$cached = @file_get_contents( $cache_file );
+				if ( false !== $cached && '' !== $cached ) {
+					return $cached;
+				}
+			}
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$content = @file_get_contents( $path );
+		if ( false === $content || '' === trim( $content ) ) {
+			return null;
+		}
+
+		$minified = BEPLUSPB_Minify::minify_css( self::rewrite_relative_urls( $content, $href ) );
+
+		if ( null !== $cache_file
+			&& BEPLUSPB_Minify::ensure_cache_dir()
+			&& BEPLUSPB_Minify::write_cache_file_atomic( $cache_file, $minified )
+		) {
+			BEPLUSPB_Minify::delete_stale_variants( $prefix, 'css', $name );
+		}
+
+		return $minified;
 	}
 
 	// -------------------------------------------------------------------------

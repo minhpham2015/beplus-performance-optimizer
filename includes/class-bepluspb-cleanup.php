@@ -105,7 +105,6 @@ class BEPLUSPB_Cleanup {
 		remove_action( 'wp_head', 'wp_oembed_add_discovery_links' );
 		remove_action( 'wp_head', 'wp_oembed_add_host_js' );
 		remove_action( 'wp_head', 'rest_output_link_wp_head', 10 );
-		remove_filter( 'oembed_dataparse', 'wp_filter_oembed_result', 10 );
 
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'dequeue_wp_embed' ) );
 	}
@@ -125,6 +124,12 @@ class BEPLUSPB_Cleanup {
 	 * Register the dequeue callback for Gutenberg block-library stylesheets.
 	 */
 	private static function remove_block_css() {
+		// Block themes render their whole design through global-styles and the
+		// block library; dequeuing them would strip the theme's styling.
+		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
+			return;
+		}
+
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'dequeue_block_styles' ), 100 );
 	}
 

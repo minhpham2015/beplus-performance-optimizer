@@ -7,6 +7,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Performance
+- Inline all CSS: per-stylesheet result (url() rewrite + minify) is cached in
+  the cache dir (`bepluspb-inline-*.css`, keyed on path, URL, mtime and size;
+  superseded generations are removed), instead of being rebuilt on every page.
+- CDN WebP/AVIF swap: sibling-file lookups are memoized per request.
+
+### Changed
+- Admins: JS defer/delay now honours the same "administrators see the
+  untouched page" gate as the CSS/HTML/CDN steps (it used to still run, so an
+  admin's view matched neither visitors nor the raw site). Return true from the
+  new `bepluspb_optimize_for_admins` filter to preview what visitors get.
+
+### Fixed
+- HTML minify, Remove Unused CSS and the CSS `wp_head` buffer now honour
+  `BEPLUSPB_Utils::is_buffer_excluded_request()` (page-builder editors/previews,
+  AMP, login, REST/JSON), which also now covers the Customizer preview.
+- `.htaccess` rules: PHP/HTML use `Header setIfEmpty` so an app-set
+  `Cache-Control` (e.g. `no-store`/`private`) is no longer replaced; CSS/JS get
+  `immutable` + 1 year only when the URL has `?ver=`/`?v=`/`?version=` (30 days
+  otherwise); feeds and `text/plain` (robots.txt) are no longer covered by the
+  1-month `ExpiresDefault`. Existing sites pick this up when rules are re-saved.
+- Cleanup: no longer removes core's `wp_filter_oembed_result` oEmbed
+  sanitization; "Remove Block CSS" is skipped on block themes.
+- Delay JS (advanced): `onload`/`onerror` interception no longer rewrites
+  markup inside inline `<script>` strings/templates (it produced JS syntax
+  errors); it now runs while inline bodies are still stashed.
+- HTML, CSS, CDN and Delay JS output transforms fall back to the untouched
+  HTML when a regex fails (PCRE backtrack/JIT limit on very large pages)
+  instead of sending a blank page (`BEPLUSPB_Utils::guard_transform()`).
+- Remove Unused CSS: the file-cap directory scan runs only when a cache file
+  actually has to be (re)built, not on every page view; cached used-only CSS
+  is no longer served to logged-in users (it is built from the anonymous view).
+- Defer JS: skipped for handles with inline `after` code (would run before the
+  deferred file), and only the real `<script ... src=>` is touched.
+- Object Cache drop-in: `add()` is atomic on the backend (`SET NX` /
+  Memcached `add`) so it can't overwrite a newer value from another process;
+  `incr()`/`decr()` now work on the serialized values this drop-in stores
+  (the old native INCRBY always failed on them), keep the Redis TTL and floor
+  at 0; cached `false` values are cache hits; a failed Redis pipeline is
+  discarded so a persistent connection isn't left in pipeline mode. Build id is
+  now `bepluspb-1.1.13-20261014` (previous ids stay recognised).
+
+### Performance
 - Minify: cache key is now path + mtime + size, so a cache hit no longer
   reads and hashes every enqueued CSS/JS file on each request.
 - Minify: logged-in visitors who aren't served cached assets return before any

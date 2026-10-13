@@ -175,6 +175,12 @@ class BEPLUSPB_UCSS {
 	 * @return string Possibly replaced URL.
 	 */
 	public static function maybe_serve_cached( $src, $handle ) {
+		// Used-only CSS is built from the anonymous view of a page, so it can
+		// lack selectors that only logged-in markup uses.
+		if ( is_user_logged_in() ) {
+			return $src;
+		}
+
 		if ( BEPLUSPB_Minify::is_css_file_excluded( $src ) ) {
 			return $src;
 		}
@@ -345,7 +351,7 @@ class BEPLUSPB_UCSS {
 	 * @return bool
 	 */
 	private static function is_generation_allowed() {
-		if ( is_404() || is_search() || is_preview() || is_customize_preview() || is_user_logged_in() ) {
+		if ( is_404() || is_search() || is_preview() || is_customize_preview() || is_user_logged_in() || BEPLUSPB_Utils::is_buffer_excluded_request() ) {
 			return false;
 		}
 
@@ -424,8 +430,7 @@ class BEPLUSPB_UCSS {
 		 * @param int $max Default 2000.
 		 */
 		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
-		$existing  = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
-		$existing  = is_array( $existing ) ? count( $existing ) : 0;
+		$existing  = null; // Counted lazily: only pages needing a (re)build touch the directory.
 
 		foreach ( self::$seen_styles as $handle => $path ) {
 			$cache_file = self::cache_path( $handle, $path );
@@ -433,8 +438,14 @@ class BEPLUSPB_UCSS {
 				continue; // Already fresh.
 			}
 
-			if ( $max_files > 0 && $existing >= $max_files ) {
-				break; // Cache is full; keep serving the original stylesheet.
+			if ( $max_files > 0 ) {
+				if ( null === $existing ) {
+					$files    = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
+					$existing = is_array( $files ) ? count( $files ) : 0;
+				}
+				if ( $existing >= $max_files ) {
+					break; // Cache is full; keep serving the original stylesheet.
+				}
 			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
@@ -446,7 +457,7 @@ class BEPLUSPB_UCSS {
 			$filtered = self::filter_css( $css, $used, $safelist );
 			$filtered = BEPLUSPB_Minify::minify_css( $filtered );
 
-			if ( self::write_deduplicated_cache( $cache_file, $filtered ) ) {
+			if ( self::write_deduplicated_cache( $cache_file, $filtered ) && null !== $existing ) {
 				++$existing;
 			}
 		}

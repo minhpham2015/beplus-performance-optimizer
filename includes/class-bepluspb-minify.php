@@ -243,7 +243,7 @@ class BEPLUSPB_Minify {
 	 * @param  string $content    Minified content.
 	 * @return bool
 	 */
-	private static function write_cache_file_atomic( $cache_file, $content ) {
+	public static function write_cache_file_atomic( $cache_file, $content ) {
 		$dir  = dirname( $cache_file ) . '/';
 		$temp = tempnam( $dir, '.bepluspb-tmp-' );
 		if ( false === $temp ) {
@@ -273,7 +273,7 @@ class BEPLUSPB_Minify {
 	 * @param string $ext     'css' or 'js'.
 	 * @param string $current Filename of the generation to keep.
 	 */
-	private static function delete_stale_variants( $prefix, $ext, $current ) {
+	public static function delete_stale_variants( $prefix, $ext, $current ) {
 		$files = glob( BEPLUSPB_CACHE_DIR . $prefix . '*.' . $ext );
 		if ( ! is_array( $files ) ) {
 			return;

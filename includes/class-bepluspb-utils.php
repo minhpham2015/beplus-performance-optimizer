@@ -16,6 +16,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_Utils {
 
+	/**
+	 * Return $result only when a string transform of $original succeeded.
+	 *
+	 * The preg_replace() family returns null on PCRE failure
+	 * (backtrack/JIT limits on very large pages), and a later step fed that
+	 * null yields an empty string. Echoing either would send a blank page,
+	 * so fall back to the untouched input instead.
+	 *
+	 * @param  mixed  $result   Output of a transform.
+	 * @param  string $original Input given to that transform.
+	 * @return string
+	 */
+	public static function guard_transform( $result, $original ) {
+		if ( is_string( $result ) && ( '' !== $result || '' === $original ) ) {
+			return $result;
+		}
+		return $original;
+	}
+
 	// -------------------------------------------------------------------------
 	// JavaScript comment stripping
 	// -------------------------------------------------------------------------
@@ -181,6 +200,11 @@ class BEPLUSPB_Utils {
 			return true;
 		}
 		if ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) {
+			return true;
+		}
+
+		// Customizer preview frame.
+		if ( function_exists( 'is_customize_preview' ) && is_customize_preview() ) {
 			return true;
 		}
 

@@ -455,7 +455,7 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 							<input type="checkbox" id="bepluspb_remove_block_css"
 								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[remove_block_css]" value="1"
 								<?php checked( $opts['remove_block_css'], 1 ); ?>>
-							<span class="bepluspb-check-text"><?php esc_html_e( 'Dequeue wp-block-library, wp-block-library-theme, and global-styles on the front-end. Disable if your theme or content relies on Gutenberg block styles.', 'beplus-performance-booster' ); ?></span>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Dequeue wp-block-library, wp-block-library-theme, and global-styles on the front-end. Disable if your theme or content relies on Gutenberg block styles. Skipped automatically on block (FSE) themes.', 'beplus-performance-booster' ); ?></span>
 						</label>
 					</div>
 				</div>

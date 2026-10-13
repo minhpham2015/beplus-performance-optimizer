@@ -28,6 +28,7 @@ function includes_url() { return 'http://example.test/wp-includes/'; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function add_filter() {} function add_action() {}
 function wp_delete_file( $f ) { @unlink( $f ); } function delete_transient() {}
+function esc_attr( $s ) { return $s; } function esc_url( $s ) { return $s; }
 function sanitize_file_name( $n ) { return preg_replace( '/[^A-Za-z0-9._-]/', '-', $n ); }
 function wp_upload_dir() { return array( 'baseurl' => 'http://example.test/wp-content/uploads' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
@@ -43,6 +44,7 @@ function t_ok( $c, $m ) { global $n; ++$n; if ( ! $c ) { fwrite( STDERR, "FAIL: 
 require dirname( __DIR__ ) . '/includes/class-bepluspb-utils.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-minify.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-cdn.php';
+require dirname( __DIR__ ) . '/includes/class-bepluspb-css.php';
 
 // --- Fixtures --------------------------------------------------------------
 file_put_contents( "$root/wp/wp-config.php", "<?php define('DB_PASSWORD','TOP-SECRET');" );
@@ -112,6 +114,20 @@ t_ok( $u . 'ok.min.css?ver=1' === BEPLUSPB_Minify::maybe_minify_css( $u . 'ok.mi
 mkdir( "$root/wp/wp-content/themes/t/vendor.min.js-assets", 0777, true ); file_put_contents( "$root/wp/wp-content/themes/t/vendor.min.js-assets/plain.js", "var a = 1; // c\n" );
 t_ok( false !== strpos( BEPLUSPB_Minify::maybe_minify_js( $u . 'vendor.min.js-assets/plain.js', 'plain' ), '/bepluspb-cache/plain-' ), 'directory containing .min.js no longer skips minification' );
 
+// --- Inline all CSS: cached per stylesheet, invalidated on change -----------
+$link = '<link rel="stylesheet" href="' . $u . 'inl.css?ver=1" media="screen">';
+$icss = "$root/wp/wp-content/themes/t/inl.css";
+file_put_contents( $icss, ".a { background: url(img/x.png) ; }\n/* c */" );
+$o1 = BEPLUSPB_CSS::inline_all_css( $link );
+t_ok( 0 === strpos( $o1, '<style media="screen">' ) && false !== strpos( $o1, 'url("' . $u . 'img/x.png")' ) && false === strpos( $o1, '/* c */' ), 'inline_all_css rewrites url() and minifies: ' . $o1 );
+t_ok( 1 === count( glob( BEPLUSPB_CACHE_DIR . 'bepluspb-inline-*.css' ) ), 'inline CSS cached on disk' );
+$cf = glob( BEPLUSPB_CACHE_DIR . 'bepluspb-inline-*.css' )[0]; file_put_contents( $cf, '.cached-marker{}' );
+t_ok( false !== strpos( BEPLUSPB_CSS::inline_all_css( $link ), 'cached-marker' ), 'second call is served from the cache file' );
+file_put_contents( $icss, ".b { color: red }" ); touch( $icss, time() + 10 );
+$o3 = BEPLUSPB_CSS::inline_all_css( $link );
+t_ok( false !== strpos( $o3, '.b{color:red}' ) && false === strpos( $o3, 'cached-marker' ), 'changed source regenerates: ' . $o3 );
+t_ok( 1 === count( glob( BEPLUSPB_CACHE_DIR . 'bepluspb-inline-*.css' ) ), 'superseded inline generation removed' );
+
 // --- CDN -------------------------------------------------------------------
 BEPLUSPB_CDN::init( array( 'cdn_enabled' => 1, 'cdn_url' => 'cdn.example.net', 'cdn_exclude' => "skip-me\n", 'cdn_file_types' => '', 'cdn_webp_avif' => 0 ) );
 t_ok( 'https://cdn.example.net/wp-content/uploads/2026/photo.jpg?x=1' === BEPLUSPB_CDN::rewrite_url( 'http://example.test/wp-content/uploads/2026/photo.jpg?x=1' ), 'local asset rewritten to CDN, query kept' );
@@ -131,6 +147,14 @@ cdn_with_accept( 'image/avif,image/webp,*/*' ); t_ok( substr( BEPLUSPB_CDN::rewr
 cdn_with_accept( 'image/webp,*/*' );             t_ok( substr( BEPLUSPB_CDN::rewrite_url( $pj ), -10 ) === 'photo.webp', 'WebP when only WebP accepted' );
 cdn_with_accept( 'text/html' );                  t_ok( substr( BEPLUSPB_CDN::rewrite_url( $pj ), -9 ) === 'photo.jpg', 'no swap when browser does not accept modern formats' );
 cdn_with_accept( 'image/avif,image/webp' );      t_ok( substr( BEPLUSPB_CDN::rewrite_url( $lj ), -10 ) === 'lonely.jpg', 'no swap when sibling file does not exist' );
+
+// Sibling lookups are memoized per request (reset by init()).
+$wp_webp = "$root/wp/wp-content/uploads/2026/photo.webp";
+cdn_with_accept( 'image/webp' ); BEPLUSPB_CDN::rewrite_url( $pj ); rename( $wp_webp, "$wp_webp.bak" );
+t_ok( substr( BEPLUSPB_CDN::rewrite_url( $pj ), -10 ) === 'photo.webp', 'sibling check result reused within a request' );
+cdn_with_accept( 'image/webp' );
+t_ok( substr( BEPLUSPB_CDN::rewrite_url( $pj ), -9 ) === 'photo.jpg', 'memo reset on next init(): file removal noticed' );
+rename( "$wp_webp.bak", $wp_webp );
 
 // Accept-dependent output must be declared to shared caches.
 $cdn_src = file_get_contents( __DIR__ . '/../includes/class-bepluspb-cdn.php' );
