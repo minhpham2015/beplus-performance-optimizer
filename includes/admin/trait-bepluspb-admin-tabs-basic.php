@@ -271,6 +271,7 @@ else :
 								<?php checked( $opts['js_defer'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Add the defer attribute to non-excluded script tags so they are fetched in parallel and executed after HTML parsing. jQuery and jquery-migrate are always protected.', 'beplus-performance-booster' ); ?></span>
 						</label>
+						<p class="description"><?php esc_html_e( 'Safe to use together with Delay JS Execution. Scripts that are delayed ignore defer (they wait for the first interaction instead), so Defer only affects scripts that Delay does not handle, such as excluded scripts.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -286,6 +287,7 @@ else :
 								<?php checked( $opts['js_delay'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Delay all non-excluded scripts until the first user interaction (mousemove, click, scroll, keydown, touch) or JS Release Delay (ms)', 'beplus-performance-booster' ); ?></span>
 						</label>
+						<p class="description"><?php esc_html_e( 'Gives the biggest gain for PageSpeed/TBT. Can be combined with Defer and Minify JS. Start with Simple mode, then test menus, sliders, forms and checkout, and add any script that breaks to the exclude list.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
