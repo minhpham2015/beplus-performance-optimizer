@@ -26,7 +26,7 @@ function home_url() { return 'http://example.test'; }
 function content_url() { return 'http://example.test/wp-content'; }
 function includes_url() { return 'http://example.test/wp-includes/'; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
-function add_filter() {} function add_action() {}
+function add_filter() {} function add_action() {} function do_action() {}
 function wp_delete_file( $f ) { @unlink( $f ); } function delete_transient() {}
 function esc_attr( $s ) { return $s; } function esc_url( $s ) { return $s; }
 function sanitize_file_name( $n ) { return preg_replace( '/[^A-Za-z0-9._-]/', '-', $n ); }

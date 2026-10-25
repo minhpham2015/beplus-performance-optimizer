@@ -307,6 +307,19 @@ jobs:
             exit 1
           fi
 
+      - name: Page Cache must stay fail-open, host-allowlisted and guarded
+        run: |
+          engine=lib/class-bepluspb-page-cache-engine.php
+          cls=includes/class-bepluspb-page-cache.php
+          if ! grep -Fq 'CONFIG_GUARD = "<?php exit; ?>\n"' "$engine" || \
+             ! grep -Fq 'in_array( $host, $cfg['"'"'hosts'"'"'], true )' "$engine" || \
+             ! grep -Fq 'is_our_dropin( $dst )' "$cls" || \
+             ! grep -Fq 'catch ( \\Throwable' "$cls" || \
+             grep -Eq "WP_CACHE'[^)]*file_put_contents|wp-config\.php'?[^;]*file_put_contents" "$cls"; then
+            echo "::error::Page Cache invariants broken (CLAUDE.md rule #8): guarded config, Host allowlist, foreign drop-in protection, fail-open stub, and no wp-config.php editing."
+            exit 1
+          fi
+
       - name: Drop-in backup directory must stay web-denied
         run: |
           if ! grep -q "protect_backup_dir" includes/class-bepluspb-dropin-workflow.php; then

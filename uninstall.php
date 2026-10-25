@@ -53,6 +53,29 @@ if ( file_exists( $bepluspb_oc_class ) ) {
 }
 
 // ---------------------------------------------------------------------------
+// 2c. Remove the Page Cache drop-in, config, schedule and stored pages
+// ---------------------------------------------------------------------------
+
+$bepluspb_pc_class = BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php';
+if ( file_exists( $bepluspb_pc_class ) ) {
+	if ( ! defined( 'BEPLUSPB_OPTIONS_KEY' ) ) {
+		define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
+	}
+	require_once $bepluspb_pc_class;
+	BEPLUSPB_Page_Cache::shutdown();
+	// shutdown() empties the cache; remove the now-empty root and its protection files.
+	$bepluspb_pc_root = BEPLUSPB_Page_Cache_Engine::cache_root();
+	foreach ( array( 'index.php', '.htaccess' ) as $bepluspb_pc_support ) {
+		if ( file_exists( $bepluspb_pc_root . '/' . $bepluspb_pc_support ) ) {
+			wp_delete_file( $bepluspb_pc_root . '/' . $bepluspb_pc_support );
+		}
+	}
+	if ( is_dir( $bepluspb_pc_root ) ) {
+		@rmdir( $bepluspb_pc_root ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir -- only succeeds when empty.
+	}
+}
+
+// ---------------------------------------------------------------------------
 // 3. Clear the CSS/JS minification cache directory
 // ---------------------------------------------------------------------------
 

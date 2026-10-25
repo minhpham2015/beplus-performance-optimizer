@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Page Cache** (opt-in, Cache Files tab): anonymous visitors get a stored
+  static HTML copy of public pages without loading the theme or querying the
+  database. Served from a tiny `wp-content/advanced-cache.php` stub that loads
+  `lib/class-bepluspb-page-cache-engine.php` (needs `define( 'WP_CACHE', true )`
+  in wp-config.php, which the plugin never edits), or from the plugin file
+  itself when the drop-in is unavailable or owned by another plugin. Stored under
+  `wp-content/cache/bepluspb-pages/<host>/<path>/index[-s][-avif|-webp].html`.
+  Config lives in the guarded `wp-content/.bepluspb_pc.php` (same
+  `<?php exit; ?>` pattern as the Object Cache config). Fails open everywhere:
+  a missing/throwing engine or unreadable config just renders the page normally.
+- Page Cache bypasses logged-in users, WooCommerce cart/session, comment-author
+  and password-post cookies (plus a user list), POST/AJAX/REST/cron, HTTP auth,
+  non-allowlisted `Host` headers, any query string other than tracking
+  parameters (`utm_*`, `fbclid`, `gclid`…), search/404/feeds/previews/embeds,
+  `DONOTCACHEPAGE`, responses that set cookies or send `no-cache`/`private`,
+  the built-in cart/checkout/my-account paths, `cache_exclude_pages` patterns
+  and the per-post "disable cache" box. Mixed-case URLs are refused so one post
+  cannot be stored under unbounded case permutations.
+- Page Cache invalidation (CLAUDE.md hard rule #7), registered from
+  `plugins_loaded`: editing a published post purges it plus the home page, posts
+  page, archives, term, author and date pages (with pagination); publish /
+  unpublish / trash / delete, menus, widgets, theme or Customizer changes,
+  terms, plugin (de)activation and updates, site-wide options, and any save of
+  these settings purge everything; approved comments and WooCommerce stock
+  changes purge the affected product/post. A daily cron removes expired files.
+  Filters: `bepluspb_page_cache_cacheable`, `bepluspb_page_cache_store`,
+  `bepluspb_page_cache_purge_all_on_post_change`,
+  `bepluspb_page_cache_post_urls`; actions: `bepluspb_page_cache_purge_all`,
+  `bepluspb_page_cache_purge_url`.
+- "Purge ALL Cache" now also empties the page cache (new `page_cache` layer in
+  the result report).
+
+### Fixed
+- `bepluspb_register_invalidation_hooks()` was defined but never hooked, so the
+  Remove Unused CSS cache was not purged on `save_post`, `switch_theme`, etc.
+  (the v1.0.6 fix never took effect). It is now registered on `plugins_loaded`.
+- Clearing the CSS/JS/UCSS cache, or regenerating a minified file after its
+  source changed, now fires `bepluspb_assets_cache_cleared` so stored pages that
+  still link the deleted files are dropped instead of loading 404 assets.
+
 ### Performance
 - Inline all CSS: per-stylesheet result (url() rewrite + minify) is cached in
   the cache dir (`bepluspb-inline-*.css`, keyed on path, URL, mtime and size;

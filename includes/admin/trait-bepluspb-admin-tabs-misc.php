@@ -201,7 +201,7 @@ trait BEPLUSPB_Admin_Tabs_Misc {
 							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cache_exclude_pages]"
 							rows="6" class="large-text code"><?php echo esc_textarea( $opts['cache_exclude_pages'] ); ?></textarea>
 						<p class="description">
-							<?php esc_html_e( 'Pages whose URL contains any of these strings will be served original (un-cached) CSS/JS files.', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Pages whose URL contains any of these strings are served original (un-cached) CSS/JS files and are never stored by the Page Cache.', 'beplus-performance-booster' ); ?><br>
 							<?php esc_html_e( 'Examples:', 'beplus-performance-booster' ); ?>
 							<code>/checkout/</code> &nbsp; <code>/my-account/</code> &nbsp; <code>/cart/</code>
 						</p>

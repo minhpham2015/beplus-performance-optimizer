@@ -240,12 +240,15 @@ trait BEPLUSPB_Admin_Actions {
 				'message' => ! empty( $raw['success'] ) ? __( 'Cloudflare cache purged.', 'beplus-performance-booster' ) : __( 'Cloudflare purge failed; verify its configuration.', 'beplus-performance-booster' ),
 			);
 		}
-		$overall = ( 'failed' === $disk['status'] && 'failed' === $cf['status'] ) ? 'failed' : ( in_array( 'failed', array( $disk['status'], $cf['status'] ), true ) ? 'partial' : 'success' );
+		$page    = BEPLUSPB_Page_Cache::purge_all();
+		$all     = array( $disk['status'], $page['status'], $cf['status'] );
+		$overall = ( 'failed' === $disk['status'] && 'failed' === $cf['status'] ) ? 'failed' : ( ( in_array( 'failed', $all, true ) || in_array( 'partial', $all, true ) ) ? 'partial' : 'success' );
 		$report  = array(
 			'scope'   => 'all',
 			'overall' => $overall,
 			'layers'  => array(
 				'disk_assets'  => $disk,
+				'page_cache'   => $page,
 				'cloudflare'   => $cf,
 				'object_cache' => array(
 					'status'  => 'skipped',
