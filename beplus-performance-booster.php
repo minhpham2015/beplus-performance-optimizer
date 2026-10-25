@@ -126,6 +126,11 @@ function bepluspb_default_options() {
 		// --- Master Cache Switch ---
 		'cache_enabled'                      => 0,
 
+		// --- Page Cache (static HTML for anonymous visitors) ---
+		'page_cache_enabled'                 => 0,   // Needs the master cache toggle too. Off by default.
+		'page_cache_ttl'                     => 10,  // Hours. Keep under 12 so WordPress nonces in cached forms stay valid.
+		'page_cache_exclude_cookies'         => '',  // Extra cookie-name prefixes that bypass the page cache (newline-separated).
+
 		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---
 		'predictive_navigation_enabled'      => 0,
 		'predictive_navigation_mode'         => 'safe',
@@ -235,6 +240,15 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cdn.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cloudflare.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-predictive-navigation.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php';
+
+// Settings-change sync, GC cron and self-repair must exist whether or not the cache is on.
+BEPLUSPB_Page_Cache::register_core_hooks();
+
+// Fallback path: when advanced-cache.php is not active (WP_CACHE off, or another
+// plugin owns the drop-in) serve a stored page right now — before the theme and
+// the main query load. A no-op whenever the drop-in already had its chance.
+BEPLUSPB_Page_Cache::maybe_serve_fallback();
 
 // ---------------------------------------------------------------------------
 // ACTIVATION / DEACTIVATION HOOKS
@@ -253,6 +267,10 @@ register_activation_hook(
 		if ( $opts['cache_headers'] ) {
 			BEPLUSPB_Htaccess::add_rules();
 		}
+		// Deactivation removes the page-cache stub and config; restore them on re-activation.
+		if ( BEPLUSPB_Page_Cache::is_enabled( $opts ) ) {
+			BEPLUSPB_Page_Cache::sync( $opts );
+		}
 	}
 );
 
@@ -260,6 +278,7 @@ register_deactivation_hook(
 	__FILE__,
 	function () {
 		BEPLUSPB_Htaccess::remove_rules();
+		BEPLUSPB_Page_Cache::shutdown();
 	}
 );
 
@@ -311,7 +330,9 @@ function bepluspb_register_invalidation_hooks() {
 		return;
 	}
 	BEPLUSPB_UCSS::register_invalidation_hooks( $opts );
+	BEPLUSPB_Page_Cache::register_invalidation_hooks( $opts );
 }
+add_action( 'plugins_loaded', 'bepluspb_register_invalidation_hooks', 20 );
 
 /**
  * Initialise all front-end modules on the 'wp' action.
@@ -333,6 +354,7 @@ function bepluspb_boot_frontend() {
 	}
 
 	BEPLUSPB_Minify::init( $opts );
+	BEPLUSPB_Page_Cache::init( $opts );
 
 	// Administrators see the untouched page so they can edit and debug it.
 	// Previously only the CSS/HTML/CDN steps honoured this while JS defer/delay

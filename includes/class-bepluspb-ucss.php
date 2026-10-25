@@ -282,6 +282,11 @@ class BEPLUSPB_UCSS {
 			}
 		}
 
+		if ( $deleted > 0 ) {
+			// Stored pages link these files; keep them in step.
+			do_action( 'bepluspb_assets_cache_cleared' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		}
+
 		return $deleted;
 	}
 

@@ -241,6 +241,8 @@ class BEPLUSPB_Admin {
 			'minify_js_files',
 			// Cache exclusions.
 			'cache_for_logged_in',
+			// Page cache.
+			'page_cache_enabled',
 			// CDN.
 			'cdn_enabled',
 			'cdn_webp_avif',
@@ -301,6 +303,9 @@ class BEPLUSPB_Admin {
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';
+
+		$sanitized['page_cache_ttl']             = BEPLUSPB_Page_Cache::sanitize_ttl_hours( $input['page_cache_ttl'] ?? 10 );
+		$sanitized['page_cache_exclude_cookies'] = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_exclude_cookies'] ?? '' );
 
 		$sanitized['cache_exclude_pages'] = isset( $input['cache_exclude_pages'] )
 			? sanitize_textarea_field( $input['cache_exclude_pages'] )
@@ -480,6 +485,7 @@ class BEPLUSPB_Admin {
 				<?php settings_fields( 'bepluspb_settings_group' ); ?>
 
 				<div id="bepluspb-tab-cache_files" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_section_page_cache( $opts ); ?>
 					<?php self::render_section_cache_files( $opts, $cache_dir_writable ); ?>
 				</div>
 

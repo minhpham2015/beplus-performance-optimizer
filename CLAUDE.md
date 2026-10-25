@@ -54,6 +54,16 @@ checking whether it would break the SVN slug binding).
   static-text match against rendered HTML (not a real browser render), cached
   per page URL + per stylesheet in `wp-content/uploads/bepluspb-cache/`. See
   Hard Rule #7 for its cache-invalidation requirements.
+- `includes/class-bepluspb-page-cache.php` + `lib/class-bepluspb-page-cache-engine.php`
+  — static-HTML page cache for anonymous visitors (v1.2.0, opt-in). The
+  **engine** is plain PHP with NO WordPress functions because it runs from the
+  `wp-content/advanced-cache.php` stub before WordPress loads (or from the
+  plugin file as a fallback when `WP_CACHE` is off / a foreign drop-in owns the
+  slot). It owns request matching, serving, atomic storing and confined
+  purging. The **class** owns config (`wp-content/.bepluspb_pc.php`, same
+  `<?php exit; ?>` guard as Rule #1), stub install/removal, the capture buffer
+  (opened at `template_redirect` priority -100 so it is outermost) and all
+  invalidation hooks. See Hard Rule #8.
 - `includes/class-bepluspb-cdn.php` — rewrites enqueued/media/content URLs
   to a configured CDN domain. Does NOT make outbound HTTP requests itself
   (string rewrite only) — keep it that way, don't add a "verify CDN URL is
@@ -160,6 +170,31 @@ checking whether it would break the SVN slug binding).
    `bepluspb_boot_frontend()`), or wp-admin edits will never trigger the
    purge. See `BEPLUSPB_UCSS::register_invalidation_hooks()` for the
    reference pattern.
+
+8. **Page Cache safety invariants — never weaken:**
+   - **Fail open.** The `advanced-cache.php` stub and the engine must never be
+     able to take the site down: stub checks the engine file exists, wraps the
+     call in `try/catch (\Throwable)`, and any bad/missing config means "render
+     normally". Never overwrite or delete a foreign `advanced-cache.php`
+     (`is_our_dropin()` marker check). Never edit `wp-config.php` for `WP_CACHE`.
+   - **Only anonymous, public, 200 HTML GET pages** are stored. A new cookie,
+     header or feature that personalises output must be added to the bypass
+     lists (`BYPASS_COOKIES`, `BYPASS_PATHS`) — caching a personalised page and
+     serving it to someone else is a data leak.
+   - **Never trust request data for filesystem paths.** `Host` must be in the
+     config allowlist; the URL path goes through `path_segments()` (strict
+     charset, no dot-segments, no encoded `.`/`/`/`\`/NUL, no upper-case) and
+     the result is re-checked against the cache root. Deletes stay inside the
+     root and never follow symlinks. Keep the extension-less, hash-free layout
+     only because of these checks.
+   - **Anything that changes rendered HTML must purge it** (Rule #7). That
+     includes every settings save (`update_option_bepluspb_settings` → `sync()`)
+     and every deletion of an asset file stored pages link to
+     (`bepluspb_assets_cache_cleared`). New content-changing hooks go in
+     `BEPLUSPB_Page_Cache::register_invalidation_hooks()`, which must run from
+     `plugins_loaded`, not the front-end boot.
+   - The capture buffer must stay the OUTERMOST buffer so it stores the final
+     HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
 
 ## Testing before every PR
 

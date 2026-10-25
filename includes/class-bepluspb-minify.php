@@ -226,7 +226,10 @@ class BEPLUSPB_Minify {
 				return $src;
 			}
 
-			self::delete_stale_variants( $prefix, $ext, $cache_name );
+			if ( self::delete_stale_variants( $prefix, $ext, $cache_name ) > 0 ) {
+				// Pages stored in the page cache still link the files just deleted.
+				do_action( 'bepluspb_assets_cache_cleared' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+			}
 			self::debug_log( "{$label} cached: {$handle} -> {$cache_file}" );
 		}
 
@@ -272,11 +275,13 @@ class BEPLUSPB_Minify {
 	 * @param string $prefix  "{handle}-" filename prefix.
 	 * @param string $ext     'css' or 'js'.
 	 * @param string $current Filename of the generation to keep.
+	 * @return int Number of stale files deleted.
 	 */
 	public static function delete_stale_variants( $prefix, $ext, $current ) {
-		$files = glob( BEPLUSPB_CACHE_DIR . $prefix . '*.' . $ext );
+		$files   = glob( BEPLUSPB_CACHE_DIR . $prefix . '*.' . $ext );
+		$deleted = 0;
 		if ( ! is_array( $files ) ) {
-			return;
+			return 0;
 		}
 
 		$pattern = '/^' . preg_quote( $prefix, '/' ) . '[a-f0-9]{12}\.' . $ext . '$/';
@@ -284,8 +289,10 @@ class BEPLUSPB_Minify {
 			$name = basename( $file );
 			if ( $name !== $current && preg_match( $pattern, $name ) ) {
 				wp_delete_file( $file );
+				++$deleted;
 			}
 		}
+		return $deleted;
 	}
 
 	/**
@@ -705,6 +712,8 @@ class BEPLUSPB_Minify {
 			$result['status'] = 'partial';
 		}
 		delete_transient( 'bepluspb_cache_stats' );
+		// Stored pages link these files; keep them in step.
+		do_action( 'bepluspb_assets_cache_cleared' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 		return $result;
 	}
 

@@ -224,6 +224,116 @@ else :
 	}
 
 	/**
+	 * Render the Page Cache card (top of the Cache Files tab).
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_page_cache( $opts ) {
+		$status = BEPLUSPB_Page_Cache::get_status();
+		$name   = esc_attr( BEPLUSPB_OPTIONS_KEY );
+		?>
+		<div class="bepluspb-card" id="bepluspb-page-cache-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Page Cache', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Save each public page as a static HTML file and serve it to anonymous visitors without loading the theme or querying the database.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_enabled"><?php esc_html_e( 'Enable Page Cache', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_page_cache_enabled"
+								name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_enabled]" value="1"
+								<?php checked( $opts['page_cache_enabled'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Cache pages for visitors who are not logged in.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Never cached: logged-in users, carts and checkouts, password-protected posts, commenters, search, 404s, feeds, previews, and any URL with a query string (tracking parameters such as utm_* are ignored). Also requires the master Cache toggle on the Dashboard.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_ttl"><?php esc_html_e( 'Cache Lifespan (hours)', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_page_cache_ttl" min="1" max="72" step="1" class="small-text"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_ttl]"
+							value="<?php echo esc_attr( (string) BEPLUSPB_Page_Cache::sanitize_ttl_hours( $opts['page_cache_ttl'] ) ); ?>">
+						<p class="description">
+							<?php esc_html_e( 'Pages are also removed automatically when you edit content, change menus, widgets or the theme, or save these settings. Keep this under 12 hours so forms on cached pages do not outlive their WordPress security tokens.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_exclude_cookies"><?php esc_html_e( 'Bypass Cookies', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One cookie name (or prefix) per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_exclude_cookies" rows="3" class="large-text code"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_exclude_cookies]"><?php echo esc_textarea( $opts['page_cache_exclude_cookies'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Visitors carrying any of these cookies are never served a cached page. WordPress login, WooCommerce cart/session and comment-author cookies are always bypassed. Pages to exclude by URL are set under Advanced → Page Exclusions.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<?php
+				$mode_labels = array(
+					'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),
+					'plugin' => __( 'Active — served from the plugin (works, but a little slower than the drop-in).', 'beplus-performance-booster' ),
+					'off'    => __( 'Off.', 'beplus-performance-booster' ),
+				);
+				?>
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label"><label><?php esc_html_e( 'Status', 'beplus-performance-booster' ); ?></label></div>
+					<div class="bepluspb-form-row-field">
+						<p><strong><?php echo esc_html( $mode_labels[ $status['mode'] ] ); ?></strong></p>
+						<?php if ( $status['enabled'] ) : ?>
+						<p>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: number of cached pages, 2: human-readable size. */
+									__( '%1$s cached pages (%2$s).', 'beplus-performance-booster' ),
+									number_format_i18n( $status['stats']['files'] ) . ( $status['stats']['truncated'] ? '+' : '' ),
+									BEPLUSPB_Minify::human_filesize( $status['stats']['bytes'] )
+								)
+							);
+							?>
+						</p>
+							<?php if ( ! $status['wp_cache'] || 'foreign' === $status['dropin'] ) : ?>
+						<p class="description">
+								<?php if ( 'foreign' === $status['dropin'] ) : ?>
+									<?php esc_html_e( 'Another plugin already owns wp-content/advanced-cache.php, so Beplus serves cached pages from the plugin instead. Remove the other page-cache plugin to use the faster drop-in.', 'beplus-performance-booster' ); ?>
+								<?php else : ?>
+									<?php esc_html_e( 'For the fastest delivery, add this line to wp-config.php above the "That\'s all, stop editing!" comment. Beplus never edits wp-config.php for you:', 'beplus-performance-booster' ); ?>
+									<br><code>define( 'WP_CACHE', true );</code>
+								<?php endif; ?>
+						</p>
+						<?php endif; ?>
+						<?php endif; ?>
+						<?php foreach ( $status['errors'] as $error ) : ?>
+						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
+						<?php endforeach; ?>
+						<?php if ( $status['enabled'] && ! $status['config_ok'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+					</div>
+				</div>
+
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Render the "Cache Files" tab — JavaScript, CSS, and Media merged.
 	 *
 	 * @param array $opts               Current option values.

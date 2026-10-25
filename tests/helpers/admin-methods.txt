@@ -32,6 +32,7 @@ render_meta_box
 render_object_cache_purge_control
 render_section_ai_optimizer
 render_section_cache_files
+render_section_page_cache
 render_section_cdn
 render_section_cleanup_all
 render_section_cloudflare
