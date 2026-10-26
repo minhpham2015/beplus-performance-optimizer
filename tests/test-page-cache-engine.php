@@ -219,6 +219,13 @@ t_ok( null === ctx( '/a/', array(), array( 'pll_language' => array( 'x' ) ) ), '
 t_ok( ctx( '/a/', array( 'HTTPS' => 'on', 'HTTP_USER_AGENT' => $IPHONE ), array( 'pll_language' => 'en' ) )['file'] !== null, 'variant cookies combine with other variants' );
 write_cfg();
 
+// ---- Cookie names PHP rewrites ("." " " "[" become "_") ------------------------------
+t_ok( 'my_cookie' === $E::php_cookie_name( 'my.cookie' ) && 'a_b_c' === $E::php_cookie_name( 'a b[c' ) && 'wp-wpml_current_language' === $E::php_cookie_name( 'wp-wpml_current_language' ), 'php_cookie_name mirrors PHP' );
+write_cfg( array( 'vary_cookies' => array( 'my.cookie' ), 'exclude_cookies' => array( 'track.me' ) ) );
+t_ok( ctx( '/a/', array(), array( 'my_cookie' => 'en' ) )['file'] !== ctx( '/a/' )['file'], 'a configured "my.cookie" varies on the "my_cookie" PHP actually delivers' );
+t_ok( null === ctx( '/a/', array(), array( 'track_me' => '1' ) ), 'a configured "track.me" bypasses on the "track_me" PHP actually delivers' );
+write_cfg();
+
 // ---- Header replay ---------------------------------------------------------------
 $c = ctx( '/hdr/' );
 $pages_before = $E::count_files()['files'];
@@ -243,6 +250,19 @@ $out = $hdr_run( '/hdr/' );
 t_ok( false !== stripos( $out, 'X-Frame-Options: SAMEORIGIN' ) && false !== stripos( $out, "Content-Security-Policy: default-src 'self'" ) && false !== stripos( $out, 'X-Robots-Tag: noindex' ) && false !== strpos( $out, 'rel="https://api.w.org/"' ), 'a HIT replays the headers recorded when the page was built' );
 t_ok( false !== stripos( $out, 'X-Beplus-Page-Cache: HIT' ) && false === stripos( $out, 'Set-Cookie' ) && false === stripos( $out, 'evil.test' ), 'replay never carries cookies or redirects' );
 t_ok( false === stripos( $out, 'Content-Length: 0' ), 'body present' );
+// Fallback mode runs after other plugins: the replayed header must REPLACE theirs, never duplicate it.
+file_put_contents( $tmp . '/router2.php', '<?php define("ABSPATH",' . var_export( $tmp . '/', true ) . '); define("WP_CONTENT_DIR",' . var_export( WP_CONTENT_DIR, true ) . '); require ' . var_export( $stub_engine, true ) . '; header("X-Frame-Options: DENY"); header("Link: <https://old.test/>; rel=old"); BEPLUSPB_Page_Cache_Engine::serve(); echo "MISS";' );
+$port2 = $port + 500;
+$srv2  = proc_open( escapeshellarg( PHP_BINARY ) . ' -n -S 127.0.0.1:' . $port2 . ' ' . escapeshellarg( $tmp . '/router2.php' ), array( 0 => array( 'file', '/dev/null', 'r' ), 1 => array( 'file', '/dev/null', 'w' ), 2 => array( 'file', '/dev/null', 'w' ) ), $pipes2 );
+for ( $i = 0; $i < 40; $i++ ) { if ( @fsockopen( '127.0.0.1', $port2 ) ) { break; } usleep( 100000 ); }
+$out2 = (string) shell_exec( 'curl -si -m 10 -H ' . escapeshellarg( 'Host: example.com' ) . ' ' . escapeshellarg( 'http://127.0.0.1:' . $port2 . '/hdr/' ) . ' 2>&1' );
+t_ok( 1 === preg_match_all( '/^X-Frame-Options:/mi', $out2 ) && false !== strpos( $out2, 'X-Frame-Options: SAMEORIGIN' ) && false === strpos( $out2, 'X-Frame-Options: DENY' ), 'a replayed single-valued header replaces one an earlier plugin already sent (no conflicting duplicates)' );
+proc_terminate( $srv2 );
+proc_close( $srv2 );
+$E::store( $c, $html, array( 'Link: <https://a.test/>; rel=a', 'Link: <https://b.test/>; rel=b', 'Content-Security-Policy: default-src none', 'Content-Security-Policy: img-src self' ) );
+$out = $hdr_run( '/hdr/' );
+t_ok( 2 === preg_match_all( '/^Link:/mi', $out ) && 2 === preg_match_all( '/^Content-Security-Policy:/mi', $out ), 'multi-valued headers (Link, CSP) keep every line' );
+
 // Tampered sidecar: injection attempts are dropped at serve time too.
 file_put_contents( $E::header_file( $c['file'] ), json_encode( array( 'X-Frame-Options: SAMEORIGIN', 'Set-Cookie: pwn=1', "Referrer-Policy: no-referrer\r\nSet-Cookie: pwn=2", 'Location: https://evil.test/' ) ) );
 $out = $hdr_run( '/hdr/' );

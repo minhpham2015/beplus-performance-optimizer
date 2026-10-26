@@ -65,6 +65,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `bepluspb_page_cache_purge_all_on_post_change` filter still has the last word.
 
 ### Fixed
+- Page Cache: a replayed header now replaces one an earlier plugin already sent
+  (fallback mode runs after other plugins load), instead of adding a second,
+  conflicting `X-Frame-Options`/`Referrer-Policy` line; multi-valued `Link` and
+  CSP lines are all kept.
+- Page Cache: cookie names containing `.`, a space or `[` never matched,
+  because PHP rewrites them to `_` in `$_COOKIE` (`my.cookie` arrives as
+  `my_cookie`), so such entries in "Bypass Cookies"/"Language / Currency
+  Cookies" silently did nothing. Names are now normalised the way PHP does.
 - Page Cache: a request carrying tracking parameters (`?utm_x=…`) may still be
   served from the clean copy but is never stored, so a theme that echoes the
   current URL (`add_query_arg( null, null )`, `REQUEST_URI`) cannot get a

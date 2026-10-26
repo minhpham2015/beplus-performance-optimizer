@@ -158,12 +158,23 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				'ttl'             => max( 60, (int) ( $cfg['ttl'] ?? 36000 ) ),
 				'hosts'           => array_values( array_filter( array_map( 'strtolower', array_map( 'strval', $cfg['hosts'] ) ) ) ),
 				'exclude_paths'   => isset( $cfg['exclude_paths'] ) && is_array( $cfg['exclude_paths'] ) ? array_map( 'strval', $cfg['exclude_paths'] ) : array(),
-				'exclude_cookies' => isset( $cfg['exclude_cookies'] ) && is_array( $cfg['exclude_cookies'] ) ? array_map( 'strval', $cfg['exclude_cookies'] ) : array(),
+				'exclude_cookies' => isset( $cfg['exclude_cookies'] ) && is_array( $cfg['exclude_cookies'] ) ? array_map( array( __CLASS__, 'php_cookie_name' ), $cfg['exclude_cookies'] ) : array(),
 				'accept_variants' => ! empty( $cfg['accept_variants'] ),
 				'mobile'          => isset( $cfg['mobile'] ) && in_array( $cfg['mobile'], array( 'same', 'separate', 'bypass' ), true ) ? $cfg['mobile'] : 'same',
-				'vary_cookies'    => isset( $cfg['vary_cookies'] ) && is_array( $cfg['vary_cookies'] ) ? array_slice( array_values( array_filter( array_map( 'strval', $cfg['vary_cookies'] ), 'strlen' ) ), 0, 8 ) : array(),
+				'vary_cookies'    => isset( $cfg['vary_cookies'] ) && is_array( $cfg['vary_cookies'] ) ? array_slice( array_values( array_filter( array_map( array( __CLASS__, 'php_cookie_name' ), $cfg['vary_cookies'] ), 'strlen' ) ), 0, 8 ) : array(),
 			);
 			return self::$config;
+		}
+
+		/**
+		 * The name PHP will use in $_COOKIE for a configured cookie: it rewrites
+		 * ".", " " and "[" to "_" in incoming names, so "my.cookie" arrives as "my_cookie".
+		 *
+		 * @param mixed $name Configured cookie name.
+		 * @return string
+		 */
+		public static function php_cookie_name( $name ) {
+			return strtr( (string) $name, ' .[', '___' );
 		}
 
 		/**
@@ -461,8 +472,14 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				header( 'Vary: User-Agent', false );
 			}
 			// The theme and plugins never ran for this response: replay what they set when the page was built.
+			// The first line of each name REPLACES anything already sent (fallback mode runs after
+			// other plugins loaded; two different X-Frame-Options values would be invalid); further
+			// lines of the same name (Link, CSP) are appended.
+			$sent = array();
 			foreach ( self::read_headers( $ctx['file'] ) as $line ) {
-				header( $line, false );
+				$name = strtolower( strstr( $line, ':', true ) );
+				header( $line, ! isset( $sent[ $name ] ) );
+				$sent[ $name ] = true;
 			}
 			header( 'Cache-Control: max-age=0, must-revalidate' );
 			header( 'X-Beplus-Page-Cache: HIT' );
