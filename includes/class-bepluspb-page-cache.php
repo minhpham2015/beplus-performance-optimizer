@@ -43,6 +43,32 @@ class BEPLUSPB_Page_Cache {
 	/** Block markup (widget areas, template parts) that lists content on every page it appears on. */
 	private const DYNAMIC_BLOCKS_REGEX = '/<!--\s+wp:(latest-posts|latest-comments|archives|calendar|tag-cloud|categories)(?=[\s\/}])/';
 
+	/**
+	 * Non-public post types whose saves must NOT purge the cache: logs, queues, orders,
+	 * form submissions and other records that are not shown on pages. Every other
+	 * non-public type (templates, template parts, global styles, navigation, reusable
+	 * blocks, page-builder libraries, forms, tables…) can appear on many pages, so a
+	 * save purges everything. Extend with the bepluspb_page_cache_ignored_post_types filter.
+	 */
+	private const IGNORED_POST_TYPES = array(
+		'revision',
+		'nav_menu_item',
+		'customize_changeset',
+		'oembed_cache',
+		'user_request',
+		'scheduled-action',
+		'shop_order',
+		'shop_order_refund',
+		'shop_order_placehold',
+		'shop_coupon',
+		'product_variation',
+		'flamingo_inbound',
+		'flamingo_outbound',
+		'flamingo_contact',
+		'feedback',
+		'wpforms_log',
+	);
+
 	/** How mobile visitors are cached. */
 	const MOBILE_MODES = array( 'auto', 'separate', 'same', 'bypass' );
 
@@ -340,6 +366,27 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * Whether the config the engine reads still lists the hosts WordPress is configured for.
+	 *
+	 * The list is computed when settings are saved; a domain change made through wp-config.php
+	 * constants, WP-CLI search-replace or SQL fires no hook, and the cache would silently stop
+	 * storing and serving pages while the settings screen still said "Active".
+	 *
+	 * @return bool
+	 */
+	public static function hosts_in_sync() {
+		$cfg = BEPLUSPB_Page_Cache_Engine::load_config();
+		if ( ! $cfg ) {
+			return false;
+		}
+		$configured = $cfg['hosts'];
+		$expected   = self::allowed_hosts();
+		sort( $configured );
+		sort( $expected );
+		return $configured === $expected;
+	}
+
+	/**
 	 * Build the config consumed by the engine.
 	 *
 	 * @param array $opts Options merged with defaults.
@@ -587,20 +634,42 @@ class BEPLUSPB_Page_Cache {
 
 	/**
 	 * Repair a missing/stale config or stub (plugin moved, wp-content restored
-	 * from a backup…). Admin-only and at most twice a day.
+	 * from a backup, site address changed…). Admin screens only; see init() for the front-end check.
 	 */
 	public static function maybe_repair() {
-		if ( ! is_admin() || ! self::is_enabled() || get_transient( 'bepluspb_page_cache_repair' ) ) {
+		if ( is_admin() ) {
+			self::repair( false );
+		}
+	}
+
+	/**
+	 * Re-sync when the config or stub no longer matches the site.
+	 *
+	 * The attempt is throttled per set of site hosts: a changed domain is repaired on the very next
+	 * request instead of waiting for the previous attempt to age out.
+	 *
+	 * @param bool $light Only compare the host list (cheap enough for every front-end request).
+	 */
+	private static function repair( $light ) {
+		if ( ! self::is_enabled() ) {
 			return;
 		}
-		$status = self::get_status( false );
-		if ( 'ours' === $status['dropin'] && $status['config_ok'] ) {
+		// Healthy is the overwhelmingly common case: decide it from files already in memory, and
+		// only then touch the transient (a database read on sites without a persistent object cache).
+		if ( $light ) {
+			$healthy = self::hosts_in_sync();
+		} else {
+			$status  = self::get_status( false );
+			$healthy = $status['config_ok'] && $status['hosts_ok'] && in_array( $status['dropin'], array( 'ours', 'foreign' ), true );
+		}
+		if ( $healthy ) {
 			return;
 		}
-		if ( 'foreign' === $status['dropin'] && $status['config_ok'] ) {
+		$key = 'bepluspb_page_cache_repair_' . substr( md5( implode( ',', self::allowed_hosts() ) ), 0, 8 );
+		if ( get_transient( $key ) ) {
 			return;
 		}
-		set_transient( 'bepluspb_page_cache_repair', 1, 12 * HOUR_IN_SECONDS );
+		set_transient( $key, 1, 12 * HOUR_IN_SECONDS );
 		self::sync( bepluspb_get_options() );
 	}
 
@@ -635,6 +704,7 @@ class BEPLUSPB_Page_Cache {
 			'dropin'      => $dropin,
 			'running'     => $running,
 			'config_ok'   => null !== BEPLUSPB_Page_Cache_Engine::load_config(),
+			'hosts_ok'    => self::hosts_in_sync(),
 			'mode'        => ! $enabled ? 'off' : ( $running ? 'dropin' : 'plugin' ),
 			'root_exists' => is_dir( BEPLUSPB_Page_Cache_Engine::cache_root() ),
 			'stats'       => $with_stats ? BEPLUSPB_Page_Cache_Engine::count_files() : array(
@@ -679,6 +749,7 @@ class BEPLUSPB_Page_Cache {
 		if ( ! self::is_enabled( $opts ) ) {
 			return;
 		}
+		self::repair( true );
 		// Priority -100: open BEFORE the HTML/CDN/CSS buffers (priority 0) so this
 		// outermost buffer receives the final, fully optimised markup.
 		add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), -100 );
@@ -1033,6 +1104,7 @@ class BEPLUSPB_Page_Cache {
 
 		// Posts.
 		add_action( 'save_post', array( __CLASS__, 'on_save_post' ), 20, 2 );
+		add_action( 'post_updated', array( __CLASS__, 'on_post_updated' ), 20, 3 );
 		// Block-editor/REST saves set terms and meta AFTER save_post; this fires once all are stored.
 		add_action( 'wp_after_insert_post', array( __CLASS__, 'on_after_insert_post' ), 20, 4 );
 		add_action( 'set_object_terms', array( __CLASS__, 'on_set_object_terms' ), 20, 6 );
@@ -1079,6 +1151,62 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * Whether a post type is shown on pages without being a page itself (template parts,
+	 * global styles, navigation, reusable blocks, builder libraries, forms, tables…).
+	 *
+	 * @param string $type Post type.
+	 * @return bool
+	 */
+	public static function is_structural_post_type( $type ) {
+		/**
+		 * Filters the non-public post types whose saves never purge the page cache.
+		 *
+		 * @param string[] $types Post type names.
+		 */
+		$ignored = apply_filters( 'bepluspb_page_cache_ignored_post_types', self::IGNORED_POST_TYPES ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		return is_string( $type ) && ! in_array( $type, (array) $ignored, true ) && post_type_exists( $type ) && ! is_post_type_viewable( $type );
+	}
+
+	/**
+	 * Whether the current request is someone editing the site, not a visitor or a background job.
+	 *
+	 * Front-end form entries, cron and queues also create non-public posts; they must not
+	 * wipe the cache. Editors (wp-admin, block editor/REST) and WP-CLI do.
+	 *
+	 * @return bool
+	 */
+	private static function is_site_editor_request() {
+		return ( defined( 'WP_CLI' ) && WP_CLI ) || current_user_can( 'edit_posts' );
+	}
+
+	/**
+	 * Title, slug, parent or order of a published post changed. Menus, breadcrumbs, page
+	 * lists, previous/next links and every child URL show these on OTHER pages, so
+	 * purging the post and its archives is not enough.
+	 *
+	 * @param int     $post_id Post ID.
+	 * @param WP_Post $after   Post after the update.
+	 * @param WP_Post $before  Post before the update.
+	 */
+	public static function on_post_updated( $post_id, $after, $before ) {
+		if ( ! $after instanceof WP_Post || ! $before instanceof WP_Post || wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		if ( 'publish' !== $after->post_status && 'publish' !== $before->post_status ) {
+			return;
+		}
+		if ( ! is_post_type_viewable( $after->post_type ) ) {
+			return;
+		}
+		foreach ( array( 'post_title', 'post_name', 'post_parent', 'menu_order' ) as $field ) {
+			if ( (string) $after->$field !== (string) $before->$field ) {
+				self::purge_all();
+				return;
+			}
+		}
+	}
+
+	/**
 	 * Post saved: purge it and the listings that show it.
 	 *
 	 * @param int     $post_id Post ID.
@@ -1086,6 +1214,12 @@ class BEPLUSPB_Page_Cache {
 	 */
 	public static function on_save_post( $post_id, $post ) {
 		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+			return;
+		}
+		if ( self::is_structural_post_type( $post->post_type ) ) {
+			if ( self::is_site_editor_request() ) {
+				self::purge_all();
+			}
 			return;
 		}
 		self::purge_post( $post_id );
@@ -1147,10 +1281,12 @@ class BEPLUSPB_Page_Cache {
 	 * @param WP_Post $post       Post object.
 	 */
 	public static function on_transition_post_status( $new_status, $old_status, $post ) {
-		if ( ( 'publish' === $new_status ) === ( 'publish' === $old_status ) || ! $post instanceof WP_Post || ! is_post_type_viewable( $post->post_type ) ) {
+		if ( ( 'publish' === $new_status ) === ( 'publish' === $old_status ) || ! $post instanceof WP_Post ) {
 			return;
 		}
-		self::purge_all();
+		if ( is_post_type_viewable( $post->post_type ) || ( self::is_structural_post_type( $post->post_type ) && self::is_site_editor_request() ) ) {
+			self::purge_all();
+		}
 	}
 
 	/**
@@ -1161,7 +1297,7 @@ class BEPLUSPB_Page_Cache {
 	 */
 	public static function on_deleted_post( $post_id, $post = null ) {
 		unset( $post_id );
-		if ( $post instanceof WP_Post && 'publish' === $post->post_status && is_post_type_viewable( $post->post_type ) ) {
+		if ( $post instanceof WP_Post && 'publish' === $post->post_status && ( is_post_type_viewable( $post->post_type ) || ( self::is_structural_post_type( $post->post_type ) && self::is_site_editor_request() ) ) ) {
 			self::purge_all();
 		}
 	}
@@ -1212,6 +1348,11 @@ class BEPLUSPB_Page_Cache {
 	 * @param string $option Option name.
 	 */
 	public static function on_option_changed( $option ) {
+		if ( 'home' === $option || 'siteurl' === $option ) {
+			// The host allowlist in the config must follow the address; sync() rewrites it and purges.
+			self::sync( bepluspb_get_options() );
+			return;
+		}
 		if ( 0 === strpos( $option, 'widget_' ) || 'sidebars_widgets' === $option ) {
 			self::flush_sitewide_detection();
 		}

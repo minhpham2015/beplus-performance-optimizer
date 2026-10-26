@@ -31,23 +31,24 @@ $GLOBALS['cron']       = array();
 $GLOBALS['opts']       = array( 'cache_enabled' => 1, 'page_cache_enabled' => 1, 'page_cache_ttl' => 10, 'page_cache_exclude_cookies' => "my_cookie\nbad cookie!", 'cache_exclude_pages' => "/members/\n", 'cdn_webp_avif' => 0 );
 $GLOBALS['posts']      = array();
 
-class WP_Post { public $slug = ''; public $autosave = false; public $ID; public $post_type = 'post'; public $post_status = 'publish'; public $post_author = 1; public $post_date = '2026-03-04 10:00:00'; }
+class WP_Post { public $post_title = 'Title'; public $post_name = 'slug'; public $post_parent = 0; public $menu_order = 0; public $post_content = 'body'; public $slug = ''; public $autosave = false; public $ID; public $post_type = 'post'; public $post_status = 'publish'; public $post_author = 1; public $post_date = '2026-03-04 10:00:00'; }
 class WP_Error {}
 function __( $s ) { return $s; }
 function absint( $v ) { return abs( (int) $v ); }
 function wp_json_encode( $d, $f = 0 ) { return json_encode( $d, $f ); }
 function wp_delete_file( $f ) { @unlink( $f ); }
-function home_url( $p = '' ) { return 'https://example.com' . ( '' === $p ? '' : $p ); }
-function site_url( $p = '' ) { return 'https://example.com' . $p; }
+function home_url( $p = '' ) { return 'https://' . ( $GLOBALS['site_host'] ?? 'example.com' ) . ( '' === $p ? '' : $p ); }
+function site_url( $p = '' ) { return 'https://' . ( $GLOBALS['site_host'] ?? 'example.com' ) . $p; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function add_action( $tag, $cb, $pri = 10, $args = 1 ) { $GLOBALS['hooks'][ $tag ][] = array( $cb, $pri, $args ); }
 function add_filter( $tag, $cb, $pri = 10, $args = 1 ) { $GLOBALS['hooks'][ $tag ][] = array( $cb, $pri, $args ); }
-function post_type_exists( $t ) { return in_array( $t, array( 'post', 'page', 'attachment', 'nav_menu_item', 'wp_template_part', 'product' ), true ); }
+function post_type_exists( $t ) { return in_array( $t, array( 'post', 'page', 'attachment', 'nav_menu_item', 'wp_template_part', 'wp_template', 'wp_global_styles', 'wp_navigation', 'wp_block', 'elementor_library', 'wpcf7_contact_form', 'scheduled-action', 'shop_order', 'product' ), true ); }
+function current_user_can( $cap ) { return ! empty( $GLOBALS['can_edit'] ); }
 function get_queried_object_id() { return $GLOBALS['queried'] ?? 0; }
 class WP_Query { public $main = false; public $vars = array(); public function is_main_query() { return $this->main; } public function get( $k ) { return $this->vars[ $k ] ?? ''; } }
 function apply_filters( $tag, $v ) { return $v; }
 function do_action( $tag, ...$a ) { $GLOBALS['did'][] = $tag; }
-function get_transient( $k ) { return $GLOBALS['transients'][ $k ] ?? false; }
+function get_transient( $k ) { $GLOBALS['transient_reads'] = ( $GLOBALS['transient_reads'] ?? 0 ) + 1; return $GLOBALS['transients'][ $k ] ?? false; }
 function set_transient( $k, $v ) { $GLOBALS['transients'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return true; }
 function bepluspb_get_options() { return $GLOBALS['opts']; }
@@ -572,6 +573,123 @@ t_ok( substr_count( $min, "do_action( 'bepluspb_assets_cache_cleared' )" ) >= 2,
 t_ok( false !== strpos( file_get_contents( $root . '/includes/class-bepluspb-ucss.php' ), "do_action( 'bepluspb_assets_cache_cleared' )" ), 'UCSS purge also purges stored pages' );
 t_ok( false !== strpos( file_get_contents( $root . '/uninstall.php' ), 'BEPLUSPB_Page_Cache::shutdown()' ), 'uninstall removes drop-in, config and pages' );
 t_ok( false !== strpos( file_get_contents( $root . '/includes/admin/trait-bepluspb-admin-actions.php' ), "'page_cache'   => \$page" ), 'Purge ALL includes the page cache layer' );
+
+// ---- #2: title / slug / parent / order of a published post is shown on OTHER pages --------
+$E::reset(); $E::purge_all();
+$mkpost = static function ( $over = array() ) { $x = new WP_Post(); $x->ID = 77; foreach ( $over as $k => $v ) { $x->$k = $v; } return $x; };
+$cases = array(
+	'title'      => array( 'post_title' => 'New title' ),
+	'slug'       => array( 'post_name' => 'new-slug' ),
+	'parent'     => array( 'post_parent' => 5 ),
+	'menu order' => array( 'menu_order' => 3 ),
+);
+foreach ( $cases as $label => $change ) {
+	$f = $fill(); $E::reset();
+	$PC::on_post_updated( 77, $mkpost( $change ), $mkpost() );
+	t_ok( ! is_file( $f['other'] ) && ! is_file( $f['home'] ), "changing a published post's $label purges every page (menus, breadcrumbs, page lists, children)" );
+}
+$f = $fill(); $E::reset();
+$PC::on_post_updated( 77, $mkpost( array( 'post_content' => 'edited body' ) ), $mkpost() );
+t_ok( is_file( $f['other'] ), 'a content-only edit does not purge everything (the targeted purge handles it)' );
+$PC::on_post_updated( 77, $mkpost( array( 'post_title' => 'x', 'post_status' => 'draft' ) ), $mkpost( array( 'post_status' => 'draft' ) ) );
+t_ok( is_file( $f['other'] ), 'renaming a draft purges nothing (it is not on any page)' );
+$PC::on_post_updated( 77, $mkpost( array( 'post_title' => 'x', 'post_type' => 'wp_template_part' ) ), $mkpost( array( 'post_type' => 'wp_template_part' ) ) );
+t_ok( is_file( $f['other'] ), 'non-viewable types are handled by the structural rule, not this one' );
+$PC::on_post_updated( 77, $mkpost( array( 'post_title' => 'x', 'post_type' => 'nav_menu_item' ) ), $mkpost( array( 'post_type' => 'nav_menu_item' ) ) );
+$PC::on_post_updated( 77, 'x', 'y' );
+$PC::on_post_updated( 77, null, null );
+t_ok( is_file( $f['other'] ), 'internal types and malformed arguments are ignored' );
+$GLOBALS['hooks'] = array();
+$PC::register_invalidation_hooks( $GLOBALS['opts'] );
+t_ok( ! empty( $GLOBALS['hooks']['post_updated'] ), 'post_updated is registered with the invalidation hooks' );
+
+// ---- #3: templates, template parts, global styles, navigation, blocks, builder libraries, forms ---
+foreach ( array( 'wp_template_part', 'wp_template', 'wp_global_styles', 'wp_navigation', 'wp_block', 'elementor_library', 'wpcf7_contact_form' ) as $type ) {
+	t_ok( true === $PC::is_structural_post_type( $type ), "$type counts as structural" );
+	$GLOBALS['can_edit'] = true;
+	$f = $fill(); $E::reset();
+	$sp = $mkpost( array( 'post_type' => $type ) );
+	$PC::on_save_post( 77, $sp );
+	t_ok( ! is_file( $f['other'] ) && ! is_file( $f['home'] ), "an editor saving a $type purges every page" );
+	$GLOBALS['can_edit'] = false;
+	$f = $fill(); $E::reset();
+	$PC::on_save_post( 77, $sp );
+	t_ok( is_file( $f['other'] ), "a visitor/cron/queue creating a $type (no edit capability) purges nothing" );
+}
+$GLOBALS['can_edit'] = true;
+$f = $fill(); $E::reset();
+$PC::on_save_post( 77, $mkpost( array( 'post_type' => 'wp_template_part', 'post_status' => 'draft' ) ) );
+$PC::on_save_post( 77, $mkpost( array( 'post_type' => 'wp_template_part', 'post_status' => 'auto-draft' ) ) );
+t_ok( is_file( $f['other'] ), 'unpublished structural posts purge nothing' );
+foreach ( array( 'scheduled-action', 'shop_order', 'nav_menu_item', 'revision', 'oembed_cache' ) as $noisy ) {
+	t_ok( false === $PC::is_structural_post_type( $noisy ), "$noisy is ignored (logs, queues, orders, menu items)" );
+	$PC::on_save_post( 77, $mkpost( array( 'post_type' => $noisy ) ) );
+}
+t_ok( is_file( $f['other'] ), 'noisy internal post types never purge, even for an editor' );
+t_ok( false === $PC::is_structural_post_type( 'post' ) && false === $PC::is_structural_post_type( 'page' ) && false === $PC::is_structural_post_type( 'attachment' ) && false === $PC::is_structural_post_type( 'not_registered' ) && false === $PC::is_structural_post_type( array( 'x' ) ), 'public types and unknown types are not structural' );
+$E::reset();
+$PC::on_transition_post_status( 'draft', 'publish', $mkpost( array( 'post_type' => 'wp_template_part' ) ) );
+t_ok( ! is_file( $f['other'] ), 'unpublishing a template part purges every page' );
+$f = $fill(); $E::reset();
+$GLOBALS['can_edit'] = false;
+$PC::on_transition_post_status( 'draft', 'publish', $mkpost( array( 'post_type' => 'wp_template_part' ) ) );
+t_ok( is_file( $f['other'] ), '... but not when no editor is involved' );
+$GLOBALS['can_edit'] = true;
+$PC::on_deleted_post( 77, $mkpost( array( 'post_type' => 'wp_block' ) ) );
+t_ok( ! is_file( $f['other'] ), 'deleting a published reusable block purges every page' );
+$f = $fill(); $E::reset();
+$PC::on_deleted_post( 77, $mkpost( array( 'post_type' => 'scheduled-action' ) ) );
+t_ok( is_file( $f['other'] ), 'deleting a queue record purges nothing' );
+$PC::on_save_post( 77, $mkpost() ); // an ordinary post still takes the targeted path
+t_ok( is_file( $f['other'] ), 'an ordinary post save keeps the targeted purge' );
+$GLOBALS['can_edit'] = false;
+
+// ---- #4: the host allowlist follows the site address --------------------------------------
+$GLOBALS['site_host'] = 'example.com';
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
+$E::reset();
+t_ok( true === $PC::hosts_in_sync() && true === $PC::get_status( false )['hosts_ok'], 'in sync after the config is written' );
+$GLOBALS['site_host'] = 'new-domain.test';
+t_ok( false === $PC::hosts_in_sync() && false === $PC::get_status( false )['hosts_ok'], 'a changed site address is detected (wp-config constant, WP-CLI search-replace, SQL: no hook fires)' );
+$GLOBALS['transients'] = array(); $GLOBALS['transient_reads'] = 0;
+$f = $fill(); $E::reset();
+$PC::init( $GLOBALS['opts'] );
+t_ok( true === $PC::hosts_in_sync() && array( 'new-domain.test' ) === $E::load_config()['hosts'], 'the next front-end request rewrites the config for the new address' );
+t_ok( ! is_file( $f['other'] ), '... and drops pages stored for the old one' );
+$E::store( $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'new-domain.test', 'REQUEST_URI' => '/probe/' ), array() ), $html );
+$GLOBALS['transient_reads'] = 0;
+$PC::init( $GLOBALS['opts'] );
+t_ok( 0 === $GLOBALS['transient_reads'], 'a healthy request reads no transient (no extra database query per page view)' );
+t_ok( 1 === $E::count_files()['files'], 'and repairs nothing again' );
+$GLOBALS['site_host'] = 'third.test';
+$PC::init( $GLOBALS['opts'] );
+t_ok( array( 'third.test' ) === $E::load_config()['hosts'], 'a second address change is repaired immediately (throttle is per address, not per 12 hours)' );
+$GLOBALS['site_host'] = 'fourth.test';
+$PC::write_config( array_merge( $PC::build_config( $GLOBALS['opts'] ), array( 'hosts' => array( 'third.test' ) ) ) );
+$GLOBALS['transients'] = array();
+$PC::on_option_changed( 'home' );
+t_ok( array( 'fourth.test' ) === $E::load_config()['hosts'], 'saving the "home" option re-syncs the config' );
+$GLOBALS['site_host'] = 'fifth.test';
+$PC::on_option_changed( 'siteurl' );
+t_ok( array( 'fifth.test' ) === $E::load_config()['hosts'], '... and so does "siteurl"' );
+$E::reset(); $PC::delete_config();
+t_ok( false === $PC::hosts_in_sync(), 'a missing config counts as out of sync' );
+$GLOBALS['transients'] = array();
+$PC::init( $GLOBALS['opts'] );
+t_ok( is_file( $E::config_file() ) && array( 'fifth.test' ) === $E::load_config()['hosts'], 'a missing config is rebuilt on the next request' );
+$GLOBALS['site_host'] = 'example.com';
+$PC::on_option_changed( 'home' );
+t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'back to the original address' );
+$src_ui = file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' );
+t_ok( false !== strpos( $src_ui, "'hosts_ok'" ), 'status exposes hosts_ok for the settings screen' );
+$E::purge_all();
+
+// WP-CLI imports have no logged-in user but still edit the site (constants cannot be undefined: kept last).
+$GLOBALS['can_edit'] = false;
+$f = $fill(); $E::reset();
+define( 'WP_CLI', true );
+$PC::on_save_post( 77, $mkpost( array( 'post_type' => 'wp_template_part' ) ) );
+t_ok( ! is_file( $f['other'] ), 'under WP-CLI a template save purges every page even without a logged-in user' );
 
 // DONOTCACHEPAGE is a constant (cannot be undefined), so it is exercised last.
 $E::reset(); $E::purge_all();

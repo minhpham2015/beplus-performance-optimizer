@@ -38,6 +38,16 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		const MAX_BYTES = 5242880;
 
 		/**
+		 * Most variant files (scheme x device x language/currency x image format) kept for ONE URL.
+		 * Cookie values are chosen by the visitor, so without a cap a single URL could be filled
+		 * with unlimited copies.
+		 */
+		const MAX_VARIANTS = 96;
+
+		/** Shape of a language or currency cookie value that may name a cached copy: en, vi, USD, en-US, pt_BR, zh-hant-tw. */
+		const VARY_VALUE_REGEX = '/^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,6}){0,2}$/D';
+
+		/**
 		 * Cookie-name prefixes that mean "this visitor sees personalised output".
 		 * Matched against the START of the cookie name.
 		 */
@@ -316,8 +326,9 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				if ( ! isset( $cookies[ $name ] ) || '' === $cookies[ $name ] ) {
 					continue;
 				}
-				// A cookie value becomes part of a file name: refuse anything that is not a plain token.
-				if ( ! is_string( $cookies[ $name ] ) || ! preg_match( '/^[A-Za-z0-9_.-]{1,32}$/', $cookies[ $name ] ) ) {
+				// The value is chosen by the visitor and becomes part of a file name: only a short
+				// language/currency-style code may do so; anything else is simply not cached.
+				if ( ! is_string( $cookies[ $name ] ) || strlen( $cookies[ $name ] ) > 16 || ! preg_match( self::VARY_VALUE_REGEX, $cookies[ $name ] ) ) {
 					return null;
 				}
 				$pairs[] = $name . '=' . strtolower( $cookies[ $name ] );
@@ -610,7 +621,7 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			$meta['h'] = self::sanitize_headers( $lines );
 			if ( isset( $data['n'] ) && is_array( $data['n'] ) ) {
 				foreach ( $data['n'] as $nonce ) {
-					if ( is_string( $nonce ) && preg_match( '/^[A-Za-z0-9+\/=_-]{8,128}$/', $nonce ) ) {
+					if ( is_string( $nonce ) && preg_match( '/^[A-Za-z0-9+\/=_-]{8,128}$/D', $nonce ) ) {
 						$meta['n'][] = $nonce;
 					}
 				}
@@ -702,6 +713,11 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			$device = ! empty( $flags['device'] ) && ! empty( $ctx['device_file'] );
 			$target = $device ? $ctx['device_file'] : $ctx['file'];
 
+			// A NEW variant is refused once the URL already has plenty; refreshing an existing one is always allowed.
+			if ( ! is_file( $target ) && self::count_variants( $dir ) >= self::MAX_VARIANTS ) {
+				return false;
+			}
+
 			// Sidecars first: a HIT may then miss a header only if this write fails, never see stale ones.
 			$replay = self::sanitize_headers( $headers );
 			$nonces = self::extract_nonces( $replay, $html );
@@ -737,6 +753,28 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				}
 			}
 			return true;
+		}
+
+		/**
+		 * Number of cached page variants in one URL directory.
+		 *
+		 * Uses a directory iterator rather than glob(): the path may contain glob metacharacters.
+		 *
+		 * @param string $dir URL directory.
+		 * @return int
+		 */
+		private static function count_variants( $dir ) {
+			$count = 0;
+			if ( ! is_dir( $dir ) ) {
+				return 0;
+			}
+			foreach ( new DirectoryIterator( $dir ) as $entry ) {
+				$name = $entry->getFilename();
+				if ( $entry->isFile() && 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) ) {
+					++$count;
+				}
+			}
+			return $count;
 		}
 
 		/**

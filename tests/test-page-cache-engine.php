@@ -388,6 +388,40 @@ file_put_contents( $E::header_file( $nc['file'] ), json_encode( array( 'h' => ar
 t_ok( array() === $E::read_meta( $nc['file'] )['n'], 'invalid nonce values in the sidecar are ignored' );
 $E::purge_all();
 
+// ---- Visitor-chosen cookie values cannot fill the disk ----------------------------------
+write_cfg( array( 'vary_cookies' => array( 'pll_language' ) ) );
+foreach ( array( 'en', 'vi', 'fil', 'USD', 'VND', 'en-US', 'pt_BR', 'zh-hant-tw', 'zh-Hant-TW', 'sr-Latn' ) as $good ) {
+	t_ok( null !== ctx( '/vals/', array(), array( 'pll_language' => $good ) ), 'language/currency code accepted: ' . $good );
+}
+foreach ( array( 'x1', 'e', 'english', 'en-', '-en', 'en-US-extra-more', 'en-us-posix-x', '123', 'e n', 'en;', 'e%6e', str_repeat( 'a', 17 ), 'en-a', 'aa-bbbbbbb', "en\n", '../x' ) as $bad ) {
+	t_ok( null === ctx( '/vals/', array(), array( 'pll_language' => $bad ) ), 'arbitrary value is not cached: ' . json_encode( $bad ) );
+}
+$va = static function ( $i ) { return chr( 97 + intdiv( $i, 26 ) ) . chr( 97 + $i % 26 ); };
+$stored = 0;
+for ( $i = 0; $i < 500; $i++ ) {
+	$vc = ctx( '/vals/', array(), array( 'pll_language' => $va( $i % 676 ) . ( $i >= 676 ? 'x' : '' ) ) );
+	if ( $vc && $E::store( $vc, $html ) ) { ++$stored; }
+}
+$vdir = $E::cache_root() . '/example.com/vals';
+$vcount = count( glob( $vdir . '/index*.html' ) );
+t_ok( $E::MAX_VARIANTS === $vcount && $E::MAX_VARIANTS === $stored, 'one URL never holds more than MAX_VARIANTS copies, however many cookie values are sent (' . $vcount . ')' );
+$existing = ctx( '/vals/', array(), array( 'pll_language' => 'aa' ) );
+t_ok( $E::store( $existing, $html . ' refreshed' ) && false !== strpos( file_get_contents( $existing['file'] ), 'refreshed' ), 'an existing variant can still be refreshed at the cap' );
+$E::store( ctx( '/vals/', array(), array( 'pll_language' => 'zz' ) ), $html, array( 'X-Robots-Tag: noindex' ), array( 'lists_others' => true ) );
+t_ok( $E::MAX_VARIANTS === count( glob( $vdir . '/index*.html' ) ) && ! is_file( $E::header_file( ctx( '/vals/', array(), array( 'pll_language' => 'zz' ) )['file'] ) ), 'a refused variant leaves no sidecars behind' );
+$E::purge_path( '/vals/' );
+// Sidecars (.hdr / .lst) are not variants: 95 pages with two sidecars each still leave room for exactly one more.
+for ( $i = 0; $i < $E::MAX_VARIANTS - 1; $i++ ) {
+	$E::store( ctx( '/vals/', array(), array( 'pll_language' => $va( $i ) ) ), $html, array( 'X-Robots-Tag: noindex' ), array( 'lists_others' => true ) );
+}
+t_ok( ( $E::MAX_VARIANTS - 1 ) * 3 === count( glob( $vdir . '/index*' ) ), 'fixture: pages with .hdr and .lst sidecars' );
+t_ok( true === $E::store( ctx( '/vals/', array(), array( 'pll_language' => 'zy' ) ), $html ), 'sidecars are not counted: the last allowed variant is still accepted' );
+t_ok( false === $E::store( ctx( '/vals/', array(), array( 'pll_language' => 'zx' ) ), $html ), 'and the next one is refused' );
+$E::purge_path( '/vals/' );
+t_ok( true === $E::store( ctx( '/vals/', array(), array( 'pll_language' => 'zz' ) ), $html ), 'after a purge the URL accepts variants again' );
+$E::purge_path( '/vals/' );
+write_cfg();
+
 proc_terminate( $srv );
 proc_close( $srv );
 

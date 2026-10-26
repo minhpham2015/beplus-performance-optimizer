@@ -382,6 +382,9 @@ else :
 						<?php foreach ( $status['errors'] as $error ) : ?>
 						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
 						<?php endforeach; ?>
+						<?php if ( $status['enabled'] && $status['config_ok'] && ! $status['hosts_ok'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The site address changed since these settings were saved, so no page is being cached. It is repaired automatically on the next visit; you can also save these settings again.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
 						<?php if ( $status['enabled'] && ! $status['config_ok'] ) : ?>
 						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
 						<?php endif; ?>

@@ -210,6 +210,20 @@ checking whether it would break the SVN slug binding).
      them in the `.hdr` sidecar and rotates them on every HIT (body and header);
      such pages get no `Last-Modified`/304. Don't add anything that caches a
      nonce-bearing page without this rotation.
+   - **Anything a visitor controls must be bounded.** Variant cookie values must
+     match `VARY_VALUE_REGEX` (use the `D` modifier — `$` accepts a trailing
+     newline) and a URL directory never holds more than `MAX_VARIANTS` files.
+     Don't count sidecars, and don't use `glob()` on cache paths for new code
+     (the install path may contain glob metacharacters).
+   - **Content that is not a page still changes pages.** Non-public post types
+     (templates, template parts, global styles, navigation, blocks, builder
+     libraries, forms) purge everything when an editor saves them; only the
+     `IGNORED_POST_TYPES` noise (logs, queues, orders) is exempt. Title, slug,
+     parent and menu order changes of a published post purge everything because
+     menus and child URLs show them elsewhere.
+   - **The config's host list must track the site address** (`hosts_in_sync()`,
+     checked on every front-end request without touching the database unless it
+     is out of sync). A stale list silently disables the cache.
    - What an edit purges depends on whether pages show *other* posts
      (`purges_everything_on_post_change()`); never narrow a purge to "related
      pages" without that check.

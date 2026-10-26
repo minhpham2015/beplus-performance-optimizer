@@ -82,6 +82,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Last-Modified`/304 for such pages, since the body changes on every response).
 
 ### Fixed
+- Page Cache: language/currency cookie values are chosen by the visitor, so one URL
+  could be filled with unlimited copies (500 distinct values made 500 files). A
+  value now has to look like a language or currency code (`en`, `USD`, `pt_BR`,
+  `zh-Hant-TW`; a trailing newline no longer slips through `$`), and a URL never
+  holds more than 96 variants; existing variants can always be refreshed.
+- Page Cache: renaming a published post/page, changing its slug, parent or menu
+  order purges every page (menus, breadcrumbs, page lists, previous/next links
+  and all child URLs show these on other pages); previously only the post and its
+  archives were purged, so menus kept the old name until the TTL.
+- Page Cache: saving or deleting non-public content that appears on pages now
+  purges everything: Site Editor templates and template parts, global styles,
+  navigation, reusable blocks, page-builder libraries, form/table post types —
+  when done by someone who can edit posts (or WP-CLI). Logs, queues, orders, menu
+  items, customizer changesets and form entries are ignored
+  (`bepluspb_page_cache_ignored_post_types` filter to extend).
+- Page Cache: the host allowlist in the config followed only a settings save. After
+  a domain change made through `WP_HOME`/`WP_SITEURL`, WP-CLI search-replace or
+  SQL (no hook fires) nothing was cached while the screen still said "Active".
+  It is now compared with the site address on every front-end request (one
+  in-memory comparison; the transient is read only when out of sync), repaired on
+  the next request, re-synced when the `home`/`siteurl` options change, and
+  reported on the settings screen.
 - Page Cache: a replayed header now replaces one an earlier plugin already sent
   (fallback mode runs after other plugins load), instead of adding a second,
   conflicting `X-Frame-Options`/`Referrer-Policy` line; multi-valued `Link` and
