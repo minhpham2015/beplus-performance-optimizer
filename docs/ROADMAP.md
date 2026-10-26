@@ -49,6 +49,14 @@ Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.13 · Nh
 - Đề xuất chia bản 1.2.0 → 1.3.0 → 1.4.0 (page cache cần thời gian test riêng). _Chưa xác nhận: chia bản hay nhảy thẳng 1.4.0._
 - Ưu tiên: #1–#3 trước; #6, #7 làm song song; #11 để cuối.
 
+## Hạn chế đã biết của Page Cache (chưa xử lý, cần quyết định)
+
+- **Header do PHP đặt không được phát lại khi HIT** (ở chế độ drop-in plugin/theme chưa chạy): `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy`, `X-Robots-Tag`, `Link`… Nếu các header này do WordPress/plugin đặt (thay vì web server) thì trang cache sẽ thiếu chúng.
+- **Nội dung đổi theo thiết bị/ngôn ngữ/tiền tệ** (server-side `wp_is_mobile()`, cookie WPML/Polylang, WCML, geolocation) sẽ bị phục vụ nhầm. Hiện chỉ xử lý được bằng ô "Bypass Cookies" hoặc "Exclude Pages"; chưa có cache riêng cho mobile.
+- **Widget dùng chung toàn site** (Recent Comments, Recent Posts, bộ đếm) chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài; sửa bài/duyệt bình luận chỉ xóa trang liên quan. Có filter `bepluspb_page_cache_purge_all_on_post_change` để xóa toàn bộ.
+- Chưa có giới hạn tổng dung lượng/số file (chỉ giới hạn bằng TTL + cron dọn hằng ngày + chặn URL chữ hoa/query string).
+- Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI.
+
 ## Smoke test thủ công trước khi chuyển #1–#3 sang DONE
 
 Môi trường dev chưa có WordPress thật (không tải được wordpress.org), nên các mục dưới chưa được chạy:
@@ -69,3 +77,5 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 |---|---|
 | 2026-10-25 | Lập roadmap, chưa bắt đầu tính năng nào. |
 | 2026-10-26 | Hoàn thành code #1–#3 (page cache + invalidation + loại trừ), test standalone `test-page-cache-engine.php` và `test-page-cache-class.php`, CI guard, CHANGELOG, CLAUDE.md rule #8. Chưa smoke test trên WordPress thật. Chưa tăng version (chờ #4 preload hoặc quyết định phát hành). |
+| 2026-10-26 | Merge #1–#3 vào `master` để test. |
+| 2026-10-26 | Tự review #1–#3, sửa 5 lỗi (xem CHANGELOG "Fixed"), thêm 20 assertion. Các sửa này nằm ở nhánh `claude/modest-mccarthy-lheo63`, chưa vào `master`. |

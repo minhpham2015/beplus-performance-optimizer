@@ -31,7 +31,7 @@ $GLOBALS['cron']       = array();
 $GLOBALS['opts']       = array( 'cache_enabled' => 1, 'page_cache_enabled' => 1, 'page_cache_ttl' => 10, 'page_cache_exclude_cookies' => "my_cookie\nbad cookie!", 'cache_exclude_pages' => "/members/\n", 'cdn_webp_avif' => 0 );
 $GLOBALS['posts']      = array();
 
-class WP_Post { public $autosave = false; public $ID; public $post_type = 'post'; public $post_status = 'publish'; public $post_author = 1; public $post_date = '2026-03-04 10:00:00'; }
+class WP_Post { public $slug = ''; public $autosave = false; public $ID; public $post_type = 'post'; public $post_status = 'publish'; public $post_author = 1; public $post_date = '2026-03-04 10:00:00'; }
 class WP_Error {}
 function __( $s ) { return $s; }
 function absint( $v ) { return abs( (int) $v ); }
@@ -58,7 +58,7 @@ function wp_is_post_autosave( $id ) { return ! empty( $GLOBALS['posts'][ $id ]->
 function wp_is_post_revision( $id ) { return false; }
 function get_post( $id ) { return $GLOBALS['posts'][ $id ] ?? null; }
 function is_post_type_viewable( $t ) { return in_array( $t, array( 'post', 'page' ), true ); }
-function get_permalink( $p ) { $id = is_object( $p ) ? $p->ID : $p; return 'https://example.com/blog/post-' . $id . '/'; }
+function get_permalink( $p ) { $id = is_object( $p ) ? $p->ID : $p; return 'https://example.com/blog/' . ( is_object( $p ) && ! empty( $p->slug ) ? $p->slug : 'post-' . $id ) . '/'; }
 function get_option( $k ) { return 'page_for_posts' === $k ? 0 : false; }
 function get_post_type_archive_link( $t ) { return false; }
 function get_object_taxonomies() { return array(); }
@@ -66,6 +66,15 @@ function get_author_posts_url( $id ) { return 'https://example.com/author/admin/
 function get_year_link( $y ) { return "https://example.com/$y/"; }
 function get_month_link( $y, $m ) { return sprintf( 'https://example.com/%d/%02d/', $y, $m ); }
 function get_day_link( $y, $m, $d ) { return sprintf( 'https://example.com/%d/%02d/%02d/', $y, $m, $d ); }
+function wp_unslash( $v ) { return $v; }
+function is_404() { return ! empty( $GLOBALS['q']['404'] ); }
+function is_search() { return false; } function is_feed() { return false; } function is_preview() { return false; }
+function is_customize_preview() { return false; } function is_embed() { return false; } function is_trackback() { return false; } function is_robots() { return false; }
+function get_query_var( $v ) { return ''; }
+function is_singular() { return ! empty( $GLOBALS['q']['singular'] ); }
+function post_password_required() { return ! empty( $GLOBALS['q']['password'] ); }
+class BEPLUSPB_Utils { public static function is_buffer_excluded_request() { return false; } }
+class BEPLUSPB_Minify { public static function is_cache_disabled_for_page() { return ! empty( $GLOBALS['q']['disabled'] ); } }
 function get_comment( $id ) { return (object) array( 'comment_post_ID' => 7 ); }
 
 require BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php';
@@ -266,6 +275,79 @@ $E::reset();
 $PC::sync( $GLOBALS['opts'] );
 t_ok( ! empty( $GLOBALS['transients']['bepluspb_page_cache_error'] ) && "<?php // foreign\n" === file_get_contents( $PC::dropin_file() ), 'enabling next to a foreign drop-in reports it and falls back to plugin-level serving' );
 t_ok( 'plugin' === $PC::get_status()['mode'], 'status reports plugin-level mode when the drop-in did not run' );
+
+// ---- storable_context(): what may enter the cache ----------------------------
+$PC::write_config( $cfg );
+$base_server = array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/about/' );
+$_SERVER     = array_merge( $_SERVER, $base_server );
+$_COOKIE     = array();
+$GLOBALS['q'] = array();
+$E::reset();
+t_ok( is_array( priv( 'storable_context' ) ), 'a plain anonymous page is storable' );
+$_SERVER['REQUEST_URI'] = '/about/?utm_source=x';
+$E::reset();
+t_ok( null !== $E::request_context( $_SERVER, array() ) && null === priv( 'storable_context' ), 'a tracking-parameter request may be served but is NEVER stored (URL-reflection poisoning)' );
+$_SERVER['REQUEST_URI'] = '/about/?';
+t_ok( null === priv( 'storable_context' ), 'even an empty query string is not stored' );
+$_SERVER['REQUEST_URI'] = '/about/';
+$GLOBALS['q'] = array( '404' => true );
+t_ok( null === priv( 'storable_context' ), '404 is not stored' );
+$GLOBALS['q'] = array( 'singular' => true, 'password' => true );
+t_ok( null === priv( 'storable_context' ), 'password-protected post is not stored' );
+$GLOBALS['q'] = array( 'disabled' => true );
+t_ok( null === priv( 'storable_context' ), 'per-post disable / exclusion pattern is honoured' );
+$GLOBALS['q'] = array();
+$GLOBALS['logged_in'] = true;
+t_ok( null === priv( 'storable_context' ), 'logged-in user is not stored' );
+$GLOBALS['logged_in'] = false;
+$_COOKIE = array( 'woocommerce_items_in_cart' => '1' );
+t_ok( null === priv( 'storable_context' ), 'cart cookie is not stored' );
+$_COOKIE = array();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+t_ok( null === priv( 'storable_context' ), 'POST is not stored' );
+$_SERVER['REQUEST_METHOD'] = 'GET';
+t_ok( is_array( priv( 'storable_context' ) ), 'and a plain page is storable again' );
+
+// ---- Content that changes after save_post, removed terms, renamed slug ------
+$E::reset();
+$f = $fill();
+$PC::on_set_object_terms( 7, array( 3 ), array( 3 ), 'category', false, array( 3 ) );
+t_ok( is_file( $f['other'] ), 'unchanged terms purge nothing' );
+$PC::on_set_object_terms( 7, array( 4 ), array( 4 ), 'category', false, array( 3 ) );
+t_ok( ! is_file( $f['other'] ), 'moving a published post between categories purges every archive it left' );
+$GLOBALS['posts'][11] = ( function () { $d = new WP_Post(); $d->ID = 11; $d->post_status = 'draft'; return $d; } )();
+$E::reset(); $f = $fill();
+$PC::on_set_object_terms( 11, array( 4 ), array( 4 ), 'category', false, array( 3 ) );
+t_ok( is_file( $f['other'] ), 'term changes on a draft purge nothing' );
+
+$E::reset(); $f = $fill();
+$old = new WP_Post(); $old->ID = 7; $old->slug = 'post-7'; $new = new WP_Post(); $new->ID = 7; $new->slug = 'renamed';
+$GLOBALS['posts'][7] = $new;
+$PC::on_after_insert_post( 7, $new, true, $old );
+t_ok( ! is_file( $f['post'] ), 'wp_after_insert_post purges the post (REST saves set terms/meta after save_post)' );
+$E::reset(); $f = $fill();
+$GLOBALS['posts'][7] = $p;
+$p->slug = 'post-7';
+$PC::on_after_insert_post( 7, $p, true, $p );
+t_ok( is_file( $f['other'] ), 'post_before identical => no extra purge of other pages' );
+$page( '/blog/old-slug/' );
+$old2 = new WP_Post(); $old2->ID = 7; $old2->slug = 'old-slug'; $new2 = new WP_Post(); $new2->ID = 7; $new2->slug = 'post-7';
+$PC::on_after_insert_post( 7, $new2, true, $old2 );
+t_ok( ! is_file( $E::cache_root() . '/example.com/blog/old-slug/index-s.html' ), 'a renamed slug purges the OLD URL as well' );
+$dr = new WP_Post(); $dr->ID = 12; $dr->post_status = 'draft'; $GLOBALS['posts'][12] = $dr;
+$E::reset(); $f = $fill();
+$PC::on_after_insert_post( 12, $dr, false, null );
+t_ok( is_file( $f['post'] ), 'wp_after_insert_post on a draft purges nothing' );
+
+// ---- Repeated purges report truthfully (Purge ALL runs two in a row) --------
+$E::reset(); $f = $fill();
+$r1 = $E::purge_all();
+$r2 = $E::purge_all();
+t_ok( $r1['deleted'] >= 4 && 'success' === $r1['status'] && 0 === $r2['matched'] && 'success' === $r2['status'], 'second purge is a real (empty) pass, not a cached "success"' );
+$f = $fill();
+$r3 = $E::purge_all();
+t_ok( $r3['deleted'] >= 4 && ! is_file( $f['post'] ), 'a later purge in the same request still deletes newly stored pages' );
+t_ok( false === strpos( file_get_contents( $root . '/lib/class-bepluspb-page-cache-engine.php' ), 'Content-Length' ), 'no Content-Length (zlib.output_compression / gzip would corrupt it)' );
 
 // ---- Wiring in the main plugin file and other classes -----------------------
 $main = file_get_contents( $root . '/beplus-performance-booster.php' );

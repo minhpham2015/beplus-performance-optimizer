@@ -78,9 +78,6 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		/** Request-level memo of the loaded config. */
 		private static $config = null;
 
-		/** Whether purge_all() already ran in this request. */
-		private static $purged_all = false;
-
 		/**
 		 * Path to the guarded config file.
 		 *
@@ -145,8 +142,7 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		 * Forget the memoised config (tests, config rewrites in the same request).
 		 */
 		public static function reset() {
-			self::$config     = null;
-			self::$purged_all = false;
+			self::$config = null;
 		}
 
 		/**
@@ -393,7 +389,6 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			}
 
 			header( 'Content-Type: text/html; charset=UTF-8' );
-			header( 'Content-Length: ' . strlen( $body ) );
 			echo $body;
 			exit;
 		}
@@ -513,10 +508,6 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! is_dir( $root ) || is_link( $root ) ) {
 				return $result;
 			}
-			if ( self::$purged_all ) {
-				$result['status'] = 'success';
-				return $result;
-			}
 			$before = self::count_files( $root );
 			foreach ( glob( $root . '/*', GLOB_ONLYDIR | GLOB_NOSORT ) ?: array() as $host_dir ) {
 				if ( is_link( $host_dir ) ) {
@@ -526,7 +517,6 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				self::remove_tree( $host_dir, $root, true );
 			}
 			$after             = self::count_files( $root );
-			self::$purged_all  = true;
 			$result['matched'] = $before['files'];
 			$result['failed']  = $after['files'];
 			$result['deleted'] = max( 0, $before['files'] - $after['files'] );

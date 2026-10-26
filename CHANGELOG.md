@@ -40,6 +40,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the result report).
 
 ### Fixed
+- Page Cache: a request carrying tracking parameters (`?utm_x=…`) may still be
+  served from the clean copy but is never stored, so a theme that echoes the
+  current URL (`add_query_arg( null, null )`, `REQUEST_URI`) cannot get a
+  crafted value cached for every visitor.
+- Page Cache: block-editor/REST saves set terms and meta after `save_post`, and
+  moving a post between categories left the old archive stale; renaming a slug
+  left the old URL cached. Now handled via `wp_after_insert_post` and
+  `set_object_terms`.
+- Page Cache: served pages no longer send `Content-Length` (wrong under
+  `zlib.output_compression`/gzip handlers), and a second purge in the same
+  request no longer reports "0 deleted" (Purge ALL ran two in a row).
 - `bepluspb_register_invalidation_hooks()` was defined but never hooked, so the
   Remove Unused CSS cache was not purged on `save_post`, `switch_theme`, etc.
   (the v1.0.6 fix never took effect). It is now registered on `plugins_loaded`.

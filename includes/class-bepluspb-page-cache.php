@@ -510,6 +510,13 @@ class BEPLUSPB_Page_Cache {
 		if ( ! $ctx ) {
 			return null;
 		}
+		// A request with tracking parameters may be SERVED from the clean copy, but
+		// is never STORED: themes echo the current URL (add_query_arg( null, null ),
+		// $_SERVER['REQUEST_URI']) and a crafted ?utm_x= value would be cached for everyone.
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		if ( false !== strpos( $uri, '?' ) ) {
+			return null;
+		}
 		if (
 			is_user_logged_in() || is_admin() || is_404() || is_search() || is_feed() || is_preview()
 			|| is_customize_preview() || is_embed() || is_trackback() || is_robots()
@@ -733,6 +740,9 @@ class BEPLUSPB_Page_Cache {
 
 		// Posts.
 		add_action( 'save_post', array( __CLASS__, 'on_save_post' ), 20, 2 );
+		// Block-editor/REST saves set terms and meta AFTER save_post; this fires once all are stored.
+		add_action( 'wp_after_insert_post', array( __CLASS__, 'on_after_insert_post' ), 20, 4 );
+		add_action( 'set_object_terms', array( __CLASS__, 'on_set_object_terms' ), 20, 6 );
 		add_action( 'transition_post_status', array( __CLASS__, 'on_transition_post_status' ), 20, 3 );
 		add_action( 'deleted_post', array( __CLASS__, 'on_deleted_post' ), 20, 2 );
 
@@ -779,6 +789,54 @@ class BEPLUSPB_Page_Cache {
 			return;
 		}
 		self::purge_post( $post_id );
+	}
+
+	/**
+	 * Post fully saved (terms, meta and REST updates included): purge it, and its
+	 * previous URL when the slug or parent changed.
+	 *
+	 * @param int          $post_id     Post ID.
+	 * @param WP_Post      $post        Post object.
+	 * @param bool         $update      Whether this is an update.
+	 * @param WP_Post|null $post_before Post as it was before the update.
+	 */
+	public static function on_after_insert_post( $post_id, $post, $update = false, $post_before = null ) {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+			return;
+		}
+		self::purge_post( $post_id );
+		if ( $update && $post_before instanceof WP_Post && 'publish' === $post_before->post_status ) {
+			$old = get_permalink( $post_before );
+			if ( $old && get_permalink( $post ) !== $old ) {
+				self::purge_url( $old, true );
+			}
+		}
+	}
+
+	/**
+	 * Categories/tags of a published post changed: the term archives it left are
+	 * stale too, and only the old term IDs know about them, so purge everything.
+	 *
+	 * @param int    $object_id  Object ID.
+	 * @param array  $terms      Submitted terms.
+	 * @param array  $tt_ids     New term-taxonomy IDs.
+	 * @param string $taxonomy   Taxonomy.
+	 * @param bool   $append     Whether terms were appended.
+	 * @param array  $old_tt_ids Previous term-taxonomy IDs.
+	 */
+	public static function on_set_object_terms( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+		unset( $terms, $taxonomy, $append );
+		$new = array_map( 'intval', (array) $tt_ids );
+		$old = array_map( 'intval', (array) $old_tt_ids );
+		sort( $new );
+		sort( $old );
+		if ( $new === $old ) {
+			return;
+		}
+		$post = get_post( $object_id );
+		if ( $post instanceof WP_Post && 'publish' === $post->post_status && is_post_type_viewable( $post->post_type ) ) {
+			self::purge_all();
+		}
 	}
 
 	/**
