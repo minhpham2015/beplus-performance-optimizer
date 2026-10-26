@@ -39,6 +39,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Purge ALL Cache" now also empties the page cache (new `page_cache` layer in
   the result report).
 
+### Page Cache: response headers, devices/languages, site-wide widgets
+- A cached page now replays the headers PHP set when it was built (allowlist:
+  `X-Frame-Options`, `Content-Security-Policy[-Report-Only]`,
+  `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`,
+  `Strict-Transport-Security`, `Cross-Origin-*-Policy`, `X-Robots-Tag`,
+  `X-UA-Compatible`, `Content-Language`, `X-Pingback`, `Link`), stored in an
+  `index*.hdr` sidecar. Set-Cookie, Location and Cache-Control are never
+  recorded, and the sidecar is re-filtered when served so a tampered file
+  cannot inject headers.
+- New "Mobile Devices" setting (default: separate copy). Uses the same test as
+  `wp_is_mobile()` (including `Sec-CH-UA-Mobile`), stores `index-m*.html`, and
+  sends `Vary: User-Agent`. Alternatives: share one copy, or never cache mobile.
+- New "Language / Currency Cookies" setting: each value of a listed cookie gets
+  its own copy instead of bypassing the cache. WPML, Polylang and WooCommerce
+  Multilingual cookies are detected automatically (re-synced when plugins are
+  (de)activated). Cookie values are restricted to `[A-Za-z0-9_.-]{1,32}` and
+  hashed into the file name; anything else is not cached.
+- New "When a Post Is Edited" setting (default: automatic). Automatic purges
+  every page when Recent Posts/Comments, Archives, Calendar, Tag Cloud,
+  Categories or a Query Loop (classic widgets, block widgets, block-theme
+  template parts) is in use, because those lists appear on every page; related
+  pages only otherwise. The scan is cached for 12 hours and re-run when
+  widgets, the theme or templates change. The
+  `bepluspb_page_cache_purge_all_on_post_change` filter still has the last word.
+
 ### Fixed
 - Page Cache: a request carrying tracking parameters (`?utm_x=…`) may still be
   served from the clean copy but is never stored, so a theme that echoes the

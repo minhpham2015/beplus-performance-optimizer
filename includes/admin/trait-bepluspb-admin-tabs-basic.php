@@ -284,6 +284,65 @@ else :
 					</div>
 				</div>
 
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_mobile"><?php esc_html_e( 'Mobile Devices', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $mobile_mode = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_mobile'], array( 'same', 'separate', 'bypass' ), 'separate' ); ?>
+						<select id="bepluspb_page_cache_mobile"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_mobile]">
+							<option value="separate" <?php selected( $mobile_mode, 'separate' ); ?>><?php esc_html_e( 'Separate cache for mobile (safest)', 'beplus-performance-booster' ); ?></option>
+							<option value="same" <?php selected( $mobile_mode, 'same' ); ?>><?php esc_html_e( 'Same cache for all devices', 'beplus-performance-booster' ); ?></option>
+							<option value="bypass" <?php selected( $mobile_mode, 'bypass' ); ?>><?php esc_html_e( 'Do not cache mobile devices', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Some themes and plugins send different HTML to phones (wp_is_mobile()). "Separate" stores a mobile copy using the same device test as WordPress. Choose "Same" only if your theme is purely responsive (CSS only).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_vary_cookies"><?php esc_html_e( 'Language / Currency Cookies', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One cookie name per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_vary_cookies" rows="3" class="large-text code"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_vary_cookies]"><?php echo esc_textarea( $opts['page_cache_vary_cookies'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Each different value of these cookies gets its own cached copy, so visitors keep the right language or currency while the page stays cached.', 'beplus-performance-booster' ); ?>
+							<?php
+							$detected = BEPLUSPB_Page_Cache::detected_vary_cookies();
+							if ( $detected ) :
+								?>
+								<br><strong><?php esc_html_e( 'Detected automatically:', 'beplus-performance-booster' ); ?></strong> <code><?php echo esc_html( implode( ', ', $detected ) ); ?></code>
+							<?php endif; ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_purge_scope"><?php esc_html_e( 'When a Post Is Edited', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $purge_scope = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_purge_scope'], array( 'auto', 'related', 'all' ), 'auto' ); ?>
+						<select id="bepluspb_page_cache_purge_scope"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_purge_scope]">
+							<option value="auto" <?php selected( $purge_scope, 'auto' ); ?>><?php esc_html_e( 'Automatic (recommended)', 'beplus-performance-booster' ); ?></option>
+							<option value="related" <?php selected( $purge_scope, 'related' ); ?>><?php esc_html_e( 'Only the post and its related pages', 'beplus-performance-booster' ); ?></option>
+							<option value="all" <?php selected( $purge_scope, 'all' ); ?>><?php esc_html_e( 'Every cached page', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Related pages: the post, home, posts page, its archives, author and date pages. Automatic clears everything when Recent Posts, Recent Comments, Archives, Calendar, Tag Cloud, Categories or a Query Loop in a template part is in use (these show other posts on every page), and only related pages otherwise.', 'beplus-performance-booster' ); ?>
+							<?php if ( 'auto' === $purge_scope ) : ?>
+								<br><strong><?php echo esc_html( BEPLUSPB_Page_Cache::purges_everything_on_post_change( $opts ) ? __( 'Currently detected: site-wide post lists — an edit clears every page.', 'beplus-performance-booster' ) : __( 'Currently detected: no site-wide post lists — an edit clears related pages only.', 'beplus-performance-booster' ) ); ?></strong>
+							<?php endif; ?>
+						</p>
+					</div>
+				</div>
+
 				<?php
 				$mode_labels = array(
 					'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),

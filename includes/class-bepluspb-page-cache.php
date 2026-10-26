@@ -34,6 +34,15 @@ class BEPLUSPB_Page_Cache {
 	/** Transient holding the last sync problem for the admin UI. */
 	const ERROR_TRANSIENT = 'bepluspb_page_cache_error';
 
+	/** Transient caching whether the site shows widgets/blocks that list content everywhere. */
+	const SITEWIDE_TRANSIENT = 'bepluspb_page_cache_sitewide';
+
+	/** Classic widgets whose output changes whenever any post or comment does. */
+	private const DYNAMIC_WIDGETS = array( 'recent-posts', 'recent-comments', 'archives', 'calendar', 'tag_cloud', 'categories' );
+
+	/** Block markup (widget areas, template parts) that lists content on every page it appears on. */
+	private const DYNAMIC_BLOCKS_REGEX = '/<!--\s+wp:(latest-posts|latest-comments|archives|calendar|tag-cloud|categories|query)(?=[\s\/}])/';
+
 	/**
 	 * Request context from the engine for the page being buffered.
 	 *
@@ -141,6 +150,123 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * Restrict a select-style option to its allowed values.
+	 *
+	 * @param mixed    $value   Raw value.
+	 * @param string[] $allowed Allowed values.
+	 * @param string   $default Fallback.
+	 * @return string
+	 */
+	public static function sanitize_choice( $value, array $allowed, $default ) {
+		return is_string( $value ) && in_array( $value, $allowed, true ) ? $value : $default;
+	}
+
+	/**
+	 * Cookies that decide language or currency, auto-detected from active plugins.
+	 * Each distinct value gets its own cached copy instead of bypassing the cache.
+	 *
+	 * @return string[]
+	 */
+	public static function detected_vary_cookies() {
+		$cookies = array();
+		if ( defined( 'ICL_SITEPRESS_VERSION' ) ) { // WPML.
+			$cookies[] = 'wp-wpml_current_language';
+		}
+		if ( defined( 'POLYLANG_VERSION' ) ) {
+			$cookies[] = 'pll_language';
+		}
+		if ( defined( 'WCML_VERSION' ) ) { // WooCommerce Multilingual.
+			$cookies[] = 'wcml_client_currency';
+			$cookies[] = 'wcml_client_currency_language';
+		}
+		return $cookies;
+	}
+
+	/**
+	 * Whether the site renders content lists (recent posts/comments, archives,
+	 * calendar, tag cloud, categories, query loops in template parts) on many pages.
+	 * If so, editing one post makes lots of OTHER cached pages stale.
+	 *
+	 * @return bool
+	 */
+	public static function has_sitewide_dynamic_content() {
+		$cached = get_transient( self::SITEWIDE_TRANSIENT );
+		if ( false !== $cached ) {
+			return '1' === (string) $cached;
+		}
+		$found = self::detect_sitewide_dynamic_content();
+		set_transient( self::SITEWIDE_TRANSIENT, $found ? '1' : '0', 12 * HOUR_IN_SECONDS );
+		return $found;
+	}
+
+	/**
+	 * Scan active widgets, block widgets and block-theme template parts.
+	 *
+	 * @return bool
+	 */
+	private static function detect_sitewide_dynamic_content() {
+		if ( function_exists( 'is_active_widget' ) ) {
+			foreach ( self::DYNAMIC_WIDGETS as $base ) {
+				if ( is_active_widget( false, false, $base, true ) ) {
+					return true;
+				}
+			}
+		}
+		$block_widgets = get_option( 'widget_block' );
+		foreach ( is_array( $block_widgets ) ? $block_widgets : array() as $widget ) {
+			if ( is_array( $widget ) && isset( $widget['content'] ) && is_string( $widget['content'] ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $widget['content'] ) ) {
+				return true;
+			}
+		}
+		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
+			foreach ( array( get_stylesheet_directory(), get_template_directory() ) as $dir ) {
+				foreach ( glob( trailingslashit( $dir ) . 'parts/*.html' ) ?: array() as $file ) {
+					$markup = file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+					if ( is_string( $markup ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $markup ) ) {
+						return true;
+					}
+				}
+			}
+			$parts = get_posts(
+				array(
+					'post_type'      => 'wp_template_part',
+					'post_status'    => 'publish',
+					'posts_per_page' => 50,
+					'no_found_rows'  => true,
+				)
+			);
+			foreach ( is_array( $parts ) ? $parts : array() as $part ) {
+				if ( is_string( $part->post_content ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $part->post_content ) ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Forget the widget/template scan so the next purge decision re-reads them.
+	 */
+	public static function flush_sitewide_detection() {
+		delete_transient( self::SITEWIDE_TRANSIENT );
+	}
+
+	/**
+	 * Whether editing a published post must purge every page, not just related ones.
+	 *
+	 * @param array|null $opts Options (defaults to the saved ones).
+	 * @return bool
+	 */
+	public static function purges_everything_on_post_change( $opts = null ) {
+		$opts  = is_array( $opts ) ? $opts : bepluspb_get_options();
+		$scope = self::sanitize_choice( $opts['page_cache_purge_scope'] ?? 'auto', array( 'auto', 'related', 'all' ), 'auto' );
+		if ( 'all' === $scope ) {
+			return true;
+		}
+		return 'auto' === $scope && self::has_sitewide_dynamic_content();
+	}
+
+	/**
 	 * Hosts the cache may serve (home and site URL, with non-default ports).
 	 *
 	 * @return string[]
@@ -172,6 +298,8 @@ class BEPLUSPB_Page_Cache {
 			'exclude_paths'   => bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] ?? '' ),
 			'exclude_cookies' => bepluspb_parse_exclude_list( $opts['page_cache_exclude_cookies'] ?? '' ),
 			'accept_variants' => ! empty( $opts['cdn_webp_avif'] ),
+			'mobile'          => self::sanitize_choice( $opts['page_cache_mobile'] ?? 'separate', array( 'same', 'separate', 'bypass' ), 'separate' ),
+			'vary_cookies'    => array_slice( array_values( array_unique( array_merge( self::detected_vary_cookies(), bepluspb_parse_exclude_list( $opts['page_cache_vary_cookies'] ?? '' ) ) ) ), 0, 8 ),
 		);
 	}
 
@@ -498,6 +626,28 @@ class BEPLUSPB_Page_Cache {
 		// Priority -100: open BEFORE the HTML/CDN/CSS buffers (priority 0) so this
 		// outermost buffer receives the final, fully optimised markup.
 		add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), -100 );
+		if ( 'separate' === self::sanitize_choice( $opts['page_cache_mobile'] ?? 'separate', array( 'same', 'separate', 'bypass' ), 'separate' ) ) {
+			// The HTML now depends on the device: downstream caches (proxies, CDNs) must key on it too.
+			add_action( 'template_redirect', array( __CLASS__, 'send_vary_user_agent' ), -101 );
+		}
+	}
+
+	/**
+	 * Tell shared caches that the HTML varies by User-Agent.
+	 */
+	public static function send_vary_user_agent() {
+		if ( ! headers_sent() ) {
+			header( 'Vary: User-Agent', false );
+		}
+	}
+
+	/**
+	 * Headers set during this request that a cached copy must replay on a HIT.
+	 *
+	 * @return string[]
+	 */
+	private static function replayable_headers() {
+		return BEPLUSPB_Page_Cache_Engine::sanitize_headers( headers_list() );
 	}
 
 	/**
@@ -570,7 +720,8 @@ class BEPLUSPB_Page_Cache {
 			try {
 				BEPLUSPB_Page_Cache_Engine::store(
 					self::$ctx,
-					$html . "\n<!-- Page cached by Beplus Performance Booster on " . gmdate( 'Y-m-d H:i:s' ) . " UTC -->\n"
+					$html . "\n<!-- Page cached by Beplus Performance Booster on " . gmdate( 'Y-m-d H:i:s' ) . " UTC -->\n",
+					self::replayable_headers()
 				);
 			} catch ( Throwable $e ) {
 				unset( $e ); // Never break the response because caching failed.
@@ -664,10 +815,11 @@ class BEPLUSPB_Page_Cache {
 		/**
 		 * Filters whether editing a published post purges the WHOLE page cache.
 		 *
-		 * @param bool    $purge_all Default false: purge related URLs only.
+		 * @param bool    $purge_all Default from the "Purge scope" setting (auto = true only when
+		 *                           widgets/blocks list content site-wide).
 		 * @param WP_Post $post      The edited post.
 		 */
-		if ( apply_filters( 'bepluspb_page_cache_purge_all_on_post_change', false, $post ) ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		if ( apply_filters( 'bepluspb_page_cache_purge_all_on_post_change', self::purges_everything_on_post_change(), $post ) ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 			self::purge_all();
 			return;
 		}
@@ -753,10 +905,17 @@ class BEPLUSPB_Page_Cache {
 		}
 
 		// Site-wide look and structure.
-		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'activated_plugin', 'deactivated_plugin', 'bepluspb_assets_cache_cleared', 'bepluspb_page_cache_purge_all' ) as $hook ) {
+		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'bepluspb_assets_cache_cleared', 'bepluspb_page_cache_purge_all' ) as $hook ) {
 			add_action( $hook, array( __CLASS__, 'purge_all' ), 20, 0 );
 		}
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'purge_all' ), 20, 0 );
+		// A (de)activated plugin can add language/currency cookies to the config, so re-sync rather than only purge.
+		add_action( 'activated_plugin', array( __CLASS__, 'on_plugin_toggled' ), 20, 1 );
+		add_action( 'deactivated_plugin', array( __CLASS__, 'on_plugin_toggled' ), 20, 1 );
+		// Widgets/templates decide whether an edit must purge everything; re-scan when they change.
+		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'save_post_wp_template_part', 'save_post_wp_template' ) as $hook ) {
+			add_action( $hook, array( __CLASS__, 'flush_sitewide_detection' ), 5, 0 );
+		}
 		add_action( 'updated_option', array( __CLASS__, 'on_option_changed' ), 20, 1 );
 		add_action( 'added_option', array( __CLASS__, 'on_option_changed' ), 20, 1 );
 
@@ -891,11 +1050,30 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * A plugin was activated or deactivated: refresh config and drop stored pages.
+	 *
+	 * Beplus itself is skipped: its own deactivation hook has just removed the
+	 * drop-in and config, and re-syncing here would put them straight back.
+	 *
+	 * @param string $plugin Plugin basename, e.g. "dir/file.php".
+	 */
+	public static function on_plugin_toggled( $plugin = '' ) {
+		if ( 'beplus-performance-booster.php' === basename( (string) $plugin ) ) {
+			return;
+		}
+		self::flush_sitewide_detection();
+		self::sync( bepluspb_get_options() );
+	}
+
+	/**
 	 * Options that restyle or restructure the whole site.
 	 *
 	 * @param string $option Option name.
 	 */
 	public static function on_option_changed( $option ) {
+		if ( 0 === strpos( $option, 'widget_' ) || 'sidebars_widgets' === $option ) {
+			self::flush_sitewide_detection();
+		}
 		if ( in_array( $option, self::SITEWIDE_OPTIONS, true ) || 0 === strpos( $option, 'widget_' ) || 0 === strpos( $option, 'theme_mods_' ) ) {
 			self::purge_all();
 		}

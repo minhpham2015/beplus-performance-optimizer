@@ -179,6 +179,105 @@ file_put_contents( dirname( $new['file'] ) . '/.tmp-stale', 'x' ); touch( dirnam
 t_ok( 2 === $E::gc(), 'gc removes the expired page and the stale temp file' );
 t_ok( ! is_file( $old['file'] ) && ! is_dir( dirname( $old['file'] ) ) && is_file( $new['file'] ), 'gc keeps fresh pages and prunes empty directories' );
 
+// ---- Device variants (wp_is_mobile parity) ------------------------------------
+$IPHONE  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+$ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
+$DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36';
+foreach ( array( $IPHONE, $ANDROID, 'Opera/9.80 (J2ME/MIDP; Opera Mini/9.80)', 'Mozilla/5.0 (Linux; U; Android 2.3) Silk/1.0', 'Kindle/3.0', 'BlackBerry9700/5.0' ) as $ua ) {
+	t_ok( $E::is_mobile_request( array( 'HTTP_USER_AGENT' => $ua ) ), 'mobile UA detected: ' . substr( $ua, 0, 30 ) );
+}
+t_ok( ! $E::is_mobile_request( array( 'HTTP_USER_AGENT' => $DESKTOP ) ) && ! $E::is_mobile_request( array() ), 'desktop / missing UA is not mobile' );
+t_ok( $E::is_mobile_request( array( 'HTTP_USER_AGENT' => $DESKTOP, 'HTTP_SEC_CH_UA_MOBILE' => '?1' ) ) && ! $E::is_mobile_request( array( 'HTTP_USER_AGENT' => $IPHONE, 'HTTP_SEC_CH_UA_MOBILE' => '?0' ) ), 'Sec-CH-UA-Mobile client hint wins, as in WordPress' );
+
+t_ok( ctx( '/a/', array( 'HTTP_USER_AGENT' => $IPHONE ) )['file'] === ctx( '/a/', array( 'HTTP_USER_AGENT' => $DESKTOP ) )['file'], 'mobile mode "same" (and missing key) shares one copy' );
+write_cfg( array( 'mobile' => 'separate' ) );
+t_ok( ctx( '/a/', array( 'HTTP_USER_AGENT' => $IPHONE ) )['file'] === $E::cache_root() . '/example.com/a/index-m.html', 'separate: mobile gets its own copy' );
+t_ok( ctx( '/a/', array( 'HTTP_USER_AGENT' => $DESKTOP ) )['file'] === $E::cache_root() . '/example.com/a/index.html', 'separate: desktop keeps the normal copy' );
+t_ok( ctx( '/a/', array( 'HTTP_USER_AGENT' => $ANDROID, 'HTTPS' => 'on' ) )['file'] === $E::cache_root() . '/example.com/a/index-s-m.html', 'separate: scheme and device combine' );
+write_cfg( array( 'mobile' => 'bypass' ) );
+t_ok( null === ctx( '/a/', array( 'HTTP_USER_AGENT' => $IPHONE ) ) && null !== ctx( '/a/', array( 'HTTP_USER_AGENT' => $DESKTOP ) ), 'bypass: mobile is never served or stored, desktop is' );
+write_cfg( array( 'mobile' => 'nonsense' ) );
+t_ok( ctx( '/a/', array( 'HTTP_USER_AGENT' => $IPHONE ) )['file'] === ctx( '/a/' )['file'], 'unknown mobile mode falls back to "same"' );
+
+// ---- Language / currency cookie variants -----------------------------------------
+write_cfg( array( 'vary_cookies' => array( 'pll_language', 'wcml_client_currency' ) ) );
+$base = ctx( '/a/' )['file'];
+$en   = ctx( '/a/', array(), array( 'pll_language' => 'en' ) )['file'];
+$vi   = ctx( '/a/', array(), array( 'pll_language' => 'vi' ) )['file'];
+t_ok( $base === $E::cache_root() . '/example.com/a/index.html', 'no variant cookie => default copy' );
+t_ok( $en !== $vi && $en !== $base && $vi !== $base, 'each language value gets its own copy' );
+t_ok( 1 === preg_match( '/index-[0-9a-f]{8}\.html$/', $en ), 'variant name is a short hash, never the raw cookie value' );
+t_ok( $en === ctx( '/a/', array(), array( 'pll_language' => 'EN' ) )['file'], 'cookie value is case-insensitive' );
+t_ok( ctx( '/a/', array(), array( 'pll_language' => 'en', 'wcml_client_currency' => 'USD' ) )['file'] === ctx( '/a/', array(), array( 'wcml_client_currency' => 'usd', 'pll_language' => 'en' ) )['file'], 'cookie order does not matter' );
+t_ok( ctx( '/a/', array(), array( 'pll_language' => 'en', 'wcml_client_currency' => 'USD' ) )['file'] !== $en, 'adding a currency changes the copy' );
+t_ok( $base === ctx( '/a/', array(), array( 'pll_language' => '' ) )['file'], 'empty cookie value counts as absent' );
+t_ok( $base === ctx( '/a/', array(), array( 'unrelated_cookie' => 'x' ) )['file'], 'cookies that are not configured never vary the copy' );
+foreach ( array( '../../etc', 'a/b', 'a b', "a\nb", str_repeat( 'x', 33 ), 'vi;DROP', '<script>' ) as $bad ) {
+	t_ok( null === ctx( '/a/', array(), array( 'pll_language' => $bad ) ), 'unusable cookie value is not cached: ' . json_encode( $bad ) );
+}
+t_ok( null === ctx( '/a/', array(), array( 'pll_language' => array( 'x' ) ) ), 'array-valued cookie is not cached' );
+t_ok( ctx( '/a/', array( 'HTTPS' => 'on', 'HTTP_USER_AGENT' => $IPHONE ), array( 'pll_language' => 'en' ) )['file'] !== null, 'variant cookies combine with other variants' );
+write_cfg();
+
+// ---- Header replay ---------------------------------------------------------------
+$c = ctx( '/hdr/' );
+$pages_before = $E::count_files()['files'];
+t_ok( $E::store( $c, $html, array( 'X-Frame-Options: SAMEORIGIN', "Content-Security-Policy: default-src 'self'", 'X-Robots-Tag: noindex', 'Link: <https://example.com/wp-json/>; rel="https://api.w.org/"', 'Set-Cookie: a=b', 'Location: https://evil.test/', 'Cache-Control: public', 'Content-Type: text/plain', "X-Frame-Options: DENY\r\nSet-Cookie: x=y", 'X-Custom: nope', 'not a header' ) ), 'store with headers' );
+$stored = json_decode( file_get_contents( $E::header_file( $c['file'] ) ), true );
+t_ok( array( 'X-Frame-Options: SAMEORIGIN', "Content-Security-Policy: default-src 'self'", 'X-Robots-Tag: noindex', 'Link: <https://example.com/wp-json/>; rel="https://api.w.org/"' ) === $stored, 'only allowlisted single-line headers are recorded (no cookies, redirects, CRLF injection)' );
+t_ok( $stored === $E::read_headers( $c['file'] ), 'read_headers round-trips' );
+t_ok( '.hdr' === substr( $E::header_file( $c['file'] ), -4 ), 'sidecar uses .hdr' );
+t_ok( $E::count_files()['files'] === $pages_before + 1, 'sidecar is not counted as a page' );
+// The CLI SAPI does not track headers, so replay is checked over real HTTP with the built-in server.
+file_put_contents( $tmp . '/router.php', '<?php define("ABSPATH",' . var_export( $tmp . '/', true ) . '); define("WP_CONTENT_DIR",' . var_export( WP_CONTENT_DIR, true ) . '); require ' . var_export( $stub_engine, true ) . '; BEPLUSPB_Page_Cache_Engine::serve(); echo "MISS";' );
+$port = 18300 + random_int( 0, 400 );
+$srv  = proc_open( escapeshellarg( PHP_BINARY ) . ' -n -S 127.0.0.1:' . $port . ' ' . escapeshellarg( $tmp . '/router.php' ), array( 0 => array( 'file', '/dev/null', 'r' ), 1 => array( 'file', '/dev/null', 'w' ), 2 => array( 'file', '/dev/null', 'w' ) ), $pipes );
+for ( $i = 0; $i < 40; $i++ ) { if ( @fsockopen( '127.0.0.1', $port ) ) { break; } usleep( 100000 ); }
+$hdr_run = static function ( $uri, array $extra = array() ) use ( $port ) {
+	$args = '';
+	foreach ( $extra as $h ) { $args .= ' -H ' . escapeshellarg( $h ); }
+	return (string) shell_exec( 'curl -si -m 10 -H ' . escapeshellarg( 'Host: example.com' ) . $args . ' ' . escapeshellarg( 'http://127.0.0.1:' . $port . $uri ) . ' 2>&1' );
+};
+t_ok( false !== strpos( $hdr_run( '/hdr/' ), 'HTTP/1.1 200' ), 'built-in server is up and serving the cached page' );
+$out = $hdr_run( '/hdr/' );
+t_ok( false !== stripos( $out, 'X-Frame-Options: SAMEORIGIN' ) && false !== stripos( $out, "Content-Security-Policy: default-src 'self'" ) && false !== stripos( $out, 'X-Robots-Tag: noindex' ) && false !== strpos( $out, 'rel="https://api.w.org/"' ), 'a HIT replays the headers recorded when the page was built' );
+t_ok( false !== stripos( $out, 'X-Beplus-Page-Cache: HIT' ) && false === stripos( $out, 'Set-Cookie' ) && false === stripos( $out, 'evil.test' ), 'replay never carries cookies or redirects' );
+t_ok( false === stripos( $out, 'Content-Length: 0' ), 'body present' );
+// Tampered sidecar: injection attempts are dropped at serve time too.
+file_put_contents( $E::header_file( $c['file'] ), json_encode( array( 'X-Frame-Options: SAMEORIGIN', 'Set-Cookie: pwn=1', "Referrer-Policy: no-referrer\r\nSet-Cookie: pwn=2", 'Location: https://evil.test/' ) ) );
+$out = $hdr_run( '/hdr/' );
+t_ok( false !== strpos( $out, 'X-Frame-Options: SAMEORIGIN' ) && false === stripos( $out, 'pwn' ) && false === stripos( $out, 'evil.test' ) && false === strpos( $out, 'Referrer-Policy' ), 'a tampered sidecar cannot inject headers' );
+file_put_contents( $E::header_file( $c['file'] ), '{not json' );
+t_ok( false !== strpos( $hdr_run( '/hdr/' ), '</html>' ), 'a corrupt sidecar still serves the page' );
+// Re-store without headers removes stale ones.
+t_ok( $E::store( $c, $html ) && ! is_file( $E::header_file( $c['file'] ) ), 're-storing without headers removes the old sidecar' );
+t_ok( false === strpos( $hdr_run( '/hdr/' ), 'X-Frame-Options' ), 'stale headers are never replayed' );
+// Variants (https / mobile) keep their own sidecars.
+write_cfg( array( 'mobile' => 'separate' ) );
+$cm = ctx( '/hdr/', array( 'HTTP_USER_AGENT' => $IPHONE ) );
+$E::store( $cm, $html, array( 'X-Frame-Options: DENY' ) );
+t_ok( array( 'X-Frame-Options: DENY' ) === $E::read_headers( $cm['file'] ) && array() === $E::read_headers( $c['file'] ), 'each variant has its own header sidecar' );
+t_ok( false !== strpos( $hdr_run( '/hdr/', array( 'User-Agent: ' . $IPHONE ) ), 'Vary: User-Agent' ), 'separate-mobile responses send Vary: User-Agent' );
+t_ok( false === strpos( $hdr_run( '/hdr/', array( 'User-Agent: ' . $IPHONE ) ), 'Content-Length' ), 'still no Content-Length' );
+// Purge and GC clean sidecars.
+$E::purge_path( '/hdr/' );
+t_ok( array() === glob( $E::cache_root() . '/example.com/hdr/index*' ), 'purge_path removes pages and header sidecars' );
+$E::store( $cm, $html, array( 'X-Frame-Options: DENY' ) );
+touch( $cm['file'], time() - 7200 );
+t_ok( 1 === $E::gc() && array() === glob( dirname( $cm['file'] ) . '/index*' ), 'gc removes an expired page together with its sidecar' );
+@mkdir( $E::cache_root() . '/example.com/hdr', 0755, true );
+file_put_contents( $E::cache_root() . '/example.com/hdr/index-orphan.hdr', '["X-Frame-Options: DENY"]' );
+t_ok( is_file( $E::cache_root() . '/example.com/hdr/index-orphan.hdr' ), 'orphan sidecar fixture exists' );
+$E::gc();
+t_ok( ! is_file( $E::cache_root() . '/example.com/hdr/index-orphan.hdr' ), 'gc removes orphaned sidecars' );
+$E::store( $c, $html, array( 'X-Robots-Tag: noindex' ) );
+$E::purge_all();
+t_ok( array() === glob( $E::cache_root() . '/example.com/*' ), 'purge_all removes sidecars too' );
+write_cfg();
+
+proc_terminate( $srv );
+proc_close( $srv );
+
 // ---- Cleanup ----------------------------------------------------------------
 $it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $tmp, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );
 foreach ( $it as $f ) { $f->isLink() || $f->isFile() ? unlink( $f->getPathname() ) : rmdir( $f->getPathname() ); }

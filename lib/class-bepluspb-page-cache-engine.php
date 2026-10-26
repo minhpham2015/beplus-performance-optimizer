@@ -72,6 +72,32 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			'/wc-api/',
 		);
 
+		/**
+		 * Response headers PHP may have set that a cached copy must replay, because
+		 * on a HIT neither the theme nor any plugin runs. Lower-case names only;
+		 * Set-Cookie, Location, Cache-Control, Content-Type etc. are deliberately absent.
+		 */
+		const REPLAY_HEADERS = array(
+			'x-frame-options',
+			'content-security-policy',
+			'content-security-policy-report-only',
+			'x-content-type-options',
+			'referrer-policy',
+			'permissions-policy',
+			'strict-transport-security',
+			'cross-origin-opener-policy',
+			'cross-origin-embedder-policy',
+			'cross-origin-resource-policy',
+			'x-robots-tag',
+			'x-ua-compatible',
+			'content-language',
+			'x-pingback',
+			'link',
+		);
+
+		/** User-Agent fragments WordPress wp_is_mobile() treats as mobile. */
+		const MOBILE_AGENTS = array( 'Mobile', 'Android', 'Silk/', 'Kindle', 'BlackBerry', 'Opera Mini', 'Opera Mobi' );
+
 		/** Query parameters that do not change the rendered page. */
 		const IGNORED_PARAMS = array( 'fbclid', 'gclid', 'msclkid', 'dclid', 'yclid', 'mc_cid', 'mc_eid', '_ga', '_gl', 'gad_source' );
 
@@ -134,6 +160,8 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				'exclude_paths'   => isset( $cfg['exclude_paths'] ) && is_array( $cfg['exclude_paths'] ) ? array_map( 'strval', $cfg['exclude_paths'] ) : array(),
 				'exclude_cookies' => isset( $cfg['exclude_cookies'] ) && is_array( $cfg['exclude_cookies'] ) ? array_map( 'strval', $cfg['exclude_cookies'] ) : array(),
 				'accept_variants' => ! empty( $cfg['accept_variants'] ),
+				'mobile'          => isset( $cfg['mobile'] ) && in_array( $cfg['mobile'], array( 'same', 'separate', 'bypass' ), true ) ? $cfg['mobile'] : 'same',
+				'vary_cookies'    => isset( $cfg['vary_cookies'] ) && is_array( $cfg['vary_cookies'] ) ? array_slice( array_values( array_filter( array_map( 'strval', $cfg['vary_cookies'] ), 'strlen' ) ), 0, 8 ) : array(),
 			);
 			return self::$config;
 		}
@@ -226,16 +254,59 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		}
 
 		/**
-		 * File-name variant for the request (scheme and Accept-driven image formats).
+		 * Whether the request comes from a device wp_is_mobile() would call mobile.
 		 *
-		 * @param array $cfg    Loaded config.
 		 * @param array $server $_SERVER.
-		 * @return string e.g. "index-s-avif.html".
+		 * @return bool
 		 */
-		public static function variant_file( array $cfg, array $server ) {
+		public static function is_mobile_request( array $server ) {
+			if ( isset( $server['HTTP_SEC_CH_UA_MOBILE'] ) ) {
+				return '?1' === $server['HTTP_SEC_CH_UA_MOBILE'];
+			}
+			$agent = (string) ( $server['HTTP_USER_AGENT'] ?? '' );
+			if ( '' === $agent ) {
+				return false;
+			}
+			foreach ( self::MOBILE_AGENTS as $needle ) {
+				if ( false !== strpos( $agent, $needle ) ) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * File-name variant for the request: scheme, device, language/currency
+		 * cookies and Accept-driven image formats each get their own copy.
+		 *
+		 * @param array $cfg     Loaded config.
+		 * @param array $server  $_SERVER.
+		 * @param array $cookies $_COOKIE.
+		 * @return string|null e.g. "index-s-m-1a2b3c4d-avif.html", or null when a
+		 *                     variant cookie has an unusable value (do not cache).
+		 */
+		public static function variant_file( array $cfg, array $server, array $cookies = array() ) {
 			$parts = array();
 			if ( self::is_https( $server ) ) {
 				$parts[] = 's';
+			}
+			if ( 'separate' === $cfg['mobile'] && self::is_mobile_request( $server ) ) {
+				$parts[] = 'm';
+			}
+			$pairs = array();
+			foreach ( $cfg['vary_cookies'] as $name ) {
+				if ( ! isset( $cookies[ $name ] ) || '' === $cookies[ $name ] ) {
+					continue;
+				}
+				// A cookie value becomes part of a file name: refuse anything that is not a plain token.
+				if ( ! is_string( $cookies[ $name ] ) || ! preg_match( '/^[A-Za-z0-9_.-]{1,32}$/', $cookies[ $name ] ) ) {
+					return null;
+				}
+				$pairs[] = $name . '=' . strtolower( $cookies[ $name ] );
+			}
+			if ( $pairs ) {
+				sort( $pairs );
+				$parts[] = substr( md5( implode( '&', $pairs ) ), 0, 8 );
 			}
 			if ( ! empty( $cfg['accept_variants'] ) ) {
 				$accept = isset( $server['HTTP_ACCEPT'] ) ? strtolower( (string) $server['HTTP_ACCEPT'] ) : '';
@@ -346,10 +417,18 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				return null;
 			}
 
+			if ( 'bypass' === $cfg['mobile'] && self::is_mobile_request( $server ) ) {
+				return null;
+			}
+			$variant = self::variant_file( $cfg, $server, $cookies );
+			if ( null === $variant ) {
+				return null;
+			}
+
 			$dir = self::cache_root() . '/' . str_replace( ':', '_', $host ) . ( $segments ? '/' . implode( '/', $segments ) : '' );
 			return array(
 				'dir'  => $dir,
-				'file' => $dir . '/' . self::variant_file( $cfg, $server ),
+				'file' => $dir . '/' . $variant,
 				'path' => $path,
 			);
 		}
@@ -378,6 +457,13 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( $cfg['accept_variants'] ) {
 				header( 'Vary: Accept', false );
 			}
+			if ( 'separate' === $cfg['mobile'] ) {
+				header( 'Vary: User-Agent', false );
+			}
+			// The theme and plugins never ran for this response: replay what they set when the page was built.
+			foreach ( self::read_headers( $ctx['file'] ) as $line ) {
+				header( $line, false );
+			}
 			header( 'Cache-Control: max-age=0, must-revalidate' );
 			header( 'X-Beplus-Page-Cache: HIT' );
 			header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT' );
@@ -394,13 +480,65 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		}
 
 		/**
+		 * Path of the header sidecar belonging to a cached page.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return string
+		 */
+		public static function header_file( $file ) {
+			return substr( $file, 0, -5 ) . '.hdr';
+		}
+
+		/**
+		 * Keep only allowlisted, single-line, printable headers.
+		 *
+		 * Applied when storing AND when replaying, so a tampered sidecar can never
+		 * inject a header (no CR/LF, no Set-Cookie, no Location).
+		 *
+		 * @param array $lines Header lines such as "X-Frame-Options: SAMEORIGIN".
+		 * @return string[]
+		 */
+		public static function sanitize_headers( array $lines ) {
+			$out = array();
+			foreach ( $lines as $line ) {
+				if ( ! is_string( $line ) || ! preg_match( '/^([A-Za-z][A-Za-z0-9-]{0,60}):[ \t]*([\x20-\x7e]{1,2000})$/', $line, $m ) ) {
+					continue;
+				}
+				if ( in_array( strtolower( $m[1] ), self::REPLAY_HEADERS, true ) ) {
+					$out[] = $m[1] . ': ' . trim( $m[2] );
+				}
+				if ( count( $out ) >= 20 ) {
+					break;
+				}
+			}
+			return $out;
+		}
+
+		/**
+		 * Headers recorded for a cached page.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return string[]
+		 */
+		public static function read_headers( $file ) {
+			$path = self::header_file( $file );
+			if ( ! is_file( $path ) || is_link( $path ) ) {
+				return array();
+			}
+			$raw  = @file_get_contents( $path );
+			$list = false === $raw ? null : json_decode( $raw, true );
+			return is_array( $list ) ? self::sanitize_headers( $list ) : array();
+		}
+
+		/**
 		 * Atomically store a rendered page.
 		 *
-		 * @param array  $ctx  Result of request_context().
-		 * @param string $html Final HTML.
+		 * @param array  $ctx     Result of request_context().
+		 * @param string $html    Final HTML.
+		 * @param array  $headers Response headers to replay on a HIT (filtered here).
 		 * @return bool
 		 */
-		public static function store( array $ctx, $html ) {
+		public static function store( array $ctx, $html, array $headers = array() ) {
 			if ( ! is_string( $html ) || '' === $html || strlen( $html ) > self::MAX_BYTES ) {
 				return false;
 			}
@@ -416,11 +554,34 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! is_dir( $dir ) && ! @mkdir( $dir, 0755, true ) && ! is_dir( $dir ) ) {
 				return false;
 			}
+
+			// Headers first: a HIT may then miss a header only if this write fails, never see stale ones.
+			$replay = self::sanitize_headers( $headers );
+			$hdr    = self::header_file( $ctx['file'] );
+			if ( $replay ) {
+				if ( ! self::write_atomic( $dir, $hdr, (string) json_encode( $replay ) ) ) {
+					return false;
+				}
+			} elseif ( is_file( $hdr ) ) {
+				@unlink( $hdr );
+			}
+			return self::write_atomic( $dir, $ctx['file'], $html );
+		}
+
+		/**
+		 * Write a file via temp file + rename.
+		 *
+		 * @param string $dir  Directory (already confined).
+		 * @param string $dest Destination path inside $dir.
+		 * @param string $data Bytes.
+		 * @return bool
+		 */
+		private static function write_atomic( $dir, $dest, $data ) {
 			$tmp = @tempnam( $dir, '.tmp-' );
 			if ( false === $tmp ) {
 				return false;
 			}
-			if ( false === @file_put_contents( $tmp, $html ) || ! @chmod( $tmp, 0644 ) || ! @rename( $tmp, $ctx['file'] ) ) {
+			if ( false === @file_put_contents( $tmp, $data ) || ! @chmod( $tmp, 0644 ) || ! @rename( $tmp, $dest ) ) {
 				@unlink( $tmp );
 				return false;
 			}
@@ -477,6 +638,11 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				foreach ( is_array( $files ) ? $files : array() as $file ) {
 					if ( is_file( $file ) && @unlink( $file ) ) {
 						++$removed;
+					}
+				}
+				foreach ( glob( $dir . '/index*.hdr' ) ?: array() as $file ) {
+					if ( is_file( $file ) ) {
+						@unlink( $file );
 					}
 				}
 				if ( $pagination ) {
@@ -550,9 +716,15 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				}
 				if ( $entry->isFile() ) {
 					$name = $entry->getFilename();
-					if ( ( 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) && $entry->getMTime() < $cutoff ) || ( 0 === strpos( $name, '.tmp-' ) && $entry->getMTime() < time() - 3600 ) ) {
+					if ( 0 === strpos( $name, 'index' ) && '.hdr' === substr( $name, -4 ) ) {
+						// Orphaned header sidecar (its page was purged or expired).
+						if ( ! is_file( substr( $path, 0, -4 ) . '.html' ) ) {
+							@unlink( $path );
+						}
+					} elseif ( ( 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) && $entry->getMTime() < $cutoff ) || ( 0 === strpos( $name, '.tmp-' ) && $entry->getMTime() < time() - 3600 ) ) {
 						if ( @unlink( $path ) ) {
 							++$removed;
+							@unlink( self::header_file( $path ) );
 						}
 					}
 				} elseif ( $entry->isDir() && dirname( $path ) !== $root ) {

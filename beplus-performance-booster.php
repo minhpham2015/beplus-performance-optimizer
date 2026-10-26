@@ -130,6 +130,9 @@ function bepluspb_default_options() {
 		'page_cache_enabled'                 => 0,   // Needs the master cache toggle too. Off by default.
 		'page_cache_ttl'                     => 10,  // Hours. Keep under 12 so WordPress nonces in cached forms stay valid.
 		'page_cache_exclude_cookies'         => '',  // Extra cookie-name prefixes that bypass the page cache (newline-separated).
+		'page_cache_mobile'                  => 'separate', // 'same' | 'separate' | 'bypass': how mobile devices (wp_is_mobile()) are cached.
+		'page_cache_vary_cookies'            => '',  // Cookie names whose value gets its own cached copy (language/currency), newline-separated.
+		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
 		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---
 		'predictive_navigation_enabled'      => 0,

@@ -59,7 +59,7 @@ function wp_is_post_revision( $id ) { return false; }
 function get_post( $id ) { return $GLOBALS['posts'][ $id ] ?? null; }
 function is_post_type_viewable( $t ) { return in_array( $t, array( 'post', 'page' ), true ); }
 function get_permalink( $p ) { $id = is_object( $p ) ? $p->ID : $p; return 'https://example.com/blog/' . ( is_object( $p ) && ! empty( $p->slug ) ? $p->slug : 'post-' . $id ) . '/'; }
-function get_option( $k ) { return 'page_for_posts' === $k ? 0 : false; }
+function get_option( $k ) { return $GLOBALS['wpopts'][ $k ] ?? ( 'page_for_posts' === $k ? 0 : false ); }
 function get_post_type_archive_link( $t ) { return false; }
 function get_object_taxonomies() { return array(); }
 function get_author_posts_url( $id ) { return 'https://example.com/author/admin/'; }
@@ -67,6 +67,12 @@ function get_year_link( $y ) { return "https://example.com/$y/"; }
 function get_month_link( $y, $m ) { return sprintf( 'https://example.com/%d/%02d/', $y, $m ); }
 function get_day_link( $y, $m, $d ) { return sprintf( 'https://example.com/%d/%02d/%02d/', $y, $m, $d ); }
 function wp_unslash( $v ) { return $v; }
+function is_active_widget( $a, $b, $base ) { return in_array( $base, $GLOBALS['active_widgets'] ?? array(), true ); }
+function wp_is_block_theme() { return ! empty( $GLOBALS['block_theme'] ); }
+function get_stylesheet_directory() { return $GLOBALS['theme_dir']; }
+function get_template_directory() { return $GLOBALS['theme_dir']; }
+function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
+function get_posts( $args ) { return $GLOBALS['template_parts'] ?? array(); }
 function is_404() { return ! empty( $GLOBALS['q']['404'] ); }
 function is_search() { return false; } function is_feed() { return false; } function is_preview() { return false; }
 function is_customize_preview() { return false; } function is_embed() { return false; } function is_trackback() { return false; } function is_robots() { return false; }
@@ -348,6 +354,122 @@ $f = $fill();
 $r3 = $E::purge_all();
 t_ok( $r3['deleted'] >= 4 && ! is_file( $f['post'] ), 'a later purge in the same request still deletes newly stored pages' );
 t_ok( false === strpos( file_get_contents( $root . '/lib/class-bepluspb-page-cache-engine.php' ), 'Content-Length' ), 'no Content-Length (zlib.output_compression / gzip would corrupt it)' );
+
+// ---- Settings choices ---------------------------------------------------------
+t_ok( 'same' === $PC::sanitize_choice( 'same', array( 'same', 'separate' ), 'separate' ) && 'separate' === $PC::sanitize_choice( 'x', array( 'same', 'separate' ), 'separate' ) && 'separate' === $PC::sanitize_choice( array( 'same' ), array( 'same', 'separate' ), 'separate' ), 'select options accept only allowed values' );
+
+// ---- Device and language/currency variants in the config ------------------------
+$c0 = $PC::build_config( $GLOBALS['opts'] );
+t_ok( 'separate' === $c0['mobile'] && array() === $c0['vary_cookies'], 'config defaults: separate mobile copy, no vary cookies' );
+t_ok( 'bypass' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'bypass' ) ) )['mobile'], 'mobile mode follows the setting' );
+t_ok( 'separate' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'nonsense' ) ) )['mobile'], 'invalid mobile mode falls back to the safe default' );
+t_ok( array( 'my_lang' ) === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_vary_cookies' => "my_lang\n" ) ) )['vary_cookies'], 'user-listed vary cookies reach the config' );
+t_ok( array() === $PC::detected_vary_cookies(), 'nothing detected without WPML/Polylang/WCML' );
+define( 'ICL_SITEPRESS_VERSION', '4.6' );
+define( 'POLYLANG_VERSION', '3.6' );
+define( 'WCML_VERSION', '5.3' );
+$det = $PC::detected_vary_cookies();
+t_ok( array( 'wp-wpml_current_language', 'pll_language', 'wcml_client_currency', 'wcml_client_currency_language' ) === $det, 'WPML, Polylang and WCML cookies are auto-detected' );
+$c1 = $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_vary_cookies' => "pll_language\nextra_cookie\nb\nc\nd\ne" ) ) );
+t_ok( 8 === count( $c1['vary_cookies'] ) && 4 === count( array_unique( array_intersect( $c1['vary_cookies'], $det ) ) ) && 'extra_cookie' === $c1['vary_cookies'][4], 'detected + user cookies are merged, de-duplicated and capped at 8' );
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
+$E::reset();
+$cc = $E::load_config();
+t_ok( in_array( 'pll_language', $cc['vary_cookies'], true ) && 'separate' === $cc['mobile'], 'engine reads mobile mode and vary cookies from the config' );
+
+// ---- Vary: User-Agent is announced (separate mode only) --------------------------
+$GLOBALS['hooks'] = array();
+$PC::init( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'separate' ) ) );
+$prios = array_column( $GLOBALS['hooks']['template_redirect'] ?? array(), 1 );
+t_ok( in_array( -100, $prios, true ) && in_array( -101, $prios, true ), 'separate mode registers the capture buffer and the Vary header' );
+$GLOBALS['hooks'] = array();
+$PC::init( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'same' ) ) );
+t_ok( array( -100 ) === array_column( $GLOBALS['hooks']['template_redirect'] ?? array(), 1 ), '"same" mode sends no Vary: User-Agent' );
+t_ok( array() === priv( 'replayable_headers' ), 'replayable headers are read through the engine allowlist' );
+$main_src = file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' );
+t_ok( false !== strpos( $main_src, 'self::replayable_headers()' ), 'the buffer callback records headers when it stores a page' );
+
+// ---- Plugin (de)activation re-syncs, but never undoes our own deactivation --------
+$E::reset();
+$PC::delete_config();
+$PC::on_plugin_toggled( 'beplus-performance-optimizer/beplus-performance-booster.php' );
+t_ok( ! file_exists( $E::config_file() ), 'deactivating Beplus itself does not re-create the config/stub' );
+$PC::on_plugin_toggled( 'polylang/polylang.php' );
+t_ok( is_file( $E::config_file() ) && in_array( 'pll_language', $E::load_config()['vary_cookies'], true ), 'another plugin toggled => config rebuilt with its cookies' );
+t_ok( false !== strpos( $main_src, "'activated_plugin', array( __CLASS__, 'on_plugin_toggled' ), 20, 1" ), 'activated/deactivated_plugin pass the plugin basename' );
+
+// ---- Site-wide content lists decide how much an edit purges -----------------------
+$GLOBALS['theme_dir'] = $tmp . '/theme';
+mkdir( $GLOBALS['theme_dir'] . '/parts', 0755, true );
+$reset_scan = static function () { $GLOBALS['transients'] = array(); $GLOBALS['active_widgets'] = array(); $GLOBALS['wpopts'] = array(); $GLOBALS['block_theme'] = false; $GLOBALS['template_parts'] = array(); };
+$reset_scan();
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'nothing dynamic => related-only purge' );
+foreach ( array( 'recent-posts', 'recent-comments', 'archives', 'calendar', 'tag_cloud', 'categories' ) as $w ) {
+	$reset_scan(); $GLOBALS['active_widgets'] = array( $w );
+	t_ok( true === $PC::has_sitewide_dynamic_content(), "classic widget $w is detected" );
+}
+$reset_scan(); $GLOBALS['active_widgets'] = array( 'text', 'search', 'nav_menu' );
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'static widgets (text, search, menu) are not site-wide lists' );
+foreach ( array( 'latest-posts', 'latest-comments', 'archives', 'calendar', 'tag-cloud', 'categories', 'query' ) as $b ) {
+	$reset_scan(); $GLOBALS['wpopts']['widget_block'] = array( 2 => array( 'content' => '<!-- wp:' . $b . ' {"x":1} /-->' ), '_multiwidget' => 1 );
+	t_ok( true === $PC::has_sitewide_dynamic_content(), "block widget wp:$b is detected" );
+}
+$reset_scan(); $GLOBALS['wpopts']['widget_block'] = array( 2 => array( 'content' => '<!-- wp:paragraph --><p>hi</p><!-- /wp:paragraph --><!-- wp:query-title /--><!-- wp:search /-->' ), '_multiwidget' => 1 );
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'unrelated blocks (paragraph, query-title, search) are not detected' );
+$reset_scan(); $GLOBALS['block_theme'] = true; file_put_contents( $GLOBALS['theme_dir'] . '/parts/footer.html', '<!-- wp:group --><!-- wp:latest-posts {"postsToShow":3} /--><!-- /wp:group -->' );
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'block theme template part with Latest Posts is detected' );
+$reset_scan(); $GLOBALS['block_theme'] = true; file_put_contents( $GLOBALS['theme_dir'] . '/parts/footer.html', '<!-- wp:paragraph --><p>x</p><!-- /wp:paragraph -->' );
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'static template part is not detected' );
+$part = (object) array( 'post_content' => '<!-- wp:query {"queryId":1} --><!-- wp:post-template /--><!-- /wp:query -->' );
+$reset_scan(); $GLOBALS['block_theme'] = true; $GLOBALS['template_parts'] = array( $part );
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'a user-edited template part with a Query Loop is detected' );
+$reset_scan(); $GLOBALS['block_theme'] = false; file_put_contents( $GLOBALS['theme_dir'] . '/parts/footer.html', '<!-- wp:latest-posts /-->' );
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'template files are only scanned for block themes' );
+
+// The answer is cached, and re-scanned when widgets or templates change.
+$reset_scan(); $GLOBALS['active_widgets'] = array( 'recent-posts' );
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'scan result (true)' );
+$GLOBALS['active_widgets'] = array();
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'result is cached between calls (no re-scan per post save)' );
+$PC::on_option_changed( 'widget_recent-posts' );
+t_ok( false === $PC::has_sitewide_dynamic_content(), 'changing a widget triggers a re-scan' );
+$GLOBALS['active_widgets'] = array( 'archives' );
+$PC::on_option_changed( 'sidebars_widgets' );
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'changing sidebars_widgets triggers a re-scan' );
+$GLOBALS['hooks'] = array();
+$PC::register_invalidation_hooks( $GLOBALS['opts'] );
+foreach ( array( 'switch_theme', 'customize_save_after', 'save_post_wp_template_part', 'save_post_wp_template' ) as $hook ) {
+	t_ok( in_array( array( $PC, 'flush_sitewide_detection' ), array_map( static fn( $h ) => array( $h[0][0], $h[0][1] ), $GLOBALS['hooks'][ $hook ] ?? array() ), true ) || count( array_filter( $GLOBALS['hooks'][ $hook ] ?? array(), static fn( $h ) => 'flush_sitewide_detection' === $h[0][1] ) ) > 0, "re-scan hooked to $hook" );
+}
+
+// ---- Purge scope -------------------------------------------------------------------
+$reset_scan();
+$scope = static function ( $v ) use ( $PC ) { return $PC::purges_everything_on_post_change( array( 'page_cache_purge_scope' => $v ) ); };
+t_ok( true === $scope( 'all' ) && false === $scope( 'related' ) && false === $scope( 'auto' ), 'scope: all / related / auto (nothing dynamic)' );
+$GLOBALS['active_widgets'] = array( 'recent-comments' ); $GLOBALS['transients'] = array();
+t_ok( true === $scope( 'all' ) && false === $scope( 'related' ) && true === $scope( 'auto' ), 'scope: auto purges everything when a site-wide list exists, "related" never does' );
+t_ok( true === $PC::purges_everything_on_post_change( array() ), 'missing setting behaves as auto' );
+t_ok( true === $PC::purges_everything_on_post_change( array( 'page_cache_purge_scope' => 'bogus' ) ), 'invalid setting behaves as auto' );
+
+$GLOBALS['opts']['page_cache_purge_scope'] = 'auto';
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
+$E::reset(); $f = $fill();
+$GLOBALS['active_widgets'] = array( 'recent-posts' ); $GLOBALS['transients'] = array();
+$PC::on_save_post( 7, $p );
+t_ok( ! is_file( $f['other'] ) && ! is_file( $f['post'] ), 'editing a post with a Recent Posts widget purges EVERY page (the widget is on all of them)' );
+$E::reset(); $f = $fill();
+$GLOBALS['active_widgets'] = array(); $GLOBALS['transients'] = array();
+$PC::on_save_post( 7, $p );
+t_ok( ! is_file( $f['post'] ) && is_file( $f['other'] ), 'without site-wide lists only the related pages are purged' );
+$GLOBALS['active_widgets'] = array( 'recent-comments' ); $GLOBALS['transients'] = array(); $E::reset(); $f = $fill();
+$PC::on_comment_post( 5, 1 );
+t_ok( ! is_file( $f['other'] ), 'an approved comment purges everything when Recent Comments is showing' );
+$GLOBALS['opts']['page_cache_purge_scope'] = 'related';
+$E::reset(); $f = $fill();
+$PC::on_save_post( 7, $p );
+t_ok( is_file( $f['other'] ), '"related" scope still purges related pages only, widgets or not' );
+unset( $GLOBALS['opts']['page_cache_purge_scope'] );
+$GLOBALS['active_widgets'] = array();
 
 // ---- Wiring in the main plugin file and other classes -----------------------
 $main = file_get_contents( $root . '/beplus-performance-booster.php' );

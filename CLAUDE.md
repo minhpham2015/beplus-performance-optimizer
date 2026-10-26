@@ -193,6 +193,16 @@ checking whether it would break the SVN slug binding).
      (`bepluspb_assets_cache_cleared`). New content-changing hooks go in
      `BEPLUSPB_Page_Cache::register_invalidation_hooks()`, which must run from
      `plugins_loaded`, not the front-end boot.
+   - **A HIT must equal what a MISS would have sent.** On a HIT no theme or
+     plugin code runs, so anything that changes the response per visitor must be
+     part of the cache key or replayed: scheme, device (`mobile` mode,
+     `Vary: User-Agent`), `Accept` image format, `vary_cookies` values (hashed
+     into the file name, strict charset) and PHP-set security headers
+     (`REPLAY_HEADERS` allowlist, `.hdr` sidecar, re-sanitised at serve time —
+     never extend it with Set-Cookie/Location/Cache-Control).
+   - What an edit purges depends on whether pages show *other* posts
+     (`purges_everything_on_post_change()`); never narrow a purge to "related
+     pages" without that check.
    - The capture buffer must stay the OUTERMOST buffer so it stores the final
      HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
 
