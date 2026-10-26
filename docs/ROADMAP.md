@@ -85,6 +85,10 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 17. Block theme: sửa header/footer trong Site Editor (hoặc Elementor Theme Builder) → mọi trang hết HIT. Gửi form liên hệ ở front-end (tạo bản ghi CPT) → cache **không** bị xóa.
 18. Đổi domain bằng `wp search-replace` hoặc `WP_HOME`/`WP_SITEURL`, mở trang chủ 2 lần → lần 2 có `X-Beplus-Page-Cache: HIT` (không cần vào wp-admin).
 19. Cookie lạ: `curl -H 'Cookie: pll_language=zzzz1'` nhiều giá trị → không tạo thêm file; `pll_language=vi` → có bản riêng.
+20. Card Page Cache: mục "Compatibility check" **không** hiện cảnh báo vàng. Nếu hiện, Automatic đang chạy như "Always keep a separate mobile copy" và sửa bài xóa toàn bộ cache.
+21. Thư mục WordPress có ký tự `[` hoặc `]` (hiếm): Purge ALL vẫn xóa được trang.
+22. Bật "WP Maintenance Mode" (nếu dùng) → trang đã cache biến mất ngay, khách thấy trang bảo trì; tắt → trang thường trở lại.
+23. Đổi logo/site icon trong Customizer hoặc đơn vị tiền tệ WooCommerce → mọi trang cập nhật. Tác giả đổi tên hiển thị → byline cập nhật.
 
 ## Nhật ký tiến trình
 
@@ -94,14 +98,16 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-26 | Hoàn thành code #1–#3 (page cache + invalidation + loại trừ), test standalone `test-page-cache-engine.php` và `test-page-cache-class.php`, CI guard, CHANGELOG, CLAUDE.md rule #8. Chưa smoke test trên WordPress thật. Chưa tăng version (chờ #4 preload hoặc quyết định phát hành). |
 | 2026-10-26 | Merge #1–#3 vào `master` để test. |
 | 2026-10-26 | Xử lý 3 hạn chế còn lại: replay header, biến thể mobile/ngôn ngữ/tiền tệ, purge scope theo widget toàn site. Test engine 162 + class 163 assertion. Nằm ở nhánh `claude/modest-mccarthy-lheo63`. |
+| 2026-10-26 | Sửa #5–#8: bỏ `glob()` (đường dẫn có `[ ] * ?`), kiểm tra sống các hook quan sát + fallback an toàn + bỏ qua trang khi `wp_is_mobile()` lệch cách phân loại + chuẩn hóa `%xx`, thêm option/WooCommerce/tác giả vào danh sách xóa cache + ô cài đặt riêng, liệt kê plugin bị bỏ qua khi HIT, dọn rác khi tắt WP-Cron. Test engine 262 + class 299 assertion; 18 đột biến đều bị bắt. |
 | 2026-10-26 | Review lần 3 → sửa #1–#4: giới hạn giá trị cookie biến thể + tối đa 96 biến thể/URL (+ lỗi `$` nhận ký tự xuống dòng), purge toàn bộ khi đổi tiêu đề/slug/cha/thứ tự bài đã đăng, purge khi sửa template/template part/global styles/navigation/block/builder/form (phải là người có quyền sửa bài hoặc WP-CLI), tự sửa config khi đổi địa chỉ site. Test engine 236 + class 242 assertion; 12 đột biến đều bị test bắt. Chưa sửa #5–#8 (glob có ký tự đặc biệt, option/tác giả chưa hook, quan sát chưa kiểm chứng trên WP thật, rủi ro vốn có của page cache). |
 | 2026-10-26 | Xử lý 3 rủi ro: mobile "Automatic" (quan sát `wp_is_mobile`, chỉ Vary trên trang phụ thuộc thiết bị), đánh dấu trang liệt kê nội dung khác (quan sát `pre_get_posts`/`pre_get_comments`, `.lst`), xoay CSP nonce mỗi HIT. Test engine 203 + class 185 assertion; đã kiểm tra bằng 8 đột biến (phá tính năng → test fail). |
 | 2026-10-26 | Review lần 2: sửa header replay bị trùng/mâu thuẫn ở chế độ fallback và cookie có dấu `.` không khớp (+5 assertion). |
 | 2026-10-26 | Tự review #1–#3, sửa 5 lỗi (xem CHANGELOG "Fixed"), thêm 20 assertion. Các sửa này nằm ở nhánh `claude/modest-mccarthy-lheo63`, chưa vào `master`. |
 
-## Việc còn lại từ review lần 3 (chưa làm)
+## Việc còn lại từ review lần 3
 
-- #5 `glob()` với đường dẫn cài đặt chứa `[ ] * ?` làm purge im lặng thất bại.
-- #6 Option ảnh hưởng toàn site chưa hook: `site_icon`, `woocommerce_*` (tiền tệ/giá), option theme (Redux/Kirki/ACF/Elementor); đổi tên/avatar tác giả; trang con khi đổi slug cha chỉ được xử lý nhờ purge toàn bộ.
-- #7 Chưa kiểm chứng trên WordPress thật: `pre_get_posts` có chạy với `get_posts()`, filter `wp_is_mobile`, `Sec-CH-UA-Mobile` so với core đang chạy, URL mã hóa phần trăm (`/h%65llo/`) có được WP trả 200 không (hiện mỗi dạng mã hóa ra một thư mục riêng; đã có trần 96 biến thể nhưng là theo thư mục).
-- #8 Rủi ro vốn có: HIT bỏ qua plugin bảo trì/redirect/chặn IP/age-gate/bộ đếm lượt xem; `DISABLE_WP_CRON` làm cron dọn file không chạy.
+Đã xử lý hết #1–#8 (xem nhật ký). Còn lại là bản chất của mọi page cache, đã hiển thị trong màn hình cài đặt:
+
+- Khi HIT, code của plugin khác không chạy: tường lửa/chặn IP, chế độ bảo trì, age-gate, redirect mới thêm, bộ đếm lượt xem server-side. Màn hình cài đặt liệt kê plugin đang bật thuộc nhóm này; chế độ bảo trì và tùy chọn cài đặt khác dùng ô "Extra Settings That Clear the Cache".
+- Quan sát `pre_get_posts` không thấy plugin đọc bài bằng SQL thô (`$wpdb`): chọn "Every cached page". Tên bài láng giềng ở Prev/Next chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài.
+- Còn cần **smoke test trên WordPress thật** (xem checklist) — kiểm tra "Compatibility check" trong card Page Cache không báo lỗi.

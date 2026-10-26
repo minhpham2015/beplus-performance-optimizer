@@ -242,14 +242,22 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				if ( strlen( $segment ) > 200 || '.' === $segment[0] || ! preg_match( '/^[A-Za-z0-9_.~%+-]+$/', $segment ) ) {
 					return null;
 				}
-				// WordPress emits lower-case hex, browsers send upper-case: one canonical form.
-				$segments[] = preg_replace_callback(
-					'/%[0-9A-Fa-f]{2}/',
+				// One canonical form per URL. WordPress emits lower-case hex, browsers upper-case, and
+				// "/h%65llo/" is the same address as "/hello/": percent-encoded unreserved characters
+				// (letters, digits, - . _ ~) are decoded so aliases cannot create extra copies.
+				$segment = preg_replace_callback(
+					'/%([0-9A-Fa-f]{2})/',
 					static function ( $m ) {
-						return strtolower( $m[0] );
+						$char = chr( hexdec( $m[1] ) );
+						return preg_match( '/^[A-Za-z0-9._~-]$/D', $char ) ? $char : strtolower( $m[0] );
 					},
 					$segment
 				);
+				// Decoding may have exposed what the raw path check could not see.
+				if ( '.' === $segment[0] || preg_match( '/[A-Z]/', preg_replace( '/%[0-9a-f]{2}/', '', $segment ) ) ) {
+					return null;
+				}
+				$segments[] = $segment;
 			}
 			return count( $segments ) > 12 ? null : $segments;
 		}
@@ -745,6 +753,8 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				return false;
 			}
 
+			self::maybe_gc( $root );
+
 			// Keep the copies consistent: a page that depends on the device must not also leave a
 			// shared copy for the other device to pick up, and a device-independent page needs no per-device copies.
 			if ( ! empty( $ctx['device_files'] ) ) {
@@ -753,6 +763,56 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				}
 			}
 			return true;
+		}
+
+		/**
+		 * Remove expired pages about once a day, from the request that stores a page.
+		 *
+		 * The daily WP-Cron event does this too, but cron may be disabled (DISABLE_WP_CRON with
+		 * no system cron) and expired files would then pile up on disk forever.
+		 *
+		 * @param string $root Cache root.
+		 */
+		private static function maybe_gc( $root ) {
+			if ( ! ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) ) {
+				return; // The daily WP-Cron event handles it.
+			}
+			$marker = $root . '/.gc';
+			$mtime  = is_file( $marker ) ? @filemtime( $marker ) : 0;
+			if ( $mtime && ( time() - $mtime ) < 86400 ) {
+				return;
+			}
+			@touch( $marker ); // Claim the slot first so concurrent requests do not all walk the tree.
+			self::gc( 20000 );
+		}
+
+		/**
+		 * Entries of one directory whose name starts/ends with the given strings.
+		 *
+		 * Replaces glob(): the install path may contain glob metacharacters ("[", "]", "*", "?",
+		 * "{"), in which case glob() quietly matches nothing and purges silently fail.
+		 *
+		 * @param string $dir       Directory.
+		 * @param string $prefix    Required file-name prefix ('' for any).
+		 * @param string $suffix    Required file-name suffix ('' for any).
+		 * @param bool   $only_dirs True for sub-directories only, false for files only.
+		 * @return string[] Full paths. Symbolic links are never returned.
+		 */
+		private static function list_dir( $dir, $prefix = '', $suffix = '', $only_dirs = false ) {
+			$out = array();
+			if ( ! is_dir( $dir ) || is_link( $dir ) ) {
+				return $out;
+			}
+			foreach ( new DirectoryIterator( $dir ) as $entry ) {
+				if ( $entry->isDot() || $entry->isLink() || ( $only_dirs ? ! $entry->isDir() : ! $entry->isFile() ) ) {
+					continue;
+				}
+				$name = $entry->getFilename();
+				if ( ( '' === $prefix || 0 === strpos( $name, $prefix ) ) && ( '' === $suffix || substr( $name, -strlen( $suffix ) ) === $suffix ) ) {
+					$out[] = $entry->getPathname();
+				}
+			}
+			return $out;
 		}
 
 		/**
@@ -843,20 +903,17 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				if ( ! is_dir( $dir ) || is_link( $dir ) ) {
 					continue;
 				}
-				$files = glob( $dir . '/index*.html' );
-				foreach ( is_array( $files ) ? $files : array() as $file ) {
-					if ( is_file( $file ) && @unlink( $file ) ) {
+				foreach ( self::list_dir( $dir, 'index', '.html' ) as $file ) {
+					if ( @unlink( $file ) ) {
 						++$removed;
 					}
 				}
-				foreach ( array_merge( glob( $dir . '/index*.hdr' ) ?: array(), glob( $dir . '/index*.lst' ) ?: array() ) as $file ) {
-					if ( is_file( $file ) ) {
-						@unlink( $file );
-					}
+				foreach ( array_merge( self::list_dir( $dir, 'index', '.hdr' ), self::list_dir( $dir, 'index', '.lst' ) ) as $file ) {
+					@unlink( $file );
 				}
 				if ( $pagination ) {
 					// Archive pagination (page/N) and comment pagination (comment-page-N).
-					$subdirs = array_merge( array( $dir . '/page' ), glob( $dir . '/comment-page-*', GLOB_ONLYDIR ) ?: array() );
+					$subdirs = array_merge( array( $dir . '/page' ), self::list_dir( $dir, 'comment-page-', '', true ) );
 					foreach ( $subdirs as $subdir ) {
 						if ( is_dir( $subdir ) && ! is_link( $subdir ) ) {
 							$removed += self::remove_tree( $subdir, $root, true );
@@ -884,12 +941,14 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				return $result;
 			}
 			$before = self::count_files( $root );
-			foreach ( glob( $root . '/*', GLOB_ONLYDIR | GLOB_NOSORT ) ?: array() as $host_dir ) {
-				if ( is_link( $host_dir ) ) {
-					@unlink( $host_dir );
-					continue;
-				}
+			foreach ( self::list_dir( $root, '', '', true ) as $host_dir ) {
 				self::remove_tree( $host_dir, $root, true );
+			}
+			// A symbolic link planted in the root is removed, never followed (list_dir() skips links).
+			foreach ( new DirectoryIterator( $root ) as $entry ) {
+				if ( ! $entry->isDot() && $entry->isLink() ) {
+					@unlink( $entry->getPathname() );
+				}
 			}
 			$after             = self::count_files( $root );
 			$result['matched'] = $before['files'];
@@ -941,9 +1000,11 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		/**
 		 * Delete files older than the TTL (and orphaned temp files); prune empty dirs.
 		 *
+		 * @param int $max_entries Stop after looking at this many entries (0 = no limit). A request that
+		 *                         runs this opportunistically must not walk a huge tree.
 		 * @return int Files removed.
 		 */
-		public static function gc() {
+		public static function gc( $max_entries = 0 ) {
 			$cfg  = self::load_config();
 			$ttl  = $cfg ? $cfg['ttl'] : 36000;
 			$root = self::cache_root();
@@ -953,7 +1014,11 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			$removed  = 0;
 			$cutoff   = time() - $ttl;
 			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );
+			$looked   = 0;
 			foreach ( $iterator as $entry ) {
+				if ( $max_entries > 0 && ++$looked > $max_entries ) {
+					break;
+				}
 				$path = $entry->getPathname();
 				if ( $entry->isLink() ) {
 					continue;

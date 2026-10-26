@@ -24,6 +24,7 @@ define( 'BEPLUSPB_PLUGIN_DIR', $tmp . '/plugin/' );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
 define( 'HOUR_IN_SECONDS', 3600 );
 define( 'MINUTE_IN_SECONDS', 60 );
+define( 'DAY_IN_SECONDS', 86400 );
 
 $GLOBALS['hooks']      = array();
 $GLOBALS['transients'] = array();
@@ -64,7 +65,11 @@ function wp_is_post_revision( $id ) { return false; }
 function get_post( $id ) { return $GLOBALS['posts'][ $id ] ?? null; }
 function is_post_type_viewable( $t ) { return in_array( $t, array( 'post', 'page', 'attachment', 'product' ), true ); }
 function get_permalink( $p ) { $id = is_object( $p ) ? $p->ID : $p; return 'https://example.com/blog/' . ( is_object( $p ) && ! empty( $p->slug ) ? $p->slug : 'post-' . $id ) . '/'; }
-function get_option( $k ) { return $GLOBALS['wpopts'][ $k ] ?? ( 'page_for_posts' === $k ? 0 : false ); }
+function get_option( $k, $d = false ) { return $GLOBALS['wpopts'][ $k ] ?? ( 'page_for_posts' === $k ? 0 : $d ); }
+function get_bloginfo( $k ) { return $GLOBALS['wp_version'] ?? '6.5'; }
+function user_can( $id, $cap ) { return ! empty( $GLOBALS['user_caps'][ $id ] ); }
+function wp_is_mobile() { $v = ( $_SERVER['HTTP_USER_AGENT'] ?? '' ) === 'MOBILE-UA'; if ( empty( $GLOBALS['broken_observers'] ) ) { foreach ( $GLOBALS['hooks']['wp_is_mobile'] ?? array() as $h ) { $v = call_user_func( $h[0], $v ); } } return $v; }
+function get_comments( $args ) { if ( empty( $GLOBALS['broken_observers'] ) ) { $o = new stdClass(); $o->query_vars = array_merge( array( 'post_id' => 0 ), $args ); foreach ( $GLOBALS['hooks']['pre_get_comments'] ?? array() as $h ) { call_user_func( $h[0], $o ); } } return array(); }
 function get_post_type_archive_link( $t ) { return false; }
 function get_object_taxonomies() { return array(); }
 function get_author_posts_url( $id ) { return 'https://example.com/author/admin/'; }
@@ -77,7 +82,7 @@ function wp_is_block_theme() { return ! empty( $GLOBALS['block_theme'] ); }
 function get_stylesheet_directory() { return $GLOBALS['theme_dir']; }
 function get_template_directory() { return $GLOBALS['theme_dir']; }
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
-function get_posts( $args ) { return $GLOBALS['template_parts'] ?? array(); }
+function get_posts( $args ) { if ( empty( $GLOBALS['broken_observers'] ) ) { $q = new WP_Query(); $q->vars = $args; foreach ( $GLOBALS['hooks']['pre_get_posts'] ?? array() as $h ) { call_user_func( $h[0], $q ); } } return $GLOBALS['template_parts'] ?? array(); }
 function is_404() { return ! empty( $GLOBALS['q']['404'] ); }
 function is_search() { return false; } function is_feed() { return false; } function is_preview() { return false; }
 function is_customize_preview() { return false; } function is_embed() { return false; } function is_trackback() { return false; } function is_robots() { return false; }
@@ -381,11 +386,13 @@ t_ok( in_array( 'pll_language', $cc['vary_cookies'], true ) && 'auto' === $cc['m
 
 // ---- Vary: User-Agent is announced (separate mode only) --------------------------
 $GLOBALS['hooks'] = array();
-$PC::init( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'separate' ) ) );
+$PC::write_config( $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'separate' ) ) ) ); $E::reset();
+$PC::init( $GLOBALS['opts'] );
 $prios = array_column( $GLOBALS['hooks']['template_redirect'] ?? array(), 1 );
-t_ok( in_array( -100, $prios, true ) && in_array( -101, $prios, true ), 'separate mode registers the capture buffer and the Vary header' );
+t_ok( in_array( -100, $prios, true ) && in_array( -101, $prios, true ), 'separate mode (taken from the engine config) registers the capture buffer and the Vary header' );
 $GLOBALS['hooks'] = array();
-$PC::init( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'same' ) ) );
+$PC::write_config( $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'same' ) ) ) ); $E::reset();
+$PC::init( $GLOBALS['opts'] );
 t_ok( array( -100 ) === array_column( $GLOBALS['hooks']['template_redirect'] ?? array(), 1 ), '"same" mode sends no Vary: User-Agent' );
 t_ok( array() === priv( 'replayable_headers' ), 'replayable headers are read through the engine allowlist' );
 $main_src = file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' );
@@ -683,6 +690,107 @@ t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'back to the origin
 $src_ui = file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' );
 t_ok( false !== strpos( $src_ui, "'hosts_ok'" ), 'status exposes hosts_ok for the settings screen' );
 $E::purge_all();
+
+// ---- #5: nothing in the plugin depends on glob() --------------------------------------
+$GLOBALS['theme_dir'] = $tmp . '/the[me]*?{x}';
+mkdir( $GLOBALS['theme_dir'] . '/parts', 0755, true );
+file_put_contents( $GLOBALS['theme_dir'] . '/parts/footer.html', '<!-- wp:latest-posts /-->' );
+$GLOBALS['transients'] = array(); $GLOBALS['active_widgets'] = array(); $GLOBALS['wpopts'] = array(); $GLOBALS['template_parts'] = array(); $GLOBALS['block_theme'] = true;
+t_ok( true === $PC::has_sitewide_dynamic_content(), 'block-theme template parts are found even when the theme path contains [ ] * ? { }' );
+$GLOBALS['block_theme'] = false; $GLOBALS['transients'] = array();
+t_ok( 0 === preg_match( '/[^_a-z]glob\(/', preg_replace( '#/\*.*?\*/|//[^\n]*#s', '', file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' ) ) ), 'the class calls glob() nowhere' );
+t_ok( 0 === preg_match( '/[^_a-z]glob\(/', preg_replace( '#/\*.*?\*/|//[^\n]*#s', '', file_get_contents( BEPLUSPB_PLUGIN_DIR . 'lib/class-bepluspb-page-cache-engine.php' ) ) ), 'the engine calls glob() nowhere' );
+
+// ---- #7: the observation hooks are verified on the live WordPress ----------------------
+$GLOBALS['broken_observers'] = false; $GLOBALS['transients'] = array(); $GLOBALS['wp_version'] = '6.5';
+$flag( 'device_aware', true ); $flag( 'lists_others', true ); $flag( 'observed_mobile', true );
+t_ok( true === $PC::observers_ok(), 'live check passes when device checks, post queries and comment queries are all reported' );
+t_ok( true === $flag( 'device_aware' ) && true === $flag( 'lists_others' ) && true === $flag( 'observed_mobile' ) && false === $flag( 'self_test' ), 'the check restores the request state it borrowed' );
+t_ok( is_array( $GLOBALS['transients'][ $PC::OBSERVER_TRANSIENT ] ) && true === $GLOBALS['transients'][ $PC::OBSERVER_TRANSIENT ]['ok'], 'the result is cached' );
+$GLOBALS['broken_observers'] = true;
+t_ok( true === $PC::observers_ok(), 'a cached result is not re-tested on every call' );
+$GLOBALS['wp_version'] = '6.6';
+t_ok( false === $PC::observers_ok(), 'a WordPress update triggers a new check (hooks silent => false)' );
+$GLOBALS['wp_version'] = '6.5'; $GLOBALS['transients'] = array();
+t_ok( false === $PC::observers_ok(), 'silent hooks are detected' );
+$cfg_ok  = $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'auto' ) ) );
+t_ok( 'separate' === $cfg_ok['mobile'], 'automatic mode falls back to a separate mobile copy when the hooks are silent' );
+t_ok( 'same' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'same' ) ) )['mobile'] && 'bypass' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'bypass' ) ) )['mobile'], 'explicit choices are never changed' );
+t_ok( true === $PC::purges_everything_on_post_change( array( 'page_cache_purge_scope' => 'auto' ) ) && false === $PC::purges_everything_on_post_change( array( 'page_cache_purge_scope' => 'related' ) ), 'automatic purge scope clears everything when the hooks are silent; "related" is the user\'s explicit choice' );
+t_ok( false === $PC::get_status( false )['observers'], 'status reports the failed check' );
+$GLOBALS['transients']['x'] = 1;
+$GLOBALS['transients'][ $PC::OBSERVER_TRANSIENT ] = array( 'wp' => '6.5', 'ok' => false );
+$GLOBALS['broken_observers'] = false;
+$PC::sync( $GLOBALS['opts'] );
+t_ok( true === $PC::observers_ok() && 'auto' === $E::load_config()['mobile'], 'saving settings re-runs the check; once the hooks work again automatic mode returns' );
+$GLOBALS['transients'] = array();
+t_ok( true === $PC::get_status( false )['observers'], 'status reports a passing check' );
+
+// A page answered by WordPress for another kind of device than the cache keyed it under is not stored.
+$GLOBALS['hooks'] = array();
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+$PC::init( $GLOBALS['opts'] );
+$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0) Chrome/120';
+$cdk = $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/mismatch/', 'HTTP_USER_AGENT' => $_SERVER['HTTP_USER_AGENT'] ), array() );
+$E::purge_all();
+$flag( 'device_aware', true ); $flag( 'observed_mobile', true ); set_ctx( $cdk );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( ! is_file( $cdk['file'] ) && ! is_file( $cdk['device_file'] ), 'WordPress said "mobile" for a visitor the cache classed as desktop: not stored' );
+$flag( 'observed_mobile', false ); set_ctx( $cdk );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cdk['device_file'] ), 'agreement => stored' );
+$E::purge_all();
+$flag( 'device_aware', false ); $flag( 'observed_mobile', null ); set_ctx( $cdk );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cdk['file'] ), 'a page that never asked is stored regardless' );
+$E::purge_all();
+$GLOBALS['hooks'] = array();
+$PC::write_config( $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'same' ) ) ) ); $E::reset();
+$PC::init( $GLOBALS['opts'] );
+$flag( 'device_aware', true ); $flag( 'observed_mobile', true ); set_ctx( $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/mismatch/' ), array() ) );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $E::cache_root() . '/example.com/mismatch/index.html' ), '"same" mode makes no device check (the user chose one copy for everybody)' );
+$E::purge_all(); $flag( 'device_aware', false ); $flag( 'observed_mobile', null ); set_ctx( null );
+unset( $_SERVER['HTTP_USER_AGENT'] );
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+
+// ---- #6: more settings and people that change every page -------------------------------
+$GLOBALS['opts']['page_cache_purge_options'] = "my_theme_options\noptions_*\n";
+foreach ( array( 'site_icon', 'site_logo', 'blogname', 'show_avatars', 'sticky_posts', 'start_of_week', 'woocommerce_currency', 'woocommerce_price_num_decimals', 'woocommerce_enable_reviews', 'wpmm_settings', 'widget_text', 'theme_mods_x', 'my_theme_options', 'options_header_logo', 'options_' ) as $o ) {
+	t_ok( true === $PC::option_clears_cache( $o ), "option $o clears the cache" );
+}
+foreach ( array( 'active_plugins', 'cron', 'woocommerce_queue_flush_rewrite_rules', 'woocommerce_admin_notices', 'my_theme_options_extra', 'option_header', '_transient_doing_cron', '_site_transient_update_core', '_transient_woocommerce_cache', 'rewrite_rules' ) as $o ) {
+	t_ok( false === $PC::option_clears_cache( $o ), "option $o does not (runtime bookkeeping)" );
+}
+t_ok( false === $PC::option_clears_cache( array( 'x' ) ) && false === $PC::option_clears_cache( null ), 'non-string option names are ignored' );
+$GLOBALS['opts']['page_cache_purge_options'] = "_transient_my*\n_site_transient_*";
+t_ok( false === $PC::option_clears_cache( '_transient_my_cache' ) && false === $PC::option_clears_cache( '_site_transient_update_core' ), 'transients never clear the cache, even when a user prefix would match them (they change on page views)' );
+unset( $GLOBALS['opts']['page_cache_purge_options'] );
+t_ok( false === $PC::option_clears_cache( 'my_theme_options' ) && false === $PC::option_clears_cache( 'options_header_logo' ), 'user entries apply only while listed' );
+t_ok( "my_theme_options\noptions_*\nredux.v2:x" === $PC::sanitize_option_names( "my_theme_options\n options_* \nbad name\n*\n<script>\nmy_theme_options\nredux.v2:x,\n../etc\n" ), 'option-name list keeps only safe, unique names and prefixes' );
+t_ok( '' === $PC::sanitize_option_names( array( 'x' ) ) && 50 === count( explode( "\n", $PC::sanitize_option_names( implode( "\n", array_map( static fn( $i ) => 'opt_' . $i, range( 1, 80 ) ) ) ) ) ), 'non-strings are rejected and the list is capped at 50' );
+$E::reset(); $f = $fill();
+$PC::on_option_changed( 'site_icon' );
+t_ok( ! is_file( $f['other'] ), 'changing the site icon purges every page' );
+$f = $fill(); $E::reset();
+$GLOBALS['user_caps'] = array( 5 => true, 6 => false );
+$PC::on_user_changed( 6 );
+t_ok( is_file( $f['other'] ), 'a subscriber or customer editing their account purges nothing' );
+$PC::on_user_changed( 5 );
+t_ok( ! is_file( $f['other'] ), 'an author or editor changing their name, bio or avatar purges every page (bylines, author boxes)' );
+$GLOBALS['hooks'] = array();
+$PC::register_invalidation_hooks( $GLOBALS['opts'] );
+t_ok( ! empty( $GLOBALS['hooks']['profile_update'] ) && ! empty( $GLOBALS['hooks']['deleted_user'] ), 'profile_update and deleted_user are registered' );
+
+// ---- #8: say what a stored page skips ------------------------------------------------------
+$GLOBALS['wpopts']['active_plugins'] = array( 'akismet/akismet.php', 'wordfence/wordfence.php', 'wp-statistics/wp-statistics.php' );
+$byp = $PC::bypassed_plugins();
+t_ok( 2 === count( $byp ) && false !== strpos( $byp[0], 'Wordfence' ) && false !== strpos( $byp[1], 'WP Statistics' ), 'active security / counting plugins are listed' );
+$GLOBALS['wpopts']['active_plugins'] = array( 'akismet/akismet.php', 'wordfence-fake-prefix/x.php' );
+t_ok( array() === $PC::bypassed_plugins(), 'only exact plugin folders match' );
+$GLOBALS['wpopts'] = array();
+t_ok( array() === $PC::bypassed_plugins() && array() === $PC::get_status( false )['bypassed'], 'nothing listed when none is active' );
+t_ok( false !== strpos( file_get_contents( $root . '/uninstall.php' ), "'.gc'" ), 'uninstall removes the daily-cleanup marker' );
 
 // WP-CLI imports have no logged-in user but still edit the site (constants cannot be undefined: kept last).
 $GLOBALS['can_edit'] = false;

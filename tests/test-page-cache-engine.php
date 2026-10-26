@@ -239,6 +239,7 @@ t_ok( $E::count_files()['files'] === $pages_before + 1, 'sidecar is not counted 
 file_put_contents( $tmp . '/router.php', '<?php define("ABSPATH",' . var_export( $tmp . '/', true ) . '); define("WP_CONTENT_DIR",' . var_export( WP_CONTENT_DIR, true ) . '); require ' . var_export( $stub_engine, true ) . '; BEPLUSPB_Page_Cache_Engine::serve(); echo "MISS";' );
 $port = 18300 + random_int( 0, 400 );
 $srv  = proc_open( escapeshellarg( PHP_BINARY ) . ' -n -S 127.0.0.1:' . $port . ' ' . escapeshellarg( $tmp . '/router.php' ), array( 0 => array( 'file', '/dev/null', 'r' ), 1 => array( 'file', '/dev/null', 'w' ), 2 => array( 'file', '/dev/null', 'w' ) ), $pipes );
+register_shutdown_function( static function () use ( $srv ) { if ( is_resource( $srv ) ) { proc_terminate( $srv ); } } ); // Never leave a server behind when an assertion fails.
 for ( $i = 0; $i < 40; $i++ ) { if ( @fsockopen( '127.0.0.1', $port ) ) { break; } usleep( 100000 ); }
 $hdr_run = static function ( $uri, array $extra = array() ) use ( $port ) {
 	$args = '';
@@ -421,6 +422,83 @@ $E::purge_path( '/vals/' );
 t_ok( true === $E::store( ctx( '/vals/', array(), array( 'pll_language' => 'zz' ) ), $html ), 'after a purge the URL accepts variants again' );
 $E::purge_path( '/vals/' );
 write_cfg();
+
+// ---- #5: install paths with glob metacharacters ------------------------------------------
+foreach ( array( 'site[1]', 'my*site', 'what?', 'a{b,c}', 'x[!y]' ) as $weird ) {
+	$wdir = $tmp . '/' . $weird;
+	@mkdir( $wdir . '/wp-content', 0755, true );
+	file_put_contents( $tmp . '/weird.php', '<?php
+define("ABSPATH", ' . var_export( $wdir . '/', true ) . '); define("WP_CONTENT_DIR", ' . var_export( $wdir . '/wp-content', true ) . ');
+require ' . var_export( $stub_engine, true ) . ';
+$E = "BEPLUSPB_Page_Cache_Engine";
+file_put_contents(WP_CONTENT_DIR."/.bepluspb_pc.php", $E::CONFIG_GUARD.json_encode(array("enabled"=>true,"ttl"=>3600,"hosts"=>array("example.com"),"mobile"=>"auto")));
+$h = "<!doctype html><html>".str_repeat("x",300)."</html>";
+$mk = function($u){ global $E; return $E::request_context(array("REQUEST_METHOD"=>"GET","HTTP_HOST"=>"example.com","REQUEST_URI"=>$u), array()); };
+$a = $mk("/a/"); $b = $mk("/a/page/2/"); $c = $mk("/a/comment-page-2/"); $d = $mk("/b/");
+$E::store($a, $h, array("X-Robots-Tag: noindex"), array("lists_others"=>true)); $E::store($b, $h); $E::store($c, $h); $E::store($d, $h);
+$out = array();
+$out[] = $E::purge_path("/a/", null, true) >= 3 ? "path-ok" : "path-FAILED";
+$out[] = (!is_file($a["file"]) && !is_file($b["file"]) && !is_file($c["file"]) && !is_file(substr($a["file"],0,-5).".hdr") && !is_file(substr($a["file"],0,-5).".lst")) ? "files-gone" : "files-REMAIN";
+$E::store($a, $h, array(), array("lists_others"=>true));
+$out[] = (1 === $E::purge_flagged() && !is_file($a["file"])) ? "flagged-ok" : "flagged-FAILED";
+$r = $E::purge_all();
+$out[] = ("success" === $r["status"] && !is_file($d["file"])) ? "all-ok" : "all-FAILED";
+$E::store($d, $h);
+$old = $E::cache_root()."/example.com/old"; mkdir($old, 0755, true); file_put_contents($old."/index.html", $h); touch($old."/index.html", time()-7200);
+$out[] = (1 === $E::gc() && !is_dir($old)) ? "gc-ok" : "gc-FAILED";
+echo implode(" ", $out);
+' );
+	$res = trim( (string) shell_exec( escapeshellarg( PHP_BINARY ) . ' -n ' . escapeshellarg( $tmp . '/weird.php' ) . ' 2>&1' ) );
+	t_ok( 'path-ok files-gone flagged-ok all-ok gc-ok' === $res, "store, purge_path, purge_flagged, purge_all and gc work when the install path is $weird (got: $res)" );
+}
+
+// ---- #7: aliases of one address share one copy -----------------------------------------------
+write_cfg();
+$canon = ctx( '/hello/' )['file'];
+foreach ( array( '/h%65llo/', '/%68ello/', '/hel%6co/', '/h%65%6c%6co/', '/%68%65%6c%6c%6f/', '/h%65llo' ) as $alias ) {
+	t_ok( ctx( $alias ) && ctx( $alias )['file'] === $canon, "$alias is stored as /hello/ (no extra copy per spelling)" );
+}
+t_ok( ctx( '/a%2db/' )['dir'] === $E::cache_root() . '/example.com/a-b' && ctx( '/a%5fb/%7e/' )['dir'] === $E::cache_root() . '/example.com/a_b/~', 'encoded - _ ~ are decoded too' );
+t_ok( ctx( '/a%2Bb/' )['dir'] === $E::cache_root() . '/example.com/a%2bb' && ctx( '/b%C3%A0i/' )['dir'] === $E::cache_root() . '/example.com/b%c3%a0i', 'reserved and non-ASCII sequences stay encoded, in one lower-case form' );
+foreach ( array( '/%48ello/', '/h%45llo/', '/%41%42/', '/a%2e%2e/', '/%2ehidden/', '/h%2fllo/', '/a%00b/' ) as $bad ) {
+	t_ok( null === ctx( $bad ), "$bad is not cached (decodes to upper case, a dot, a slash or NUL)" );
+}
+t_ok( null !== $E::path_segments( '/h%65llo/' ) && array( 'hello' ) === $E::path_segments( '/h%65llo/' ), 'path_segments returns the canonical form' );
+$E::store( ctx( '/hello/' ), $html );
+t_ok( 1 === $E::purge_path( '/h%65llo/' ) && ! is_file( $canon ), 'purging an alias purges the one copy' );
+
+// ---- #8: cleanup without WP-Cron -----------------------------------------------------------------
+for ( $i = 1; $i <= 6; $i++ ) {
+	$gc = ctx( "/gc$i/" );
+	$E::store( $gc, $html );
+	touch( $gc['file'], time() - 7200 );
+}
+$before = $E::count_files()['files'];
+$removed_budget = $E::gc( 4 );
+$after_budget = $E::count_files()['files'];
+t_ok( $removed_budget >= 1 && $after_budget > 0 && $after_budget < $before, 'a limited gc stops early (it runs inside a visitor request)' );
+$E::gc();
+t_ok( 0 === $E::count_files()['files'], 'an unlimited gc finishes the job' );
+file_put_contents( $tmp . '/nocron.php', '<?php
+define("ABSPATH", ' . var_export( $tmp . '/', true ) . '); define("WP_CONTENT_DIR", ' . var_export( WP_CONTENT_DIR, true ) . '); if ( getenv("NOCRON") ) { define("DISABLE_WP_CRON", true); }
+require ' . var_export( $stub_engine, true ) . ';
+$E = "BEPLUSPB_Page_Cache_Engine"; $h = "<!doctype html><html>".str_repeat("x",300)."</html>";
+$mk = function($u){ global $E; return $E::request_context(array("REQUEST_METHOD"=>"GET","HTTP_HOST"=>"example.com","REQUEST_URI"=>$u), array()); };
+$expired = function($u) use ($E, $h) { $c = $GLOBALS["mk"]($u); @mkdir($c["dir"], 0755, true); file_put_contents($c["file"], $h); touch($c["file"], time()-7200); return $c["file"]; };
+$mk2 = $mk; $GLOBALS["mk"] = $mk;
+$stale1 = $expired("/stale1/");
+$E::store($mk("/fresh1/"), $h);
+echo (is_file($E::cache_root()."/.gc") ? "marker" : "no-marker"), " ", (is_file($stale1) ? "stale-kept" : "stale-removed"), " ";
+$stale2 = $expired("/stale2/");
+$E::store($mk("/fresh2/"), $h);
+echo (is_file($stale2) ? "second-pass-skipped" : "second-pass-RAN");
+' );
+$E::purge_all();
+$run_gc = static function ( $nocron ) use ( $tmp ) { return trim( (string) shell_exec( ( $nocron ? 'NOCRON=1 ' : '' ) . escapeshellarg( PHP_BINARY ) . ' -n ' . escapeshellarg( $tmp . '/nocron.php' ) . ' 2>&1' ) ); };
+t_ok( 'no-marker stale-kept second-pass-skipped' === $run_gc( false ), 'with WP-Cron available the storing request never cleans up (the daily event does)' );
+$E::purge_all(); @unlink( $E::cache_root() . '/.gc' );
+t_ok( 'marker stale-removed second-pass-skipped' === $run_gc( true ), 'with DISABLE_WP_CRON the first store cleans expired pages, then at most once a day' );
+$E::purge_all(); @unlink( $E::cache_root() . '/.gc' );
 
 proc_terminate( $srv );
 proc_close( $srv );

@@ -82,6 +82,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Last-Modified`/304 for such pages, since the body changes on every response).
 
 ### Fixed
+- Page Cache: purges silently failed when the WordPress install path contained
+  `[ ] * ? { }` (`glob()` treated them as patterns and matched nothing). All
+  cache file listing now uses directory iterators, including the block-theme
+  template-part scan.
+- Page Cache: the observation hooks are no longer assumed. A live check on the
+  running WordPress (one device check, one posts query, one comments query —
+  re-run when settings are saved and after a WordPress update) decides whether
+  "Automatic" device handling and the "pages that list other content" purge can
+  be trusted; if a hook is silent the cache runs as "always keep a separate
+  mobile copy" and clears everything on an edit, and the settings screen says so.
+- Page Cache: if WordPress's own `wp_is_mobile()` answer for a page differs from
+  how the cache classified the visitor (client hints vs User-Agent, older
+  WordPress, a plugin overriding the filter), the page is not stored.
+- Page Cache: percent-encoded spellings of one address (`/h%65llo/`,
+  `/%68ello/`) shared nothing with `/hello/` and could create many copies of one
+  page. Encoded letters, digits and `- . _ ~` are decoded to one canonical form
+  (anything that decodes to upper case, a dot, a slash or NUL is not cached).
+- Page Cache: more things that appear on every page now clear it — site icon and
+  logo, avatar, image-size, comment, sticky-post and other core options, the
+  WooCommerce price/tax/stock/review/catalog options, WP Maintenance Mode's
+  settings, and profile changes by anyone who can write posts (bylines, author
+  boxes); users deleted. A new "Extra Settings That Clear the Cache" field (and the
+  `bepluspb_page_cache_sitewide_options` filter) takes option names or `prefix*`
+  entries for theme frameworks, ACF options pages and page builders. Transients
+  never clear it.
+- Page Cache: the settings screen lists active plugins whose own logic does not
+  run for a stored page (firewalls, maintenance, age gates, redirect and
+  server-side view counters) with what to do.
+- Page Cache: with `DISABLE_WP_CRON` and no system cron the daily cleanup never
+  ran and expired files piled up. The request that stores a page now cleans up,
+  at most once a day and with a work limit, when WP-Cron is disabled.
 - Page Cache: language/currency cookie values are chosen by the visitor, so one URL
   could be filled with unlimited copies (500 distinct values made 500 files). A
   value now has to look like a language or currency code (`en`, `USD`, `pt_BR`,

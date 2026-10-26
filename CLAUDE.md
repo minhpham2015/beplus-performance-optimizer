@@ -224,6 +224,16 @@ checking whether it would break the SVN slug binding).
    - **The config's host list must track the site address** (`hosts_in_sync()`,
      checked on every front-end request without touching the database unless it
      is out of sync). A stale list silently disables the cache.
+   - **Observation is verified, not assumed:** `observers_ok()` runs the real
+     hooks on the live WordPress; when it fails, "auto" must degrade to "separate"
+     and an edit must purge everything. A page whose `wp_is_mobile()` answer
+     differs from the cache's own classification is not stored.
+   - **Never `glob()` cache paths** (use `list_dir()` / directory iterators), and
+     keep percent-encoded unreserved characters decoded in `path_segments()` so
+     one address is one copy.
+   - Anything printed on every page and stored in an option needs to be in
+     `SITEWIDE_OPTIONS`/`WOOCOMMERCE_OPTIONS` (or the user's "Extra Settings"
+     list); never make transients or frequently-written bookkeeping options purge.
    - What an edit purges depends on whether pages show *other* posts
      (`purges_everything_on_post_change()`); never narrow a purge to "related
      pages" without that check.

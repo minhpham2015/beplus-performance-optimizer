@@ -88,6 +88,20 @@ class BEPLUSPB_Page_Cache {
 	private static $lists_others = false;
 
 	/**
+	 * What wp_is_mobile() answered while this page was being built (null: never asked).
+	 *
+	 * @var bool|null
+	 */
+	private static $observed_mobile = null;
+
+	/**
+	 * True while the live compatibility check runs, so the wp-admin gate of the observers is skipped.
+	 *
+	 * @var bool
+	 */
+	private static $self_test = false;
+
+	/**
 	 * Whether pages that list other content were already purged in this request.
 	 *
 	 * @var bool
@@ -140,7 +154,90 @@ class BEPLUSPB_Page_Cache {
 		'thread_comments',
 		'comments_per_page',
 		'page_comments',
+		'comment_moderation',
+		'close_comments_for_old_posts',
+		'close_comments_days_old',
+		'comment_order',
+		'default_comments_page',
+		'show_comments_cookies_opt_in',
+		'site_icon',
+		'site_logo',
+		'show_avatars',
+		'avatar_default',
+		'avatar_rating',
+		'thumbnail_size_w',
+		'thumbnail_size_h',
+		'medium_size_w',
+		'medium_size_h',
+		'large_size_w',
+		'large_size_h',
+		'image_default_align',
+		'image_default_size',
+		'start_of_week',
+		'sticky_posts',
+		'users_can_register',
+		'default_category',
+		'blog_charset',
+		'rss_use_excerpt',
+		'posts_per_rss',
+		'wpmm_settings', // WP Maintenance Mode: switching it on/off must show/hide stored pages at once.
 	);
+
+	/** WooCommerce settings that change how every product, shop and price is displayed. */
+	private const WOOCOMMERCE_OPTIONS = array(
+		'woocommerce_currency',
+		'woocommerce_currency_pos',
+		'woocommerce_price_thousand_sep',
+		'woocommerce_price_decimal_sep',
+		'woocommerce_price_num_decimals',
+		'woocommerce_prices_include_tax',
+		'woocommerce_calc_taxes',
+		'woocommerce_tax_display_shop',
+		'woocommerce_tax_display_cart',
+		'woocommerce_tax_total_display',
+		'woocommerce_enable_reviews',
+		'woocommerce_enable_review_rating',
+		'woocommerce_review_rating_required',
+		'woocommerce_manage_stock',
+		'woocommerce_hide_out_of_stock_items',
+		'woocommerce_stock_format',
+		'woocommerce_notify_no_stock_amount',
+		'woocommerce_catalog_columns',
+		'woocommerce_catalog_rows',
+		'woocommerce_default_catalog_orderby',
+		'woocommerce_shop_page_id',
+		'woocommerce_cart_page_id',
+		'woocommerce_checkout_page_id',
+		'woocommerce_myaccount_page_id',
+		'woocommerce_terms_page_id',
+		'woocommerce_enable_ajax_add_to_cart',
+		'woocommerce_cart_redirect_after_add',
+		'woocommerce_placeholder_image',
+		'woocommerce_sale_flash',
+	);
+
+	/**
+	 * Active plugins whose own logic is skipped when a stored page is served, by plugin folder.
+	 * Shown on the settings screen so nobody is surprised.
+	 */
+	private const ACCESS_CONTROL_PLUGINS = array(
+		'wordfence/'                           => 'Wordfence (firewall / blocking)',
+		'better-wp-security/'                  => 'Solid Security / iThemes Security',
+		'all-in-one-wp-security-and-firewall/' => 'All In One WP Security & Firewall',
+		'sucuri-scanner/'                      => 'Sucuri Security',
+		'ip-geo-block/'                        => 'IP Geo Block',
+		'wp-maintenance-mode/'                 => 'WP Maintenance Mode',
+		'under-construction-page/'             => 'Under Construction',
+		'coming-soon/'                         => 'SeedProd Coming Soon / Maintenance',
+		'age-gate/'                            => 'Age Gate',
+		'redirection/'                         => 'Redirection (new redirects do not apply to a stored page until it is purged)',
+		'wp-statistics/'                       => 'WP Statistics (server-side counting)',
+		'post-views-counter/'                  => 'Post Views Counter (server-side counting)',
+		'wp-postviews/'                        => 'WP-PostViews',
+	);
+
+	/** Transient holding the result of the live check of the page-observation hooks. */
+	const OBSERVER_TRANSIENT = 'bepluspb_page_cache_observers';
 
 	// =========================================================================
 	// Paths
@@ -205,6 +302,87 @@ class BEPLUSPB_Page_Cache {
 			}
 		}
 		return implode( "\n", array_slice( array_values( array_unique( $out ) ), 0, 50 ) );
+	}
+
+	/**
+	 * Normalise the "extra options that clear the cache" list.
+	 *
+	 * Entries are option names; a trailing "*" makes an entry a prefix ("my_theme_*").
+	 *
+	 * @param mixed $raw Raw textarea value.
+	 * @return string Newline-separated list.
+	 */
+	public static function sanitize_option_names( $raw ) {
+		$out = array();
+		foreach ( preg_split( '/[\r\n,]+/', is_string( $raw ) ? $raw : '' ) as $name ) {
+			$name = trim( $name );
+			if ( '' !== $name && '*' !== $name && preg_match( '/^[A-Za-z0-9_\-:.]{1,100}\*?$/D', $name ) ) {
+				$out[] = $name;
+			}
+		}
+		return implode( "\n", array_slice( array_values( array_unique( $out ) ), 0, 50 ) );
+	}
+
+	/**
+	 * Whether an option name matches a list of exact names and "prefix*" entries.
+	 *
+	 * @param string   $option Option name.
+	 * @param string[] $list   Names; entries ending in "*" are prefixes.
+	 * @return bool
+	 */
+	private static function option_in_list( $option, array $list ) {
+		foreach ( $list as $entry ) {
+			if ( ! is_string( $entry ) || '' === $entry ) {
+				continue;
+			}
+			if ( '*' === substr( $entry, -1 ) ? 0 === strpos( $option, substr( $entry, 0, -1 ) ) : $option === $entry ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether changing this option must clear every stored page.
+	 *
+	 * @param string $option Option name.
+	 * @return bool
+	 */
+	public static function option_clears_cache( $option ) {
+		if ( ! is_string( $option ) || 0 === strpos( $option, '_transient_' ) || 0 === strpos( $option, '_site_transient_' ) ) {
+			return false;
+		}
+		if ( in_array( $option, self::SITEWIDE_OPTIONS, true ) || in_array( $option, self::WOOCOMMERCE_OPTIONS, true ) || 0 === strpos( $option, 'widget_' ) || 0 === strpos( $option, 'theme_mods_' ) ) {
+			return true;
+		}
+		$user_list = bepluspb_parse_exclude_list( bepluspb_get_options()['page_cache_purge_options'] ?? '' );
+		/**
+		 * Filters extra option names (or "prefix*" entries) whose change clears the page cache,
+		 * e.g. theme-framework or builder settings printed on every page.
+		 *
+		 * @param string[] $names Option names.
+		 */
+		$extra = apply_filters( 'bepluspb_page_cache_sitewide_options', array() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		return self::option_in_list( $option, array_merge( $user_list, is_array( $extra ) ? $extra : array() ) );
+	}
+
+	/**
+	 * Active plugins whose logic does not run for a stored page.
+	 *
+	 * @return string[] Human-readable names.
+	 */
+	public static function bypassed_plugins() {
+		$found  = array();
+		$active = (array) get_option( 'active_plugins', array() );
+		foreach ( self::ACCESS_CONTROL_PLUGINS as $folder => $label ) {
+			foreach ( $active as $plugin ) {
+				if ( is_string( $plugin ) && 0 === strpos( $plugin, $folder ) ) {
+					$found[] = $label;
+					break;
+				}
+			}
+		}
+		return $found;
 	}
 
 	/**
@@ -278,8 +456,12 @@ class BEPLUSPB_Page_Cache {
 		}
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 			foreach ( array( get_stylesheet_directory(), get_template_directory() ) as $dir ) {
-				foreach ( glob( trailingslashit( $dir ) . 'parts/*.html' ) ?: array() as $file ) {
-					$markup = file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+				$parts_dir = trailingslashit( $dir ) . 'parts';
+				foreach ( is_dir( $parts_dir ) ? (array) scandir( $parts_dir ) : array() as $name ) { // scandir, not glob(): the theme path may contain glob metacharacters.
+					if ( '.html' !== substr( $name, -5 ) || ! is_file( $parts_dir . '/' . $name ) ) {
+						continue;
+					}
+					$markup = file_get_contents( $parts_dir . '/' . $name ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 					if ( is_string( $markup ) && self::markup_lists_content( $markup ) ) {
 						return true;
 					}
@@ -334,6 +516,77 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * Whether the hooks used to watch pages while they are built really fire on this site.
+	 *
+	 * "Automatic" device handling and "related pages that list other content" both rely on
+	 * the wp_is_mobile filter and the pre_get_posts / pre_get_comments actions. They are
+	 * checked here, on the live WordPress, instead of assumed: if any is silent (a very old
+	 * WordPress, a plugin that short-circuits them) the cache falls back to the safe modes
+	 * (separate mobile copies, purge everything on edit). Re-checked whenever settings are
+	 * saved and after a WordPress update.
+	 *
+	 * @return bool
+	 */
+	public static function observers_ok() {
+		$version = (string) get_bloginfo( 'version' );
+		$known   = get_transient( self::OBSERVER_TRANSIENT );
+		if ( is_array( $known ) && isset( $known['wp'], $known['ok'] ) && $known['wp'] === $version ) {
+			return (bool) $known['ok'];
+		}
+		$ok = self::run_observer_self_test();
+		set_transient(
+			self::OBSERVER_TRANSIENT,
+			array(
+				'wp' => $version,
+				'ok' => $ok,
+			),
+			7 * DAY_IN_SECONDS
+		);
+		return $ok;
+	}
+
+	/**
+	 * Run one device check, one posts query and one comments query and see whether the observers saw them.
+	 *
+	 * Calls get_posts() with its default suppress_filters, exactly like most plugins do.
+	 *
+	 * @return bool
+	 */
+	private static function run_observer_self_test() {
+		$saved           = array( self::$device_aware, self::$lists_others, self::$observed_mobile );
+		self::$self_test = true;
+		self::register_observers(); // Idempotent; the cache may not be enabled yet when this runs.
+
+		self::$device_aware = false;
+		wp_is_mobile();
+		$device_seen = self::$device_aware;
+
+		self::$lists_others = false;
+		get_posts(
+			array(
+				'post_type'      => 'post',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+			)
+		);
+		$posts_seen = self::$lists_others;
+
+		self::$lists_others = false;
+		get_comments(
+			array(
+				'number' => 1,
+				'fields' => 'ids',
+			)
+		);
+		$comments_seen = self::$lists_others;
+
+		self::$self_test = false;
+		list( self::$device_aware, self::$lists_others, self::$observed_mobile ) = $saved;
+		return $device_seen && $posts_seen && $comments_seen;
+	}
+
+	/**
 	 * Whether editing a published post must purge every page, not just related ones.
 	 *
 	 * @param array|null $opts Options (defaults to the saved ones).
@@ -345,7 +598,8 @@ class BEPLUSPB_Page_Cache {
 		if ( 'all' === $scope ) {
 			return true;
 		}
-		return 'auto' === $scope && self::has_sitewide_dynamic_content();
+		// Without working observers nothing marks which pages list other content: be safe.
+		return 'auto' === $scope && ( ! self::observers_ok() || self::has_sitewide_dynamic_content() );
 	}
 
 	/**
@@ -387,6 +641,18 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * The mobile mode the engine will run: "automatic" needs working observers, otherwise it
+	 * behaves as "always keep a separate mobile copy".
+	 *
+	 * @param array $opts Options merged with defaults.
+	 * @return string
+	 */
+	private static function effective_mobile_mode( $opts ) {
+		$mode = self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' );
+		return ( 'auto' === $mode && ! self::observers_ok() ) ? 'separate' : $mode;
+	}
+
+	/**
 	 * Build the config consumed by the engine.
 	 *
 	 * @param array $opts Options merged with defaults.
@@ -401,7 +667,7 @@ class BEPLUSPB_Page_Cache {
 			'exclude_paths'   => bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] ?? '' ),
 			'exclude_cookies' => bepluspb_parse_exclude_list( $opts['page_cache_exclude_cookies'] ?? '' ),
 			'accept_variants' => ! empty( $opts['cdn_webp_avif'] ),
-			'mobile'          => self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' ),
+			'mobile'          => self::effective_mobile_mode( $opts ),
 			'vary_cookies'    => array_slice( array_values( array_unique( array_merge( self::detected_vary_cookies(), bepluspb_parse_exclude_list( $opts['page_cache_vary_cookies'] ?? '' ) ) ) ), 0, 8 ),
 		);
 	}
@@ -572,6 +838,7 @@ class BEPLUSPB_Page_Cache {
 	 */
 	public static function sync( $opts ) {
 		delete_transient( self::ERROR_TRANSIENT );
+		delete_transient( self::OBSERVER_TRANSIENT ); // Re-check the observation hooks with the current plugins.
 
 		if ( ! self::is_enabled( $opts ) ) {
 			self::shutdown();
@@ -705,6 +972,8 @@ class BEPLUSPB_Page_Cache {
 			'running'     => $running,
 			'config_ok'   => null !== BEPLUSPB_Page_Cache_Engine::load_config(),
 			'hosts_ok'    => self::hosts_in_sync(),
+			'observers'   => self::observers_ok(),
+			'bypassed'    => self::bypassed_plugins(),
 			'mode'        => ! $enabled ? 'off' : ( $running ? 'dropin' : 'plugin' ),
 			'root_exists' => is_dir( BEPLUSPB_Page_Cache_Engine::cache_root() ),
 			'stats'       => $with_stats ? BEPLUSPB_Page_Cache_Engine::count_files() : array(
@@ -753,7 +1022,10 @@ class BEPLUSPB_Page_Cache {
 		// Priority -100: open BEFORE the HTML/CDN/CSS buffers (priority 0) so this
 		// outermost buffer receives the final, fully optimised markup.
 		add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), -100 );
-		self::$mobile_mode = self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' );
+		// The engine's config is what serves pages, so it decides how they are stored too
+		// (it already accounts for the live check of the observation hooks).
+		$cfg               = BEPLUSPB_Page_Cache_Engine::load_config();
+		self::$mobile_mode = $cfg ? $cfg['mobile'] : self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' );
 		if ( 'separate' === self::$mobile_mode ) {
 			// Every page may now depend on the device: downstream caches (proxies, CDNs) must key on it too.
 			// ("auto" announces this only on pages that actually asked WordPress about the device.)
@@ -779,7 +1051,8 @@ class BEPLUSPB_Page_Cache {
 	 * @return bool Unchanged.
 	 */
 	public static function observe_wp_is_mobile( $is_mobile ) {
-		self::$device_aware = true;
+		self::$device_aware    = true;
+		self::$observed_mobile = (bool) $is_mobile;
 		return $is_mobile;
 	}
 
@@ -789,7 +1062,7 @@ class BEPLUSPB_Page_Cache {
 	 * @param WP_Query $query The query.
 	 */
 	public static function observe_posts_query( $query ) {
-		if ( self::$lists_others || ! $query instanceof WP_Query || $query->is_main_query() || is_admin() ) {
+		if ( self::$lists_others || ! $query instanceof WP_Query || $query->is_main_query() || ( is_admin() && ! self::$self_test ) ) {
 			return;
 		}
 		$types = (array) $query->get( 'post_type' );
@@ -814,7 +1087,7 @@ class BEPLUSPB_Page_Cache {
 	 * @param WP_Comment_Query $query The query.
 	 */
 	public static function observe_comments_query( $query ) {
-		if ( self::$lists_others || is_admin() || ! is_object( $query ) || ! isset( $query->query_vars ) ) {
+		if ( self::$lists_others || ( is_admin() && ! self::$self_test ) || ! is_object( $query ) || ! isset( $query->query_vars ) ) {
 			return;
 		}
 		$post_id = isset( $query->query_vars['post_id'] ) ? (int) $query->query_vars['post_id'] : 0;
@@ -912,7 +1185,7 @@ class BEPLUSPB_Page_Cache {
 		}
 		// Only a complete, un-flushed, un-discarded document is stored.
 		$complete = ( $phase & PHP_OUTPUT_HANDLER_START ) && ( $phase & PHP_OUTPUT_HANDLER_FINAL ) && ! ( $phase & PHP_OUTPUT_HANDLER_CLEAN );
-		if ( $complete && self::$ctx && self::response_is_cacheable( $html ) ) {
+		if ( $complete && self::$ctx && self::response_is_cacheable( $html ) && ! self::mobile_classification_differs() ) {
 			try {
 				BEPLUSPB_Page_Cache_Engine::store(
 					self::$ctx,
@@ -928,6 +1201,23 @@ class BEPLUSPB_Page_Cache {
 			}
 		}
 		return $html;
+	}
+
+	/**
+	 * Whether the page was built for a different kind of device than the cache keyed it under.
+	 *
+	 * The cache classifies visitors itself (it runs before WordPress). If the page then asks
+	 * wp_is_mobile() and gets another answer — a client-hint/User-Agent disagreement, an older
+	 * WordPress that ignores hints, a plugin overriding the filter — storing it would hand mobile
+	 * HTML to desktops or the reverse. Such a response is simply not stored.
+	 *
+	 * @return bool
+	 */
+	private static function mobile_classification_differs() {
+		if ( null === self::$observed_mobile || ! in_array( self::$mobile_mode, array( 'auto', 'separate' ), true ) ) {
+			return false;
+		}
+		return self::$observed_mobile !== BEPLUSPB_Page_Cache_Engine::is_mobile_request( $_SERVER );
 	}
 
 	/**
@@ -1129,6 +1419,9 @@ class BEPLUSPB_Page_Cache {
 		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'save_post_wp_template_part', 'save_post_wp_template' ) as $hook ) {
 			add_action( $hook, array( __CLASS__, 'flush_sitewide_detection' ), 5, 0 );
 		}
+		// Authors' names, bios and avatars are printed on their posts and archives.
+		add_action( 'profile_update', array( __CLASS__, 'on_user_changed' ), 20, 1 );
+		add_action( 'deleted_user', array( __CLASS__, 'purge_all' ), 20, 0 );
 		add_action( 'updated_option', array( __CLASS__, 'on_option_changed' ), 20, 1 );
 		add_action( 'added_option', array( __CLASS__, 'on_option_changed' ), 20, 1 );
 
@@ -1327,6 +1620,18 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
+	 * A profile was saved. Only people who can write posts have bylines, author boxes and
+	 * author archives; customers or subscribers editing their account must not wipe the cache.
+	 *
+	 * @param int $user_id User ID.
+	 */
+	public static function on_user_changed( $user_id ) {
+		if ( user_can( $user_id, 'edit_posts' ) ) {
+			self::purge_all();
+		}
+	}
+
+	/**
 	 * A plugin was activated or deactivated: refresh config and drop stored pages.
 	 *
 	 * Beplus itself is skipped: its own deactivation hook has just removed the
@@ -1356,7 +1661,7 @@ class BEPLUSPB_Page_Cache {
 		if ( 0 === strpos( $option, 'widget_' ) || 'sidebars_widgets' === $option ) {
 			self::flush_sitewide_detection();
 		}
-		if ( in_array( $option, self::SITEWIDE_OPTIONS, true ) || 0 === strpos( $option, 'widget_' ) || 0 === strpos( $option, 'theme_mods_' ) ) {
+		if ( self::option_clears_cache( $option ) ) {
 			self::purge_all();
 		}
 	}

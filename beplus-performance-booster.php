@@ -132,6 +132,7 @@ function bepluspb_default_options() {
 		'page_cache_exclude_cookies'         => '',  // Extra cookie-name prefixes that bypass the page cache (newline-separated).
 		'page_cache_mobile'                  => 'auto', // 'auto' | 'separate' | 'same' | 'bypass': how mobile devices (wp_is_mobile()) are cached.
 		'page_cache_vary_cookies'            => '',  // Cookie names whose value gets its own cached copy (language/currency), newline-separated.
+		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
 		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---

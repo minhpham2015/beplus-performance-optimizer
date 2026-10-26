@@ -344,6 +344,20 @@ else :
 					</div>
 				</div>
 
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_purge_options"><?php esc_html_e( 'Extra Settings That Clear the Cache', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One option name per line. A trailing * means "starts with".', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_purge_options" rows="3" class="large-text code" placeholder="my_theme_options&#10;options_*"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_purge_options]"><?php echo esc_textarea( $opts['page_cache_purge_options'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Core settings (site title, logo and icon, menus, widgets, reading and comment settings), WooCommerce display settings and WP Maintenance Mode already clear the cache when they change. Add the option names used by your theme framework, ACF options pages or page builder if they print something on every page (for example ACF options pages use options_*).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 				<?php
 				$mode_labels = array(
 					'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),
@@ -378,6 +392,16 @@ else :
 								<?php endif; ?>
 						</p>
 						<?php endif; ?>
+						<?php endif; ?>
+						<?php if ( $status['enabled'] && ! $status['observers'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'Compatibility check: this site does not report device checks or secondary queries to the cache (very old WordPress, or a plugin overrides them). Automatic mode is therefore running as "Always keep a separate mobile copy", and editing a post clears every page. This is slower but always correct.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<?php if ( $status['enabled'] && $status['bypassed'] ) : ?>
+						<p class="description">
+							<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
+							<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
+							<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
+						</p>
 						<?php endif; ?>
 						<?php foreach ( $status['errors'] as $error ) : ?>
 						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
