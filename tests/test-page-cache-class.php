@@ -41,6 +41,10 @@ function home_url( $p = '' ) { return 'https://example.com' . ( '' === $p ? '' :
 function site_url( $p = '' ) { return 'https://example.com' . $p; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function add_action( $tag, $cb, $pri = 10, $args = 1 ) { $GLOBALS['hooks'][ $tag ][] = array( $cb, $pri, $args ); }
+function add_filter( $tag, $cb, $pri = 10, $args = 1 ) { $GLOBALS['hooks'][ $tag ][] = array( $cb, $pri, $args ); }
+function post_type_exists( $t ) { return in_array( $t, array( 'post', 'page', 'attachment', 'nav_menu_item', 'wp_template_part', 'product' ), true ); }
+function get_queried_object_id() { return $GLOBALS['queried'] ?? 0; }
+class WP_Query { public $main = false; public $vars = array(); public function is_main_query() { return $this->main; } public function get( $k ) { return $this->vars[ $k ] ?? ''; } }
 function apply_filters( $tag, $v ) { return $v; }
 function do_action( $tag, ...$a ) { $GLOBALS['did'][] = $tag; }
 function get_transient( $k ) { return $GLOBALS['transients'][ $k ] ?? false; }
@@ -57,7 +61,7 @@ function is_user_logged_in() { return ! empty( $GLOBALS['logged_in'] ); }
 function wp_is_post_autosave( $id ) { return ! empty( $GLOBALS['posts'][ $id ]->autosave ); }
 function wp_is_post_revision( $id ) { return false; }
 function get_post( $id ) { return $GLOBALS['posts'][ $id ] ?? null; }
-function is_post_type_viewable( $t ) { return in_array( $t, array( 'post', 'page' ), true ); }
+function is_post_type_viewable( $t ) { return in_array( $t, array( 'post', 'page', 'attachment', 'product' ), true ); }
 function get_permalink( $p ) { $id = is_object( $p ) ? $p->ID : $p; return 'https://example.com/blog/' . ( is_object( $p ) && ! empty( $p->slug ) ? $p->slug : 'post-' . $id ) . '/'; }
 function get_option( $k ) { return $GLOBALS['wpopts'][ $k ] ?? ( 'page_for_posts' === $k ? 0 : false ); }
 function get_post_type_archive_link( $t ) { return false; }
@@ -196,9 +200,6 @@ $GLOBALS['logged_in'] = true;
 $PC::handle_buffer( $html, $START_FINAL );
 t_ok( ! file_exists( $ctx['file'] ), 'a response generated for a logged-in user is never stored' );
 $GLOBALS['logged_in'] = false;
-define( 'DONOTCACHEPAGE', true );
-$PC::handle_buffer( $html, $START_FINAL );
-t_ok( ! file_exists( $ctx['file'] ), 'DONOTCACHEPAGE is honoured' );
 set_ctx( null );
 $PC::handle_buffer( $html, $START_FINAL );
 t_ok( ! file_exists( $ctx['file'] ), 'no context => nothing stored' );
@@ -360,9 +361,9 @@ t_ok( 'same' === $PC::sanitize_choice( 'same', array( 'same', 'separate' ), 'sep
 
 // ---- Device and language/currency variants in the config ------------------------
 $c0 = $PC::build_config( $GLOBALS['opts'] );
-t_ok( 'separate' === $c0['mobile'] && array() === $c0['vary_cookies'], 'config defaults: separate mobile copy, no vary cookies' );
+t_ok( 'auto' === $c0['mobile'] && array() === $c0['vary_cookies'], 'config defaults: automatic device handling, no vary cookies' );
 t_ok( 'bypass' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'bypass' ) ) )['mobile'], 'mobile mode follows the setting' );
-t_ok( 'separate' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'nonsense' ) ) )['mobile'], 'invalid mobile mode falls back to the safe default' );
+t_ok( 'auto' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'nonsense' ) ) )['mobile'] && 'separate' === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_mobile' => 'separate' ) ) )['mobile'], 'invalid mobile mode falls back to automatic; separate is still selectable' );
 t_ok( array( 'my_lang' ) === $PC::build_config( array_merge( $GLOBALS['opts'], array( 'page_cache_vary_cookies' => "my_lang\n" ) ) )['vary_cookies'], 'user-listed vary cookies reach the config' );
 t_ok( array() === $PC::detected_vary_cookies(), 'nothing detected without WPML/Polylang/WCML' );
 define( 'ICL_SITEPRESS_VERSION', '4.6' );
@@ -375,7 +376,7 @@ t_ok( 8 === count( $c1['vary_cookies'] ) && 4 === count( array_unique( array_int
 $PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
 $E::reset();
 $cc = $E::load_config();
-t_ok( in_array( 'pll_language', $cc['vary_cookies'], true ) && 'separate' === $cc['mobile'], 'engine reads mobile mode and vary cookies from the config' );
+t_ok( in_array( 'pll_language', $cc['vary_cookies'], true ) && 'auto' === $cc['mobile'], 'engine reads mobile mode and vary cookies from the config' );
 
 // ---- Vary: User-Agent is announced (separate mode only) --------------------------
 $GLOBALS['hooks'] = array();
@@ -471,6 +472,94 @@ t_ok( is_file( $f['other'] ), '"related" scope still purges related pages only, 
 unset( $GLOBALS['opts']['page_cache_purge_scope'] );
 $GLOBALS['active_widgets'] = array();
 
+// ---- Runtime observation: device-dependent pages and pages that list other content ----
+$flag = static function ( $name, $value = null ) {
+	$prop = new ReflectionProperty( 'BEPLUSPB_Page_Cache', $name );
+	$prop->setAccessible( true );
+	if ( null !== $value ) { $prop->setValue( null, $value ); }
+	return $prop->getValue();
+};
+$GLOBALS['hooks'] = array();
+$PC::register_invalidation_hooks( $GLOBALS['opts'] );
+t_ok( ! empty( $GLOBALS['hooks']['wp_is_mobile'] ) && ! empty( $GLOBALS['hooks']['pre_get_posts'] ) && ! empty( $GLOBALS['hooks']['pre_get_comments'] ), 'observers are registered with the invalidation hooks (plugins_loaded, before themes boot)' );
+$GLOBALS['hooks'] = array();
+$PC::register_invalidation_hooks( array( 'cache_enabled' => 0, 'page_cache_enabled' => 1 ) );
+t_ok( array() === $GLOBALS['hooks'], 'no observers while the cache is off' );
+
+$flag( 'device_aware', false );
+t_ok( true === $PC::observe_wp_is_mobile( true ) && false === $PC::observe_wp_is_mobile( false ) && true === $flag( 'device_aware' ), 'wp_is_mobile observer returns WordPress\' answer untouched and marks the page device-aware' );
+
+$q = static function ( $types, $main = false ) { $o = new WP_Query(); $o->main = $main; if ( null !== $types ) { $o->vars['post_type'] = $types; } return $o; };
+$check = static function ( $query ) use ( $PC, $flag ) { $flag( 'lists_others', false ); $PC::observe_posts_query( $query ); return $flag( 'lists_others' ); };
+t_ok( false === $check( $q( 'post', true ) ), 'the main query never counts' );
+t_ok( true === $check( $q( 'post' ) ) && true === $check( $q( null ) ) && true === $check( $q( '' ) ) && true === $check( $q( array( 'post', 'page' ) ) ) && true === $check( $q( 'product' ) ) && true === $check( $q( 'any' ) ), 'secondary queries for public content (default type, several types, any, custom) are flagged' );
+t_ok( false === $check( $q( 'nav_menu_item' ) ) && false === $check( $q( 'wp_template_part' ) ) && false === $check( $q( 'attachment' ) ) && false === $check( $q( 'not_registered' ) ), 'menus, template parts, attachments and unknown types are not "other content"' );
+t_ok( false === $check( 'not a query' ), 'non-query values are ignored' );
+
+$cq = static function ( $post_id ) { $o = new stdClass(); $o->query_vars = array( 'post_id' => $post_id ); return $o; };
+$cc_check = static function ( $query ) use ( $PC, $flag ) { $flag( 'lists_others', false ); $PC::observe_comments_query( $query ); return $flag( 'lists_others' ); };
+$GLOBALS['queried'] = 42;
+t_ok( false === $cc_check( $cq( 42 ) ), 'a page loading its OWN comments is not flagged' );
+t_ok( true === $cc_check( $cq( 0 ) ) && true === $cc_check( $cq( 7 ) ), 'a comments query for other posts (Recent Comments) is flagged' );
+$GLOBALS['queried'] = 0;
+
+// Query-loop markup: only a loop with its own query lists content.
+t_ok( false === $PC::markup_lists_content( '<!-- wp:query {"queryId":0,"query":{"perPage":10,"inherit":true}} --><!-- wp:post-template /--><!-- /wp:query -->' ), 'an inherited Query Loop (the archive being viewed) is not a site-wide list' );
+t_ok( true === $PC::markup_lists_content( '<!-- wp:query {"queryId":1,"query":{"perPage":3,"inherit":false}} --><!-- wp:post-template /--><!-- /wp:query -->' ), 'a Query Loop with its own query is' );
+t_ok( true === $PC::markup_lists_content( '<!-- wp:query {"queryId":1,"query":{"perPage":3}} -->' ) && true === $PC::markup_lists_content( '<!-- wp:query -->' ), 'a Query Loop without "inherit" defaults to its own query' );
+t_ok( true === $PC::markup_lists_content( '<!-- wp:latest-posts /-->' ) && false === $PC::markup_lists_content( '<!-- wp:query-title /--><!-- wp:search /-->' ), 'Latest Posts is a list; query-title is not' );
+
+// Capture: auto mode stores device-aware pages per device and marks pages that list others.
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
+$E::reset();
+$PC::init( $GLOBALS['opts'] );
+$mk = static function ( $ua ) use ( $E ) { return $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/obs/', 'HTTPS' => 'on', 'HTTP_USER_AGENT' => $ua ), array() ); };
+$IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+$DESK   = 'Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36';
+$cx = $mk( $DESK );
+t_ok( null !== $cx['device_file'] && $cx['device_file'] !== $cx['file'] && 4 === count( array_filter( array( $cx['file'], $cx['device_file'], $cx['device_files'][0], $cx['device_files'][1] ) ) ), 'auto mode: shared file plus one file per device' );
+$flag( 'device_aware', false ); $flag( 'lists_others', false );
+set_ctx( $cx );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cx['file'] ) && ! is_file( $cx['file'] . '.lst' ) && ! is_file( substr( $cx['file'], 0, -5 ) . '.lst' ) && ! is_file( $cx['device_file'] ), 'page that never asked about the device => ONE shared copy, not flagged' );
+$flag( 'device_aware', true ); $flag( 'lists_others', true );
+set_ctx( $cx );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cx['device_file'] ) && ! is_file( $cx['file'] ) && is_file( substr( $cx['device_file'], 0, -5 ) . '.lst' ), 'device-aware page => per-device copy, shared copy removed, "lists others" marker written' );
+$cm = $mk( $IPHONE );
+set_ctx( $cm );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cm['device_file'] ) && $cm['device_file'] !== $cx['device_file'], 'mobile gets its own copy' );
+$flag( 'device_aware', false ); $flag( 'lists_others', false );
+set_ctx( $cx );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $cx['file'] ) && ! is_file( $cx['device_file'] ) && ! is_file( $cm['device_file'] ) && ! is_file( substr( $cx['file'], 0, -5 ) . '.lst' ), 'page that is no longer device-aware drops the per-device copies and the marker' );
+$flag( 'device_aware', false ); $flag( 'lists_others', false ); set_ctx( null );
+
+// Purge: editing a post removes the pages that listed other content, and only those.
+$E::reset(); $E::purge_all();
+$plain  = $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/plain-page/', 'HTTPS' => 'on' ), array() );
+$lister = $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/blog/has-related/', 'HTTPS' => 'on' ), array() );
+$lister2 = $E::request_context( array( 'REQUEST_METHOD' => 'GET', 'HTTP_HOST' => 'example.com', 'REQUEST_URI' => '/deep/er/lists-too/', 'HTTPS' => 'on' ), array() );
+$refill = static function () use ( $E, $html, $plain, $lister, $lister2 ) { $E::store( $plain, $html ); $E::store( $lister, $html, array(), array( 'lists_others' => true ) ); $E::store( $lister2, $html, array(), array( 'lists_others' => true ) ); };
+$GLOBALS['opts']['page_cache_purge_scope'] = 'auto';
+$GLOBALS['active_widgets'] = array(); $GLOBALS['transients'] = array();
+$PC::purge_all(); $refill();
+$GLOBALS['posts'][7] = $p; $p->slug = 'post-7';
+$PC::on_save_post( 7, $p );
+t_ok( ! is_file( $lister['file'] ) && ! is_file( $lister2['file'] ) && is_file( $plain['file'] ), 'auto: pages that listed other content are purged wherever they live; a plain page is kept' );
+t_ok( array() === glob( dirname( $lister['file'] ) . '/index*' ), 'their sidecars go with them' );
+$GLOBALS['opts']['page_cache_purge_scope'] = 'related';
+$PC::purge_all(); $refill();
+$PC::on_save_post( 7, $p );
+t_ok( is_file( $lister['file'] ) && is_file( $plain['file'] ), '"related" scope leaves them alone (the user opted out)' );
+$GLOBALS['opts']['page_cache_purge_scope'] = 'auto';
+$PC::purge_all(); $refill();
+$PC::on_comment_post( 5, 1 );
+t_ok( ! is_file( $lister['file'] ) && is_file( $plain['file'] ), 'an approved comment also drops pages that list other content' );
+unset( $GLOBALS['opts']['page_cache_purge_scope'] );
+$PC::purge_all();
+
 // ---- Wiring in the main plugin file and other classes -----------------------
 $main = file_get_contents( $root . '/beplus-performance-booster.php' );
 t_ok( false !== strpos( $main, "add_action( 'plugins_loaded', 'bepluspb_register_invalidation_hooks'" ), 'invalidation hooks are registered from plugins_loaded (not the front-end boot)' );
@@ -483,6 +572,15 @@ t_ok( substr_count( $min, "do_action( 'bepluspb_assets_cache_cleared' )" ) >= 2,
 t_ok( false !== strpos( file_get_contents( $root . '/includes/class-bepluspb-ucss.php' ), "do_action( 'bepluspb_assets_cache_cleared' )" ), 'UCSS purge also purges stored pages' );
 t_ok( false !== strpos( file_get_contents( $root . '/uninstall.php' ), 'BEPLUSPB_Page_Cache::shutdown()' ), 'uninstall removes drop-in, config and pages' );
 t_ok( false !== strpos( file_get_contents( $root . '/includes/admin/trait-bepluspb-admin-actions.php' ), "'page_cache'   => \$page" ), 'Purge ALL includes the page cache layer' );
+
+// DONOTCACHEPAGE is a constant (cannot be undefined), so it is exercised last.
+$E::reset(); $E::purge_all();
+$cn = $mk( $DESK );
+set_ctx( $cn );
+define( 'DONOTCACHEPAGE', true );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( ! is_file( $cn['file'] ) && ! is_file( $cn['device_file'] ), 'DONOTCACHEPAGE is honoured' );
+set_ctx( null );
 
 // ---- Cleanup ----------------------------------------------------------------
 $it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $tmp, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );

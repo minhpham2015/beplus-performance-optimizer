@@ -41,7 +41,39 @@ class BEPLUSPB_Page_Cache {
 	private const DYNAMIC_WIDGETS = array( 'recent-posts', 'recent-comments', 'archives', 'calendar', 'tag_cloud', 'categories' );
 
 	/** Block markup (widget areas, template parts) that lists content on every page it appears on. */
-	private const DYNAMIC_BLOCKS_REGEX = '/<!--\s+wp:(latest-posts|latest-comments|archives|calendar|tag-cloud|categories|query)(?=[\s\/}])/';
+	private const DYNAMIC_BLOCKS_REGEX = '/<!--\s+wp:(latest-posts|latest-comments|archives|calendar|tag-cloud|categories)(?=[\s\/}])/';
+
+	/** How mobile visitors are cached. */
+	const MOBILE_MODES = array( 'auto', 'separate', 'same', 'bypass' );
+
+	/**
+	 * Whether the current request asked WordPress if the visitor is on a mobile device.
+	 *
+	 * @var bool
+	 */
+	private static $device_aware = false;
+
+	/**
+	 * Whether the current request ran a secondary query for posts or comments
+	 * (recent/related posts, recent comments…): the page then shows content other than its own.
+	 *
+	 * @var bool
+	 */
+	private static $lists_others = false;
+
+	/**
+	 * Whether pages that list other content were already purged in this request.
+	 *
+	 * @var bool
+	 */
+	private static $flagged_purged = false;
+
+	/**
+	 * Mobile mode in force for this request.
+	 *
+	 * @var string
+	 */
+	private static $mobile_mode = 'auto';
 
 	/**
 	 * Request context from the engine for the page being buffered.
@@ -214,7 +246,7 @@ class BEPLUSPB_Page_Cache {
 		}
 		$block_widgets = get_option( 'widget_block' );
 		foreach ( is_array( $block_widgets ) ? $block_widgets : array() as $widget ) {
-			if ( is_array( $widget ) && isset( $widget['content'] ) && is_string( $widget['content'] ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $widget['content'] ) ) {
+			if ( is_array( $widget ) && isset( $widget['content'] ) && is_string( $widget['content'] ) && self::markup_lists_content( $widget['content'] ) ) {
 				return true;
 			}
 		}
@@ -222,7 +254,7 @@ class BEPLUSPB_Page_Cache {
 			foreach ( array( get_stylesheet_directory(), get_template_directory() ) as $dir ) {
 				foreach ( glob( trailingslashit( $dir ) . 'parts/*.html' ) ?: array() as $file ) {
 					$markup = file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-					if ( is_string( $markup ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $markup ) ) {
+					if ( is_string( $markup ) && self::markup_lists_content( $markup ) ) {
 						return true;
 					}
 				}
@@ -236,7 +268,31 @@ class BEPLUSPB_Page_Cache {
 				)
 			);
 			foreach ( is_array( $parts ) ? $parts : array() as $part ) {
-				if ( is_string( $part->post_content ) && preg_match( self::DYNAMIC_BLOCKS_REGEX, $part->post_content ) ) {
+				if ( is_string( $part->post_content ) && self::markup_lists_content( $part->post_content ) ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether block markup lists posts/comments/terms on every page it appears on.
+	 *
+	 * A Query Loop counts only when it runs its OWN query: one that inherits the page's
+	 * main query ("inherit": true) just shows the archive being viewed.
+	 *
+	 * @param string $markup Serialized blocks.
+	 * @return bool
+	 */
+	public static function markup_lists_content( $markup ) {
+		if ( preg_match( self::DYNAMIC_BLOCKS_REGEX, $markup ) ) {
+			return true;
+		}
+		if ( preg_match_all( '/<!--\s+wp:query(?:\s+(\{.*?\}))?\s*\/?-->/s', $markup, $blocks ) ) {
+			foreach ( $blocks[1] as $json ) {
+				$attrs = '' === $json ? null : json_decode( $json, true );
+				if ( ! is_array( $attrs ) || empty( $attrs['query']['inherit'] ) ) {
 					return true;
 				}
 			}
@@ -298,7 +354,7 @@ class BEPLUSPB_Page_Cache {
 			'exclude_paths'   => bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] ?? '' ),
 			'exclude_cookies' => bepluspb_parse_exclude_list( $opts['page_cache_exclude_cookies'] ?? '' ),
 			'accept_variants' => ! empty( $opts['cdn_webp_avif'] ),
-			'mobile'          => self::sanitize_choice( $opts['page_cache_mobile'] ?? 'separate', array( 'same', 'separate', 'bypass' ), 'separate' ),
+			'mobile'          => self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' ),
 			'vary_cookies'    => array_slice( array_values( array_unique( array_merge( self::detected_vary_cookies(), bepluspb_parse_exclude_list( $opts['page_cache_vary_cookies'] ?? '' ) ) ) ), 0, 8 ),
 		);
 	}
@@ -626,9 +682,73 @@ class BEPLUSPB_Page_Cache {
 		// Priority -100: open BEFORE the HTML/CDN/CSS buffers (priority 0) so this
 		// outermost buffer receives the final, fully optimised markup.
 		add_action( 'template_redirect', array( __CLASS__, 'start_buffer' ), -100 );
-		if ( 'separate' === self::sanitize_choice( $opts['page_cache_mobile'] ?? 'separate', array( 'same', 'separate', 'bypass' ), 'separate' ) ) {
-			// The HTML now depends on the device: downstream caches (proxies, CDNs) must key on it too.
+		self::$mobile_mode = self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' );
+		if ( 'separate' === self::$mobile_mode ) {
+			// Every page may now depend on the device: downstream caches (proxies, CDNs) must key on it too.
+			// ("auto" announces this only on pages that actually asked WordPress about the device.)
 			add_action( 'template_redirect', array( __CLASS__, 'send_vary_user_agent' ), -101 );
+		}
+	}
+
+	/**
+	 * Watch what a page asks WordPress while it is being built, so the cache can
+	 * tell which pages depend on the device and which show other posts/comments.
+	 * Read-only: nothing here changes a query or a return value.
+	 */
+	private static function register_observers() {
+		add_filter( 'wp_is_mobile', array( __CLASS__, 'observe_wp_is_mobile' ), 1, 1 );
+		add_action( 'pre_get_posts', array( __CLASS__, 'observe_posts_query' ), 1, 1 );
+		add_action( 'pre_get_comments', array( __CLASS__, 'observe_comments_query' ), 1, 1 );
+	}
+
+	/**
+	 * A theme or plugin asked whether this is a mobile device.
+	 *
+	 * @param bool $is_mobile WordPress' answer.
+	 * @return bool Unchanged.
+	 */
+	public static function observe_wp_is_mobile( $is_mobile ) {
+		self::$device_aware = true;
+		return $is_mobile;
+	}
+
+	/**
+	 * A secondary query for public content is about to run (widget, related posts, shortcode…).
+	 *
+	 * @param WP_Query $query The query.
+	 */
+	public static function observe_posts_query( $query ) {
+		if ( self::$lists_others || ! $query instanceof WP_Query || $query->is_main_query() || is_admin() ) {
+			return;
+		}
+		$types = (array) $query->get( 'post_type' );
+		if ( array() === array_filter( $types ) ) {
+			$types = array( 'post' );
+		}
+		foreach ( $types as $type ) {
+			if ( 'any' === $type ) {
+				self::$lists_others = true;
+				return;
+			}
+			if ( is_string( $type ) && 'attachment' !== $type && post_type_exists( $type ) && is_post_type_viewable( $type ) ) {
+				self::$lists_others = true;
+				return;
+			}
+		}
+	}
+
+	/**
+	 * A comment query is about to run. Comments of the page's own post are not "other" content.
+	 *
+	 * @param WP_Comment_Query $query The query.
+	 */
+	public static function observe_comments_query( $query ) {
+		if ( self::$lists_others || is_admin() || ! is_object( $query ) || ! isset( $query->query_vars ) ) {
+			return;
+		}
+		$post_id = isset( $query->query_vars['post_id'] ) ? (int) $query->query_vars['post_id'] : 0;
+		if ( 0 === $post_id || $post_id !== (int) get_queried_object_id() ) {
+			self::$lists_others = true;
 		}
 	}
 
@@ -714,6 +834,11 @@ class BEPLUSPB_Page_Cache {
 	 * @return string The unmodified output.
 	 */
 	public static function handle_buffer( $html, $phase ) {
+		$device_aware = self::$device_aware && 'auto' === self::$mobile_mode;
+		if ( $device_aware && ! headers_sent() ) {
+			// This page's HTML depends on the device: shared caches in front of WordPress must key on it.
+			header( 'Vary: User-Agent', false );
+		}
 		// Only a complete, un-flushed, un-discarded document is stored.
 		$complete = ( $phase & PHP_OUTPUT_HANDLER_START ) && ( $phase & PHP_OUTPUT_HANDLER_FINAL ) && ! ( $phase & PHP_OUTPUT_HANDLER_CLEAN );
 		if ( $complete && self::$ctx && self::response_is_cacheable( $html ) ) {
@@ -721,7 +846,11 @@ class BEPLUSPB_Page_Cache {
 				BEPLUSPB_Page_Cache_Engine::store(
 					self::$ctx,
 					$html . "\n<!-- Page cached by Beplus Performance Booster on " . gmdate( 'Y-m-d H:i:s' ) . " UTC -->\n",
-					self::replayable_headers()
+					self::replayable_headers(),
+					array(
+						'device'       => $device_aware,
+						'lists_others' => self::$lists_others,
+					)
 				);
 			} catch ( Throwable $e ) {
 				unset( $e ); // Never break the response because caching failed.
@@ -776,7 +905,8 @@ class BEPLUSPB_Page_Cache {
 	 * @return array{status:string,matched:int,deleted:int,failed:int}
 	 */
 	public static function purge_all() {
-		$result = BEPLUSPB_Page_Cache_Engine::purge_all();
+		self::$flagged_purged = false;
+		$result               = BEPLUSPB_Page_Cache_Engine::purge_all();
 		/** Fires after every cached page was removed. */
 		do_action( 'bepluspb_page_cache_purged_all', $result ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 		return $result;
@@ -871,6 +1001,15 @@ class BEPLUSPB_Page_Cache {
 				self::purge_url( $url, (bool) $pagination );
 			}
 		}
+
+		// Pages that showed OTHER content when they were built (related/recent posts, recent
+		// comments from any plugin) may show this post: drop them too, wherever they live.
+		if ( ! self::$flagged_purged && 'related' !== self::sanitize_choice( bepluspb_get_options()['page_cache_purge_scope'] ?? 'auto', array( 'auto', 'related', 'all' ), 'auto' ) ) {
+			self::$flagged_purged = true; // Admin requests store no pages, so one walk per request is enough.
+			if ( false === BEPLUSPB_Page_Cache_Engine::purge_flagged() ) {
+				self::purge_all(); // Too many files to walk: be conservative.
+			}
+		}
 	}
 
 	// =========================================================================
@@ -889,6 +1028,8 @@ class BEPLUSPB_Page_Cache {
 		if ( ! self::is_enabled( $opts ) ) {
 			return;
 		}
+
+		self::register_observers();
 
 		// Posts.
 		add_action( 'save_post', array( __CLASS__, 'on_save_post' ), 20, 2 );

@@ -51,15 +51,14 @@ Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.13 · Nh
 
 ## Hạn chế đã biết của Page Cache
 
-Đã xử lý (2026-10-26): phát lại header PHP khi HIT (`.hdr` sidecar, allowlist), cache riêng cho mobile (`wp_is_mobile()`), biến thể theo cookie ngôn ngữ/tiền tệ (tự nhận WPML/Polylang/WCML), tự xóa toàn bộ khi sửa bài nếu site có widget/block liệt kê nội dung (Recent Posts/Comments, Archives, Calendar, Tag Cloud, Categories, Query Loop trong template part).
+Đã xử lý (2026-10-26, kể cả rủi ro Vary/bài liên quan/CSP nonce): phát lại header PHP khi HIT (`.hdr` sidecar, allowlist), cache riêng cho mobile (`wp_is_mobile()`), biến thể theo cookie ngôn ngữ/tiền tệ (tự nhận WPML/Polylang/WCML), tự xóa toàn bộ khi sửa bài nếu site có widget/block liệt kê nội dung (Recent Posts/Comments, Archives, Calendar, Tag Cloud, Categories, Query Loop trong template part).
 
 Còn lại:
 - Header do **web server** đặt thì vẫn do web server tự gửi (không liên quan plugin). Header lạ ngoài allowlist do plugin PHP đặt sẽ không được phát lại.
 - Nội dung đổi theo yếu tố khác (geolocation theo IP, A/B test phía server, cookie consent đổi HTML, plugin đa tiền tệ khác WCML) vẫn cần nhập cookie vào "Language / Currency Cookies" hoặc "Bypass Cookies", hoặc loại trừ URL.
 - Widget liệt kê nội dung bằng shortcode/PHP tự viết (ngoài danh sách block/widget chuẩn) không được tự nhận ra: chọn "Every cached page" ở "When a Post Is Edited".
-- **`Vary: User-Agent` (mobile = Separate, mặc định)** làm cache của server/proxy đứng trước WordPress (Varnish, nginx fastcgi_cache…) gần như mất hit-rate vì mỗi chuỗi UA khác nhau. Nếu host có cache tầng server, chọn "Same cache for all devices" (khi theme chỉ responsive bằng CSS) hoặc cấu hình cache đó chuẩn hóa UA.
-- Danh sách bài liên quan/mới nhất nằm trong **template `single`/`page` của block theme** hoặc do plugin "related posts" in ra không được tự nhận ra (chỉ quét widget, block widget và template **part**). Chọn "Every cached page" nếu cần.
-- **CSP có nonce theo request** (plugin bảo mật): bản cache dùng chung một nonce cho mọi khách (đúng với HTML đã cache nhưng yếu hơn thiết kế nonce); nên dùng CSP dạng hash/allowlist cho trang cache.
+- **Theme/plugin tự phát hiện điện thoại bằng code riêng** (không gọi `wp_is_mobile()`): chế độ Automatic không thấy được, chọn "Always keep a separate mobile copy" (chế độ này gửi `Vary: User-Agent` trên mọi trang → cache server như Varnish/nginx fastcgi_cache mất hit-rate).
+- **Plugin "related posts" đọc bài bằng SQL thô** (`$wpdb`) thay vì `WP_Query`/`get_posts` không được quan sát; chọn "Every cached page". Tên bài láng giềng ở nút Prev/Next chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài.
 - Chưa có giới hạn tổng dung lượng/số file (chỉ giới hạn bằng TTL + cron dọn hằng ngày + chặn URL chữ hoa/query string). Cache mobile tách riêng làm số file tăng gần gấp đôi.
 - Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI.
 
@@ -77,9 +76,11 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 8. Tắt Page Cache → `advanced-cache.php` và config biến mất; nếu plugin khác sở hữu `advanced-cache.php` thì file đó không bị đụng tới.
 9. Có Redis Object Cache bật cùng lúc: không xung đột.
 10. Header: đặt thử `add_action('send_headers', fn() => header('X-Frame-Options: SAMEORIGIN'));` → lần HIT vẫn có header (kiểm tra bằng `curl -I`).
-11. Mobile: `curl -A 'Mozilla/5.0 (iPhone; ... Mobile/15E148)'` 2 lần → HIT, và là bản riêng (file `index-m*.html`), có `Vary: User-Agent`.
+11. Mobile (Automatic): trang không gọi `wp_is_mobile()` → desktop và `curl -A 'Mozilla/5.0 (iPhone; ... Mobile/15E148)'` cùng HIT, **không** có `Vary: User-Agent`. Với theme gọi `wp_is_mobile()` → hai bản `index-d*`/`index-m*` và có `Vary: User-Agent`.
 12. Ngôn ngữ/tiền tệ: với WPML/Polylang/WCML, đổi ngôn ngữ/tiền tệ rồi tải lại → đúng ngôn ngữ/tiền tệ, vẫn HIT.
-13. Thêm widget Recent Posts, sửa một bài → mọi trang hết HIT; gỡ widget, sửa bài → chỉ trang liên quan hết HIT (trang trạng thái hiện "Currently detected").
+13. Thêm widget Recent Posts (cổ điển hoặc block), sửa một bài → mọi trang hết HIT; gỡ widget, sửa bài → chỉ trang liên quan + trang có danh sách bài/comment khác hết HIT (card Page Cache hiện "Currently detected").
+14. Plugin related-posts (WP_Query): sửa bài A → trang bài B đang hiện A trong "related" hết HIT (có file `index*.lst` cạnh trang đó), trang không liệt kê gì vẫn HIT.
+15. CSP nonce: plugin bảo mật có `'nonce-…'` → `curl -si` 2 lần trang HIT: nonce ở header và ở `<script nonce=...>` khớp nhau trong cùng một response và khác giữa hai response.
 
 ## Nhật ký tiến trình
 
@@ -89,5 +90,6 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-26 | Hoàn thành code #1–#3 (page cache + invalidation + loại trừ), test standalone `test-page-cache-engine.php` và `test-page-cache-class.php`, CI guard, CHANGELOG, CLAUDE.md rule #8. Chưa smoke test trên WordPress thật. Chưa tăng version (chờ #4 preload hoặc quyết định phát hành). |
 | 2026-10-26 | Merge #1–#3 vào `master` để test. |
 | 2026-10-26 | Xử lý 3 hạn chế còn lại: replay header, biến thể mobile/ngôn ngữ/tiền tệ, purge scope theo widget toàn site. Test engine 162 + class 163 assertion. Nằm ở nhánh `claude/modest-mccarthy-lheo63`. |
+| 2026-10-26 | Xử lý 3 rủi ro: mobile "Automatic" (quan sát `wp_is_mobile`, chỉ Vary trên trang phụ thuộc thiết bị), đánh dấu trang liệt kê nội dung khác (quan sát `pre_get_posts`/`pre_get_comments`, `.lst`), xoay CSP nonce mỗi HIT. Test engine 203 + class 185 assertion; đã kiểm tra bằng 8 đột biến (phá tính năng → test fail). |
 | 2026-10-26 | Review lần 2: sửa header replay bị trùng/mâu thuẫn ở chế độ fallback và cookie có dấu `.` không khớp (+5 assertion). |
 | 2026-10-26 | Tự review #1–#3, sửa 5 lỗi (xem CHANGELOG "Fixed"), thêm 20 assertion. Các sửa này nằm ở nhánh `claude/modest-mccarthy-lheo63`, chưa vào `master`. |

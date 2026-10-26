@@ -230,7 +230,7 @@ write_cfg();
 $c = ctx( '/hdr/' );
 $pages_before = $E::count_files()['files'];
 t_ok( $E::store( $c, $html, array( 'X-Frame-Options: SAMEORIGIN', "Content-Security-Policy: default-src 'self'", 'X-Robots-Tag: noindex', 'Link: <https://example.com/wp-json/>; rel="https://api.w.org/"', 'Set-Cookie: a=b', 'Location: https://evil.test/', 'Cache-Control: public', 'Content-Type: text/plain', "X-Frame-Options: DENY\r\nSet-Cookie: x=y", 'X-Custom: nope', 'not a header' ) ), 'store with headers' );
-$stored = json_decode( file_get_contents( $E::header_file( $c['file'] ) ), true );
+$stored = json_decode( file_get_contents( $E::header_file( $c['file'] ) ), true )['h'];
 t_ok( array( 'X-Frame-Options: SAMEORIGIN', "Content-Security-Policy: default-src 'self'", 'X-Robots-Tag: noindex', 'Link: <https://example.com/wp-json/>; rel="https://api.w.org/"' ) === $stored, 'only allowlisted single-line headers are recorded (no cookies, redirects, CRLF injection)' );
 t_ok( $stored === $E::read_headers( $c['file'] ), 'read_headers round-trips' );
 t_ok( '.hdr' === substr( $E::header_file( $c['file'] ), -4 ), 'sidecar uses .hdr' );
@@ -294,6 +294,99 @@ $E::store( $c, $html, array( 'X-Robots-Tag: noindex' ) );
 $E::purge_all();
 t_ok( array() === glob( $E::cache_root() . '/example.com/*' ), 'purge_all removes sidecars too' );
 write_cfg();
+
+// ---- Automatic device handling ------------------------------------------------------
+write_cfg( array( 'mobile' => 'auto' ) );
+$dc = ctx( '/auto/', array( 'HTTP_USER_AGENT' => $DESKTOP ) );
+$mc = ctx( '/auto/', array( 'HTTP_USER_AGENT' => $IPHONE ) );
+$rootd = $E::cache_root() . '/example.com/auto';
+t_ok( $dc['file'] === $rootd . '/index.html' && $mc['file'] === $dc['file'], 'auto: both devices share one file by default' );
+t_ok( array( $rootd . '/index-d.html', $rootd . '/index-m.html' ) === $dc['device_files'] && $dc['device_file'] === $rootd . '/index-d.html' && $mc['device_file'] === $rootd . '/index-m.html', 'auto: per-device files exist only as alternatives' );
+t_ok( ctx( '/auto/', array( 'HTTPS' => 'on', 'HTTP_USER_AGENT' => $IPHONE ) )['device_file'] === $rootd . '/index-s-m.html', 'auto: scheme and device combine' );
+t_ok( null === ctx( '/auto/', array( 'HTTP_USER_AGENT' => $IPHONE ), array( 'wp_x' => 1, 'wordpress_logged_in_x' => 1 ) ), 'auto: bypass rules still apply' );
+write_cfg( array( 'mobile' => 'same' ) );
+t_ok( null === ctx( '/auto/' )['device_file'] && array() === ctx( '/auto/' )['device_files'], 'other modes have no device files' );
+write_cfg( array( 'mobile' => 'auto' ) );
+
+$page_d = str_replace( 'xxx', 'DESKTOPCOPY', '<!doctype html><html><body>' . str_repeat( 'x', 100 ) . 'xxx' . str_repeat( 'x', 200 ) . '</body></html>' );
+$page_m = str_replace( 'DESKTOPCOPY', 'MOBILECOPY', $page_d );
+$get = static function ( $ua ) use ( $hdr_run ) { return $hdr_run( '/auto/', array( 'User-Agent: ' . $ua ) ); };
+
+$E::store( $dc, $page_d );
+t_ok( is_file( $dc['file'] ) && false !== strpos( $get( $DESKTOP ), 'DESKTOPCOPY' ) && false !== strpos( $get( $IPHONE ), 'DESKTOPCOPY' ), 'shared copy is served to both devices' );
+t_ok( false === stripos( $get( $IPHONE ), 'Vary: User-Agent' ) && false === stripos( $get( $DESKTOP ), 'Vary: User-Agent' ), 'a device-independent page sends NO Vary: User-Agent (server caches in front keep working)' );
+
+$E::store( $dc, $page_d, array(), array( 'device' => true ) );
+t_ok( is_file( $dc['device_file'] ) && ! is_file( $dc['file'] ), 'device-aware page: desktop copy stored, shared copy removed' );
+t_ok( false !== strpos( $get( $DESKTOP ), 'DESKTOPCOPY' ) && false !== stripos( $get( $DESKTOP ), 'Vary: User-Agent' ), 'desktop gets its copy with Vary: User-Agent' );
+t_ok( false === strpos( $get( $IPHONE ), 'DESKTOPCOPY' ) && false !== strpos( $get( $IPHONE ), 'MISS' ), 'mobile is NOT served the desktop copy (miss => WordPress renders it)' );
+$E::store( $mc, $page_m, array(), array( 'device' => true ) );
+t_ok( false !== strpos( $get( $IPHONE ), 'MOBILECOPY' ) && false !== strpos( $get( $DESKTOP ), 'DESKTOPCOPY' ), 'each device gets its own copy' );
+t_ok( false !== stripos( $get( $IPHONE ), 'Vary: User-Agent' ), 'mobile copy also announces Vary: User-Agent' );
+$E::store( $dc, $page_d );
+t_ok( is_file( $dc['file'] ) && ! is_file( $dc['device_files'][0] ) && ! is_file( $dc['device_files'][1] ), 'a page that is no longer device-aware drops both device copies' );
+t_ok( false !== strpos( $get( $IPHONE ), 'DESKTOPCOPY' ), 'and the shared copy serves everyone again' );
+$E::purge_path( '/auto/' );
+
+// ---- "Lists other content" markers ----------------------------------------------------
+write_cfg();
+$pa = ctx( '/m1/' ); $pb = ctx( '/deep/m2/' ); $pc = ctx( '/m3/' );
+$E::store( $pa, $html, array( 'X-Robots-Tag: noindex' ), array( 'lists_others' => true ) );
+$E::store( $pb, $html, array(), array( 'lists_others' => true ) );
+$E::store( $pc, $html );
+t_ok( is_file( substr( $pa['file'], 0, -5 ) . '.lst' ) && ! is_file( substr( $pc['file'], 0, -5 ) . '.lst' ), 'marker only for pages that list other content' );
+$E::store( $pb, $html );
+t_ok( ! is_file( substr( $pb['file'], 0, -5 ) . '.lst' ), 're-storing without the flag removes the marker' );
+$E::store( $pb, $html, array(), array( 'lists_others' => true ) );
+t_ok( 2 === $E::purge_flagged(), 'purge_flagged removes exactly the flagged pages' );
+t_ok( ! is_file( $pa['file'] ) && ! is_file( $pb['file'] ) && is_file( $pc['file'] ) && array() === glob( dirname( $pa['file'] ) . '/index*' ), 'flagged pages and their sidecars are gone; the plain page stays' );
+t_ok( 0 === $E::purge_flagged(), 'nothing flagged => 0' );
+$E::store( $pa, $html, array(), array( 'lists_others' => true ) );
+$E::purge_path( '/m1/' );
+t_ok( array() === glob( dirname( $pa['file'] ) . '/index*' ), 'purge_path removes markers too' );
+@mkdir( dirname( $pa['file'] ), 0755, true );
+file_put_contents( dirname( $pa['file'] ) . '/index-orphan.lst', '' );
+$E::gc();
+t_ok( ! is_file( dirname( $pa['file'] ) . '/index-orphan.lst' ), 'gc removes orphaned markers' );
+$E::purge_all();
+
+// ---- CSP nonces rotate on every HIT ---------------------------------------------------------
+t_ok( array( 'abcdEFGH1234' ) === $E::extract_nonces( array( "Content-Security-Policy: script-src 'self' 'nonce-abcdEFGH1234'" ), 'x' ), 'nonce read from a CSP header' );
+t_ok( array( 'abcdEFGH1234' ) === $E::extract_nonces( array( "Content-Security-Policy-Report-Only: default-src 'nonce-abcdEFGH1234'" ), 'x' ), '... and from Report-Only' );
+t_ok( array( 'metaNONCE9999' ) === $E::extract_nonces( array(), '<head><meta http-equiv="Content-Security-Policy" content="script-src \'nonce-metaNONCE9999\'"></head>' ), '... and from a CSP meta tag' );
+t_ok( array() === $E::extract_nonces( array( "Content-Security-Policy: script-src 'nonce-short'", 'X-Robots-Tag: noindex' ), '<script nonce="plain-attr-only-1234">' ), 'short nonces, non-CSP headers and bare nonce attributes are not treated as nonces' );
+t_ok( 1 === count( $E::extract_nonces( array( "Content-Security-Policy: a 'nonce-abcdEFGH1234'", "Content-Security-Policy: b 'nonce-abcdEFGH1234'" ), '' ) ), 'nonces are de-duplicated' );
+
+$nc = ctx( '/csp/' );
+$NONCE = 'AbCdEf0123456789xyZ';
+$csp_html = '<!doctype html><html><head><script nonce="' . $NONCE . '">var a=1;</script></head><body>' . str_repeat( 'x', 300 ) . '<script nonce="' . $NONCE . '">var b=2;</script></body></html>';
+$E::store( $nc, $csp_html, array( "Content-Security-Policy: script-src 'self' 'nonce-" . $NONCE . "'" ) );
+t_ok( array( $NONCE ) === $E::read_meta( $nc['file'] )['n'], 'the nonce is recorded in the sidecar' );
+$r1 = $hdr_run( '/csp/' );
+$r2 = $hdr_run( '/csp/' );
+$parse = static function ( $r ) { preg_match( "/Content-Security-Policy:[^\r\n]*'nonce-([0-9a-f]{32})'/i", $r, $h ); preg_match_all( '/nonce="([0-9a-f]{32})"/', $r, $b ); return array( $h[1] ?? null, $b[1] ?? array() ); };
+list( $h1, $b1 ) = $parse( $r1 );
+list( $h2, $b2 ) = $parse( $r2 );
+t_ok( $h1 && 2 === count( $b1 ) && $b1[0] === $h1 && $b1[1] === $h1, 'within one response the header nonce and every script nonce match' );
+t_ok( $h2 && $h1 !== $h2 && $b2[0] === $h2, 'a different response gets a different nonce' );
+t_ok( false === strpos( $r1, $NONCE ) && false === strpos( $r2, $NONCE ), 'the stored nonce never reaches a visitor' );
+t_ok( false !== strpos( $r1, 'var a=1;' ) && false !== strpos( $r1, 'X-Beplus-Page-Cache: HIT' ), 'page content intact' );
+t_ok( false === stripos( $r1, 'Last-Modified' ), 'no Last-Modified for nonce pages (the body changes every response)' );
+$r3 = $hdr_run( '/csp/', array( 'If-Modified-Since: ' . gmdate( 'D, d M Y H:i:s', time() + 3600 ) . ' GMT' ) );
+t_ok( false !== strpos( $r3, 'HTTP/1.1 200' ) && false !== strpos( $r3, 'var a=1;' ), 'a nonce page is never answered 304 (the browser would keep a stale nonce)' );
+// A meta-tag CSP is rotated as well.
+$meta_html = '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src \'nonce-' . $NONCE . '\'"><script nonce="' . $NONCE . '">1</script></head><body>' . str_repeat( 'x', 300 ) . '</body></html>';
+$E::store( $nc, $meta_html );
+$r4 = $hdr_run( '/csp/' );
+t_ok( false === strpos( $r4, $NONCE ) && 1 === preg_match( "/nonce-([0-9a-f]{32})'.*nonce=\"\\1\"/s", $r4 ), 'a CSP meta tag and the scripts get the same fresh nonce' );
+// Pages without nonces still revalidate normally.
+$E::store( $nc, $html );
+t_ok( false !== strpos( $hdr_run( '/csp/', array( 'If-Modified-Since: ' . gmdate( 'D, d M Y H:i:s', time() + 3600 ) . ' GMT' ) ), 'HTTP/1.1 304' ), 'pages without nonces keep Last-Modified / 304' );
+// Tampered nonce list.
+$E::store( $nc, $csp_html, array( "Content-Security-Policy: script-src 'nonce-" . $NONCE . "'" ) );
+file_put_contents( $E::header_file( $nc['file'] ), json_encode( array( 'h' => array(), 'n' => array( 'x"><script>alert(1)</script>', 'short', str_repeat( 'a', 200 ) ) ) ) );
+t_ok( array() === $E::read_meta( $nc['file'] )['n'], 'invalid nonce values in the sidecar are ignored' );
+$E::purge_all();
 
 proc_terminate( $srv );
 proc_close( $srv );

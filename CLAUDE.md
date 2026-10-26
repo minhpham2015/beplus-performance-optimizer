@@ -200,6 +200,16 @@ checking whether it would break the SVN slug binding).
      into the file name, strict charset) and PHP-set security headers
      (`REPLAY_HEADERS` allowlist, `.hdr` sidecar, re-sanitised at serve time —
      never extend it with Set-Cookie/Location/Cache-Control).
+   - **Device handling ("auto") is observation-based:** `wp_is_mobile` /
+     `pre_get_posts` / `pre_get_comments` observers (registered from
+     `plugins_loaded`, strictly read-only — never alter a query or return value)
+     decide per page whether it needs `index-d`/`index-m` copies and an
+     `index*.lst` "lists other content" marker. Keep `Vary: User-Agent` limited
+     to device-aware pages in this mode.
+   - **CSP nonces must never be shared between visitors:** the engine records
+     them in the `.hdr` sidecar and rotates them on every HIT (body and header);
+     such pages get no `Last-Modified`/304. Don't add anything that caches a
+     nonce-bearing page without this rotation.
    - What an edit purges depends on whether pages show *other* posts
      (`purges_everything_on_post_change()`); never narrow a purge to "related
      pages" without that check.

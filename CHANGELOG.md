@@ -48,21 +48,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `index*.hdr` sidecar. Set-Cookie, Location and Cache-Control are never
   recorded, and the sidecar is re-filtered when served so a tampered file
   cannot inject headers.
-- New "Mobile Devices" setting (default: separate copy). Uses the same test as
-  `wp_is_mobile()` (including `Sec-CH-UA-Mobile`), stores `index-m*.html`, and
-  sends `Vary: User-Agent`. Alternatives: share one copy, or never cache mobile.
+- New "Mobile Devices" setting, default **Automatic**: phones and desktops share
+  one copy, and separate `index-d`/`index-m` copies are kept only for pages that
+  asked WordPress whether the visitor is on mobile while they were built (observed
+  through the `wp_is_mobile` filter, registered on `plugins_loaded` so theme
+  setup code is seen too). Only those pages send `Vary: User-Agent`, so Varnish /
+  nginx page caches in front of WordPress keep their hit rate for everything
+  else. "Always keep a separate mobile copy" (Vary on every page; same device
+  test as `wp_is_mobile()`, including `Sec-CH-UA-Mobile`), "Same cache for all
+  devices" and "Do not cache mobile devices" remain available. Themes/plugins
+  that detect phones with their own code are not observable: pick "Always".
 - New "Language / Currency Cookies" setting: each value of a listed cookie gets
   its own copy instead of bypassing the cache. WPML, Polylang and WooCommerce
   Multilingual cookies are detected automatically (re-synced when plugins are
   (de)activated). Cookie values are restricted to `[A-Za-z0-9_.-]{1,32}` and
   hashed into the file name; anything else is not cached.
-- New "When a Post Is Edited" setting (default: automatic). Automatic purges
-  every page when Recent Posts/Comments, Archives, Calendar, Tag Cloud,
-  Categories or a Query Loop (classic widgets, block widgets, block-theme
-  template parts) is in use, because those lists appear on every page; related
-  pages only otherwise. The scan is cached for 12 hours and re-run when
-  widgets, the theme or templates change. The
+- New "When a Post Is Edited" setting (default: automatic). Editing a published
+  post (or approving a comment) purges the post, home, posts page, archives,
+  term/author/date pages, **plus every page that showed other posts or comments
+  when it was built**: a secondary `WP_Query` for public post types or a
+  comment query for another post (`pre_get_posts` / `pre_get_comments`) marks the
+  page with an `index*.lst` file, whatever theme or plugin ran it (recent or
+  related posts, shortcodes, block-theme `single` templates, Recent Comments).
+  Everything is purged when Archives, Calendar, Tag Cloud, Categories, Latest
+  Posts/Comments or a Query Loop with its own query (not an inherited one) sits
+  in a classic or block widget or a block-theme template part. Raw-SQL "related
+  posts" plugins are the one thing not seen. The widget scan is cached for 12
+  hours and re-run when widgets, the theme or templates change. The
   `bepluspb_page_cache_purge_all_on_post_change` filter still has the last word.
+- Content-Security-Policy nonces no longer repeat: a page whose CSP header or CSP
+  meta tag carries `'nonce-…'` is stored with that nonce recorded, and every HIT
+  swaps in a fresh random nonce in the body and in the header (no
+  `Last-Modified`/304 for such pages, since the body changes on every response).
 
 ### Fixed
 - Page Cache: a replayed header now replaces one an earlier plugin already sent

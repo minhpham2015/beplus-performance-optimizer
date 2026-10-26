@@ -289,15 +289,16 @@ else :
 						<label for="bepluspb_page_cache_mobile"><?php esc_html_e( 'Mobile Devices', 'beplus-performance-booster' ); ?></label>
 					</div>
 					<div class="bepluspb-form-row-field">
-						<?php $mobile_mode = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_mobile'], array( 'same', 'separate', 'bypass' ), 'separate' ); ?>
+						<?php $mobile_mode = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_mobile'], BEPLUSPB_Page_Cache::MOBILE_MODES, 'auto' ); ?>
 						<select id="bepluspb_page_cache_mobile"
 							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_mobile]">
-							<option value="separate" <?php selected( $mobile_mode, 'separate' ); ?>><?php esc_html_e( 'Separate cache for mobile (safest)', 'beplus-performance-booster' ); ?></option>
+							<option value="auto" <?php selected( $mobile_mode, 'auto' ); ?>><?php esc_html_e( 'Automatic (recommended)', 'beplus-performance-booster' ); ?></option>
+							<option value="separate" <?php selected( $mobile_mode, 'separate' ); ?>><?php esc_html_e( 'Always keep a separate mobile copy', 'beplus-performance-booster' ); ?></option>
 							<option value="same" <?php selected( $mobile_mode, 'same' ); ?>><?php esc_html_e( 'Same cache for all devices', 'beplus-performance-booster' ); ?></option>
 							<option value="bypass" <?php selected( $mobile_mode, 'bypass' ); ?>><?php esc_html_e( 'Do not cache mobile devices', 'beplus-performance-booster' ); ?></option>
 						</select>
 						<p class="description">
-							<?php esc_html_e( 'Some themes and plugins send different HTML to phones (wp_is_mobile()). "Separate" stores a mobile copy using the same device test as WordPress. Choose "Same" only if your theme is purely responsive (CSS only).', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Automatic shares one copy between phones and desktops, and keeps separate copies only for pages that ask WordPress whether the visitor is on mobile (wp_is_mobile()). Only those pages send "Vary: User-Agent", so server caches in front of WordPress keep working for everything else. If your theme or a plugin detects phones with its own code, choose "Always keep a separate mobile copy" (this sends Vary: User-Agent on every page, which lowers the hit rate of Varnish / nginx page caches).', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
@@ -335,7 +336,7 @@ else :
 							<option value="all" <?php selected( $purge_scope, 'all' ); ?>><?php esc_html_e( 'Every cached page', 'beplus-performance-booster' ); ?></option>
 						</select>
 						<p class="description">
-							<?php esc_html_e( 'Related pages: the post, home, posts page, its archives, author and date pages. Automatic clears everything when Recent Posts, Recent Comments, Archives, Calendar, Tag Cloud, Categories or a Query Loop in a template part is in use (these show other posts on every page), and only related pages otherwise.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Related pages: the post, home, posts page, its archives, author and date pages. Automatic also clears every page that showed other posts or comments when it was built (recent or related posts, recent comments — from any theme or plugin that uses WordPress queries), and everything when Archives, Calendar, Tag Cloud, Categories or a Query Loop is used in a widget or template part. Plugins that read posts with raw SQL are not seen: choose "Every cached page" for those.', 'beplus-performance-booster' ); ?>
 							<?php if ( 'auto' === $purge_scope ) : ?>
 								<br><strong><?php echo esc_html( BEPLUSPB_Page_Cache::purges_everything_on_post_change( $opts ) ? __( 'Currently detected: site-wide post lists — an edit clears every page.', 'beplus-performance-booster' ) : __( 'Currently detected: no site-wide post lists — an edit clears related pages only.', 'beplus-performance-booster' ) ); ?></strong>
 							<?php endif; ?>
