@@ -193,6 +193,50 @@ checking whether it would break the SVN slug binding).
      (`bepluspb_assets_cache_cleared`). New content-changing hooks go in
      `BEPLUSPB_Page_Cache::register_invalidation_hooks()`, which must run from
      `plugins_loaded`, not the front-end boot.
+   - **A HIT must equal what a MISS would have sent.** On a HIT no theme or
+     plugin code runs, so anything that changes the response per visitor must be
+     part of the cache key or replayed: scheme, device (`mobile` mode,
+     `Vary: User-Agent`), `Accept` image format, `vary_cookies` values (hashed
+     into the file name, strict charset) and PHP-set security headers
+     (`REPLAY_HEADERS` allowlist, `.hdr` sidecar, re-sanitised at serve time —
+     never extend it with Set-Cookie/Location/Cache-Control).
+   - **Device handling ("auto") is observation-based:** `wp_is_mobile` /
+     `pre_get_posts` / `pre_get_comments` observers (registered from
+     `plugins_loaded`, strictly read-only — never alter a query or return value)
+     decide per page whether it needs `index-d`/`index-m` copies and an
+     `index*.lst` "lists other content" marker. Keep `Vary: User-Agent` limited
+     to device-aware pages in this mode.
+   - **CSP nonces must never be shared between visitors:** the engine records
+     them in the `.hdr` sidecar and rotates them on every HIT (body and header);
+     such pages get no `Last-Modified`/304. Don't add anything that caches a
+     nonce-bearing page without this rotation.
+   - **Anything a visitor controls must be bounded.** Variant cookie values must
+     match `VARY_VALUE_REGEX` (use the `D` modifier — `$` accepts a trailing
+     newline) and a URL directory never holds more than `MAX_VARIANTS` files.
+     Don't count sidecars, and don't use `glob()` on cache paths for new code
+     (the install path may contain glob metacharacters).
+   - **Content that is not a page still changes pages.** Non-public post types
+     (templates, template parts, global styles, navigation, blocks, builder
+     libraries, forms) purge everything when an editor saves them; only the
+     `IGNORED_POST_TYPES` noise (logs, queues, orders) is exempt. Title, slug,
+     parent and menu order changes of a published post purge everything because
+     menus and child URLs show them elsewhere.
+   - **The config's host list must track the site address** (`hosts_in_sync()`,
+     checked on every front-end request without touching the database unless it
+     is out of sync). A stale list silently disables the cache.
+   - **Observation is verified, not assumed:** `observers_ok()` runs the real
+     hooks on the live WordPress; when it fails, "auto" must degrade to "separate"
+     and an edit must purge everything. A page whose `wp_is_mobile()` answer
+     differs from the cache's own classification is not stored.
+   - **Never `glob()` cache paths** (use `list_dir()` / directory iterators), and
+     keep percent-encoded unreserved characters decoded in `path_segments()` so
+     one address is one copy.
+   - Anything printed on every page and stored in an option needs to be in
+     `SITEWIDE_OPTIONS`/`WOOCOMMERCE_OPTIONS` (or the user's "Extra Settings"
+     list); never make transients or frequently-written bookkeeping options purge.
+   - What an edit purges depends on whether pages show *other* posts
+     (`purges_everything_on_post_change()`); never narrow a purge to "related
+     pages" without that check.
    - The capture buffer must stay the OUTERMOST buffer so it stores the final
      HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
 

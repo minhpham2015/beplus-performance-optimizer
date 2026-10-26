@@ -65,7 +65,7 @@ if ( file_exists( $bepluspb_pc_class ) ) {
 	BEPLUSPB_Page_Cache::shutdown();
 	// shutdown() empties the cache; remove the now-empty root and its protection files.
 	$bepluspb_pc_root = BEPLUSPB_Page_Cache_Engine::cache_root();
-	foreach ( array( 'index.php', '.htaccess' ) as $bepluspb_pc_support ) {
+	foreach ( array( 'index.php', '.htaccess', '.gc' ) as $bepluspb_pc_support ) {
 		if ( file_exists( $bepluspb_pc_root . '/' . $bepluspb_pc_support ) ) {
 			wp_delete_file( $bepluspb_pc_root . '/' . $bepluspb_pc_support );
 		}

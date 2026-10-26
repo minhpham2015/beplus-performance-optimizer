@@ -284,6 +284,80 @@ else :
 					</div>
 				</div>
 
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_mobile"><?php esc_html_e( 'Mobile Devices', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $mobile_mode = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_mobile'], BEPLUSPB_Page_Cache::MOBILE_MODES, 'auto' ); ?>
+						<select id="bepluspb_page_cache_mobile"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_mobile]">
+							<option value="auto" <?php selected( $mobile_mode, 'auto' ); ?>><?php esc_html_e( 'Automatic (recommended)', 'beplus-performance-booster' ); ?></option>
+							<option value="separate" <?php selected( $mobile_mode, 'separate' ); ?>><?php esc_html_e( 'Always keep a separate mobile copy', 'beplus-performance-booster' ); ?></option>
+							<option value="same" <?php selected( $mobile_mode, 'same' ); ?>><?php esc_html_e( 'Same cache for all devices', 'beplus-performance-booster' ); ?></option>
+							<option value="bypass" <?php selected( $mobile_mode, 'bypass' ); ?>><?php esc_html_e( 'Do not cache mobile devices', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Automatic shares one copy between phones and desktops, and keeps separate copies only for pages that ask WordPress whether the visitor is on mobile (wp_is_mobile()). Only those pages send "Vary: User-Agent", so server caches in front of WordPress keep working for everything else. If your theme or a plugin detects phones with its own code, choose "Always keep a separate mobile copy" (this sends Vary: User-Agent on every page, which lowers the hit rate of Varnish / nginx page caches).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_vary_cookies"><?php esc_html_e( 'Language / Currency Cookies', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One cookie name per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_vary_cookies" rows="3" class="large-text code"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_vary_cookies]"><?php echo esc_textarea( $opts['page_cache_vary_cookies'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Each different value of these cookies gets its own cached copy, so visitors keep the right language or currency while the page stays cached.', 'beplus-performance-booster' ); ?>
+							<?php
+							$detected = BEPLUSPB_Page_Cache::detected_vary_cookies();
+							if ( $detected ) :
+								?>
+								<br><strong><?php esc_html_e( 'Detected automatically:', 'beplus-performance-booster' ); ?></strong> <code><?php echo esc_html( implode( ', ', $detected ) ); ?></code>
+							<?php endif; ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_purge_scope"><?php esc_html_e( 'When a Post Is Edited', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $purge_scope = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_purge_scope'], array( 'auto', 'related', 'all' ), 'auto' ); ?>
+						<select id="bepluspb_page_cache_purge_scope"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_purge_scope]">
+							<option value="auto" <?php selected( $purge_scope, 'auto' ); ?>><?php esc_html_e( 'Automatic (recommended)', 'beplus-performance-booster' ); ?></option>
+							<option value="related" <?php selected( $purge_scope, 'related' ); ?>><?php esc_html_e( 'Only the post and its related pages', 'beplus-performance-booster' ); ?></option>
+							<option value="all" <?php selected( $purge_scope, 'all' ); ?>><?php esc_html_e( 'Every cached page', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Related pages: the post, home, posts page, its archives, author and date pages. Automatic also clears every page that showed other posts or comments when it was built (recent or related posts, recent comments — from any theme or plugin that uses WordPress queries), and everything when Archives, Calendar, Tag Cloud, Categories or a Query Loop is used in a widget or template part. Plugins that read posts with raw SQL are not seen: choose "Every cached page" for those.', 'beplus-performance-booster' ); ?>
+							<?php if ( 'auto' === $purge_scope ) : ?>
+								<br><strong><?php echo esc_html( BEPLUSPB_Page_Cache::purges_everything_on_post_change( $opts ) ? __( 'Currently detected: site-wide post lists — an edit clears every page.', 'beplus-performance-booster' ) : __( 'Currently detected: no site-wide post lists — an edit clears related pages only.', 'beplus-performance-booster' ) ); ?></strong>
+							<?php endif; ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_purge_options"><?php esc_html_e( 'Extra Settings That Clear the Cache', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One option name per line. A trailing * means "starts with".', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_purge_options" rows="3" class="large-text code" placeholder="my_theme_options&#10;options_*"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_purge_options]"><?php echo esc_textarea( $opts['page_cache_purge_options'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Core settings (site title, logo and icon, menus, widgets, reading and comment settings), WooCommerce display settings and WP Maintenance Mode already clear the cache when they change. Add the option names used by your theme framework, ACF options pages or page builder if they print something on every page (for example ACF options pages use options_*).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 				<?php
 				$mode_labels = array(
 					'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),
@@ -319,9 +393,22 @@ else :
 						</p>
 						<?php endif; ?>
 						<?php endif; ?>
+						<?php if ( $status['enabled'] && ! $status['observers'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'Compatibility check: this site does not report device checks or secondary queries to the cache (very old WordPress, or a plugin overrides them). Automatic mode is therefore running as "Always keep a separate mobile copy", and editing a post clears every page. This is slower but always correct.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<?php if ( $status['enabled'] && $status['bypassed'] ) : ?>
+						<p class="description">
+							<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
+							<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
+							<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
+						</p>
+						<?php endif; ?>
 						<?php foreach ( $status['errors'] as $error ) : ?>
 						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
 						<?php endforeach; ?>
+						<?php if ( $status['enabled'] && $status['config_ok'] && ! $status['hosts_ok'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The site address changed since these settings were saved, so no page is being cached. It is repaired automatically on the next visit; you can also save these settings again.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
 						<?php if ( $status['enabled'] && ! $status['config_ok'] ) : ?>
 						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
 						<?php endif; ?>

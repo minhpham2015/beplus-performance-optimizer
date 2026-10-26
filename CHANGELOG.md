@@ -39,7 +39,121 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Purge ALL Cache" now also empties the page cache (new `page_cache` layer in
   the result report).
 
+### Page Cache: response headers, devices/languages, site-wide widgets
+- A cached page now replays the headers PHP set when it was built (allowlist:
+  `X-Frame-Options`, `Content-Security-Policy[-Report-Only]`,
+  `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`,
+  `Strict-Transport-Security`, `Cross-Origin-*-Policy`, `X-Robots-Tag`,
+  `X-UA-Compatible`, `Content-Language`, `X-Pingback`, `Link`), stored in an
+  `index*.hdr` sidecar. Set-Cookie, Location and Cache-Control are never
+  recorded, and the sidecar is re-filtered when served so a tampered file
+  cannot inject headers.
+- New "Mobile Devices" setting, default **Automatic**: phones and desktops share
+  one copy, and separate `index-d`/`index-m` copies are kept only for pages that
+  asked WordPress whether the visitor is on mobile while they were built (observed
+  through the `wp_is_mobile` filter, registered on `plugins_loaded` so theme
+  setup code is seen too). Only those pages send `Vary: User-Agent`, so Varnish /
+  nginx page caches in front of WordPress keep their hit rate for everything
+  else. "Always keep a separate mobile copy" (Vary on every page; same device
+  test as `wp_is_mobile()`, including `Sec-CH-UA-Mobile`), "Same cache for all
+  devices" and "Do not cache mobile devices" remain available. Themes/plugins
+  that detect phones with their own code are not observable: pick "Always".
+- New "Language / Currency Cookies" setting: each value of a listed cookie gets
+  its own copy instead of bypassing the cache. WPML, Polylang and WooCommerce
+  Multilingual cookies are detected automatically (re-synced when plugins are
+  (de)activated). Cookie values are restricted to `[A-Za-z0-9_.-]{1,32}` and
+  hashed into the file name; anything else is not cached.
+- New "When a Post Is Edited" setting (default: automatic). Editing a published
+  post (or approving a comment) purges the post, home, posts page, archives,
+  term/author/date pages, **plus every page that showed other posts or comments
+  when it was built**: a secondary `WP_Query` for public post types or a
+  comment query for another post (`pre_get_posts` / `pre_get_comments`) marks the
+  page with an `index*.lst` file, whatever theme or plugin ran it (recent or
+  related posts, shortcodes, block-theme `single` templates, Recent Comments).
+  Everything is purged when Archives, Calendar, Tag Cloud, Categories, Latest
+  Posts/Comments or a Query Loop with its own query (not an inherited one) sits
+  in a classic or block widget or a block-theme template part. Raw-SQL "related
+  posts" plugins are the one thing not seen. The widget scan is cached for 12
+  hours and re-run when widgets, the theme or templates change. The
+  `bepluspb_page_cache_purge_all_on_post_change` filter still has the last word.
+- Content-Security-Policy nonces no longer repeat: a page whose CSP header or CSP
+  meta tag carries `'nonce-…'` is stored with that nonce recorded, and every HIT
+  swaps in a fresh random nonce in the body and in the header (no
+  `Last-Modified`/304 for such pages, since the body changes on every response).
+
 ### Fixed
+- Page Cache: purges silently failed when the WordPress install path contained
+  `[ ] * ? { }` (`glob()` treated them as patterns and matched nothing). All
+  cache file listing now uses directory iterators, including the block-theme
+  template-part scan.
+- Page Cache: the observation hooks are no longer assumed. A live check on the
+  running WordPress (one device check, one posts query, one comments query —
+  re-run when settings are saved and after a WordPress update) decides whether
+  "Automatic" device handling and the "pages that list other content" purge can
+  be trusted; if a hook is silent the cache runs as "always keep a separate
+  mobile copy" and clears everything on an edit, and the settings screen says so.
+- Page Cache: if WordPress's own `wp_is_mobile()` answer for a page differs from
+  how the cache classified the visitor (client hints vs User-Agent, older
+  WordPress, a plugin overriding the filter), the page is not stored.
+- Page Cache: percent-encoded spellings of one address (`/h%65llo/`,
+  `/%68ello/`) shared nothing with `/hello/` and could create many copies of one
+  page. Encoded letters, digits and `- . _ ~` are decoded to one canonical form
+  (anything that decodes to upper case, a dot, a slash or NUL is not cached).
+- Page Cache: more things that appear on every page now clear it — site icon and
+  logo, avatar, image-size, comment, sticky-post and other core options, the
+  WooCommerce price/tax/stock/review/catalog options, WP Maintenance Mode's
+  settings, and profile changes by anyone who can write posts (bylines, author
+  boxes); users deleted. A new "Extra Settings That Clear the Cache" field (and the
+  `bepluspb_page_cache_sitewide_options` filter) takes option names or `prefix*`
+  entries for theme frameworks, ACF options pages and page builders. Transients
+  never clear it.
+- Page Cache: the settings screen lists active plugins whose own logic does not
+  run for a stored page (firewalls, maintenance, age gates, redirect and
+  server-side view counters) with what to do.
+- Page Cache: with `DISABLE_WP_CRON` and no system cron the daily cleanup never
+  ran and expired files piled up. The request that stores a page now cleans up,
+  at most once a day and with a work limit, when WP-Cron is disabled.
+- Page Cache: language/currency cookie values are chosen by the visitor, so one URL
+  could be filled with unlimited copies (500 distinct values made 500 files). A
+  value now has to look like a language or currency code (`en`, `USD`, `pt_BR`,
+  `zh-Hant-TW`; a trailing newline no longer slips through `$`), and a URL never
+  holds more than 96 variants; existing variants can always be refreshed.
+- Page Cache: renaming a published post/page, changing its slug, parent or menu
+  order purges every page (menus, breadcrumbs, page lists, previous/next links
+  and all child URLs show these on other pages); previously only the post and its
+  archives were purged, so menus kept the old name until the TTL.
+- Page Cache: saving or deleting non-public content that appears on pages now
+  purges everything: Site Editor templates and template parts, global styles,
+  navigation, reusable blocks, page-builder libraries, form/table post types —
+  when done by someone who can edit posts (or WP-CLI). Logs, queues, orders, menu
+  items, customizer changesets and form entries are ignored
+  (`bepluspb_page_cache_ignored_post_types` filter to extend).
+- Page Cache: the host allowlist in the config followed only a settings save. After
+  a domain change made through `WP_HOME`/`WP_SITEURL`, WP-CLI search-replace or
+  SQL (no hook fires) nothing was cached while the screen still said "Active".
+  It is now compared with the site address on every front-end request (one
+  in-memory comparison; the transient is read only when out of sync), repaired on
+  the next request, re-synced when the `home`/`siteurl` options change, and
+  reported on the settings screen.
+- Page Cache: a replayed header now replaces one an earlier plugin already sent
+  (fallback mode runs after other plugins load), instead of adding a second,
+  conflicting `X-Frame-Options`/`Referrer-Policy` line; multi-valued `Link` and
+  CSP lines are all kept.
+- Page Cache: cookie names containing `.`, a space or `[` never matched,
+  because PHP rewrites them to `_` in `$_COOKIE` (`my.cookie` arrives as
+  `my_cookie`), so such entries in "Bypass Cookies"/"Language / Currency
+  Cookies" silently did nothing. Names are now normalised the way PHP does.
+- Page Cache: a request carrying tracking parameters (`?utm_x=…`) may still be
+  served from the clean copy but is never stored, so a theme that echoes the
+  current URL (`add_query_arg( null, null )`, `REQUEST_URI`) cannot get a
+  crafted value cached for every visitor.
+- Page Cache: block-editor/REST saves set terms and meta after `save_post`, and
+  moving a post between categories left the old archive stale; renaming a slug
+  left the old URL cached. Now handled via `wp_after_insert_post` and
+  `set_object_terms`.
+- Page Cache: served pages no longer send `Content-Length` (wrong under
+  `zlib.output_compression`/gzip handlers), and a second purge in the same
+  request no longer reports "0 deleted" (Purge ALL ran two in a row).
 - `bepluspb_register_invalidation_hooks()` was defined but never hooked, so the
   Remove Unused CSS cache was not purged on `save_post`, `switch_theme`, etc.
   (the v1.0.6 fix never took effect). It is now registered on `plugins_loaded`.

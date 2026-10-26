@@ -38,6 +38,16 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		const MAX_BYTES = 5242880;
 
 		/**
+		 * Most variant files (scheme x device x language/currency x image format) kept for ONE URL.
+		 * Cookie values are chosen by the visitor, so without a cap a single URL could be filled
+		 * with unlimited copies.
+		 */
+		const MAX_VARIANTS = 96;
+
+		/** Shape of a language or currency cookie value that may name a cached copy: en, vi, USD, en-US, pt_BR, zh-hant-tw. */
+		const VARY_VALUE_REGEX = '/^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,6}){0,2}$/D';
+
+		/**
 		 * Cookie-name prefixes that mean "this visitor sees personalised output".
 		 * Matched against the START of the cookie name.
 		 */
@@ -72,14 +82,40 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			'/wc-api/',
 		);
 
+		/**
+		 * Response headers PHP may have set that a cached copy must replay, because
+		 * on a HIT neither the theme nor any plugin runs. Lower-case names only;
+		 * Set-Cookie, Location, Cache-Control, Content-Type etc. are deliberately absent.
+		 */
+		const REPLAY_HEADERS = array(
+			'x-frame-options',
+			'content-security-policy',
+			'content-security-policy-report-only',
+			'x-content-type-options',
+			'referrer-policy',
+			'permissions-policy',
+			'strict-transport-security',
+			'cross-origin-opener-policy',
+			'cross-origin-embedder-policy',
+			'cross-origin-resource-policy',
+			'x-robots-tag',
+			'x-ua-compatible',
+			'content-language',
+			'x-pingback',
+			'link',
+		);
+
+		/** A CSP nonce source such as 'nonce-abc123=='. */
+		const NONCE_SOURCE_REGEX = "/'nonce-([A-Za-z0-9+\\/=_-]{8,128})'/";
+
+		/** User-Agent fragments WordPress wp_is_mobile() treats as mobile. */
+		const MOBILE_AGENTS = array( 'Mobile', 'Android', 'Silk/', 'Kindle', 'BlackBerry', 'Opera Mini', 'Opera Mobi' );
+
 		/** Query parameters that do not change the rendered page. */
 		const IGNORED_PARAMS = array( 'fbclid', 'gclid', 'msclkid', 'dclid', 'yclid', 'mc_cid', 'mc_eid', '_ga', '_gl', 'gad_source' );
 
 		/** Request-level memo of the loaded config. */
 		private static $config = null;
-
-		/** Whether purge_all() already ran in this request. */
-		private static $purged_all = false;
 
 		/**
 		 * Path to the guarded config file.
@@ -135,18 +171,30 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				'ttl'             => max( 60, (int) ( $cfg['ttl'] ?? 36000 ) ),
 				'hosts'           => array_values( array_filter( array_map( 'strtolower', array_map( 'strval', $cfg['hosts'] ) ) ) ),
 				'exclude_paths'   => isset( $cfg['exclude_paths'] ) && is_array( $cfg['exclude_paths'] ) ? array_map( 'strval', $cfg['exclude_paths'] ) : array(),
-				'exclude_cookies' => isset( $cfg['exclude_cookies'] ) && is_array( $cfg['exclude_cookies'] ) ? array_map( 'strval', $cfg['exclude_cookies'] ) : array(),
+				'exclude_cookies' => isset( $cfg['exclude_cookies'] ) && is_array( $cfg['exclude_cookies'] ) ? array_map( array( __CLASS__, 'php_cookie_name' ), $cfg['exclude_cookies'] ) : array(),
 				'accept_variants' => ! empty( $cfg['accept_variants'] ),
+				'mobile'          => isset( $cfg['mobile'] ) && in_array( $cfg['mobile'], array( 'same', 'separate', 'auto', 'bypass' ), true ) ? $cfg['mobile'] : 'same',
+				'vary_cookies'    => isset( $cfg['vary_cookies'] ) && is_array( $cfg['vary_cookies'] ) ? array_slice( array_values( array_filter( array_map( array( __CLASS__, 'php_cookie_name' ), $cfg['vary_cookies'] ), 'strlen' ) ), 0, 8 ) : array(),
 			);
 			return self::$config;
+		}
+
+		/**
+		 * The name PHP will use in $_COOKIE for a configured cookie: it rewrites
+		 * ".", " " and "[" to "_" in incoming names, so "my.cookie" arrives as "my_cookie".
+		 *
+		 * @param mixed $name Configured cookie name.
+		 * @return string
+		 */
+		public static function php_cookie_name( $name ) {
+			return strtr( (string) $name, ' .[', '___' );
 		}
 
 		/**
 		 * Forget the memoised config (tests, config rewrites in the same request).
 		 */
 		public static function reset() {
-			self::$config     = null;
-			self::$purged_all = false;
+			self::$config = null;
 		}
 
 		/**
@@ -194,14 +242,22 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				if ( strlen( $segment ) > 200 || '.' === $segment[0] || ! preg_match( '/^[A-Za-z0-9_.~%+-]+$/', $segment ) ) {
 					return null;
 				}
-				// WordPress emits lower-case hex, browsers send upper-case: one canonical form.
-				$segments[] = preg_replace_callback(
-					'/%[0-9A-Fa-f]{2}/',
+				// One canonical form per URL. WordPress emits lower-case hex, browsers upper-case, and
+				// "/h%65llo/" is the same address as "/hello/": percent-encoded unreserved characters
+				// (letters, digits, - . _ ~) are decoded so aliases cannot create extra copies.
+				$segment = preg_replace_callback(
+					'/%([0-9A-Fa-f]{2})/',
 					static function ( $m ) {
-						return strtolower( $m[0] );
+						$char = chr( hexdec( $m[1] ) );
+						return preg_match( '/^[A-Za-z0-9._~-]$/D', $char ) ? $char : strtolower( $m[0] );
 					},
 					$segment
 				);
+				// Decoding may have exposed what the raw path check could not see.
+				if ( '.' === $segment[0] || preg_match( '/[A-Z]/', preg_replace( '/%[0-9a-f]{2}/', '', $segment ) ) ) {
+					return null;
+				}
+				$segments[] = $segment;
 			}
 			return count( $segments ) > 12 ? null : $segments;
 		}
@@ -230,16 +286,64 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		}
 
 		/**
-		 * File-name variant for the request (scheme and Accept-driven image formats).
+		 * Whether the request comes from a device wp_is_mobile() would call mobile.
 		 *
-		 * @param array $cfg    Loaded config.
 		 * @param array $server $_SERVER.
-		 * @return string e.g. "index-s-avif.html".
+		 * @return bool
 		 */
-		public static function variant_file( array $cfg, array $server ) {
+		public static function is_mobile_request( array $server ) {
+			if ( isset( $server['HTTP_SEC_CH_UA_MOBILE'] ) ) {
+				return '?1' === $server['HTTP_SEC_CH_UA_MOBILE'];
+			}
+			$agent = (string) ( $server['HTTP_USER_AGENT'] ?? '' );
+			if ( '' === $agent ) {
+				return false;
+			}
+			foreach ( self::MOBILE_AGENTS as $needle ) {
+				if ( false !== strpos( $agent, $needle ) ) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * File-name variant for the request: scheme, device, language/currency
+		 * cookies and Accept-driven image formats each get their own copy.
+		 *
+		 * @param array $cfg     Loaded config.
+		 * @param array $server  $_SERVER.
+		 * @param array $cookies $_COOKIE.
+		 * @param string|null $device Device token: null = follow the config, '' = none, 'd'/'m' = force.
+		 * @return string|null e.g. "index-s-m-1a2b3c4d-avif.html", or null when a
+		 *                     variant cookie has an unusable value (do not cache).
+		 */
+		public static function variant_file( array $cfg, array $server, array $cookies = array(), $device = null ) {
 			$parts = array();
 			if ( self::is_https( $server ) ) {
 				$parts[] = 's';
+			}
+			if ( null === $device ) {
+				$device = ( 'separate' === $cfg['mobile'] && self::is_mobile_request( $server ) ) ? 'm' : '';
+			}
+			if ( '' !== $device ) {
+				$parts[] = $device; // 'm' mobile, 'd' desktop (device-aware pages in auto mode).
+			}
+			$pairs = array();
+			foreach ( $cfg['vary_cookies'] as $name ) {
+				if ( ! isset( $cookies[ $name ] ) || '' === $cookies[ $name ] ) {
+					continue;
+				}
+				// The value is chosen by the visitor and becomes part of a file name: only a short
+				// language/currency-style code may do so; anything else is simply not cached.
+				if ( ! is_string( $cookies[ $name ] ) || strlen( $cookies[ $name ] ) > 16 || ! preg_match( self::VARY_VALUE_REGEX, $cookies[ $name ] ) ) {
+					return null;
+				}
+				$pairs[] = $name . '=' . strtolower( $cookies[ $name ] );
+			}
+			if ( $pairs ) {
+				sort( $pairs );
+				$parts[] = substr( md5( implode( '&', $pairs ) ), 0, 8 );
 			}
 			if ( ! empty( $cfg['accept_variants'] ) ) {
 				$accept = isset( $server['HTTP_ACCEPT'] ) ? strtolower( (string) $server['HTTP_ACCEPT'] ) : '';
@@ -350,11 +454,36 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				return null;
 			}
 
-			$dir = self::cache_root() . '/' . str_replace( ':', '_', $host ) . ( $segments ? '/' . implode( '/', $segments ) : '' );
+			if ( 'bypass' === $cfg['mobile'] && self::is_mobile_request( $server ) ) {
+				return null;
+			}
+			$dir          = self::cache_root() . '/' . str_replace( ':', '_', $host ) . ( $segments ? '/' . implode( '/', $segments ) : '' );
+			$device_file  = null;
+			$device_files = array();
+			if ( 'auto' === $cfg['mobile'] ) {
+				// One shared copy, unless the page itself asked WordPress whether the visitor is on mobile:
+				// only then are separate desktop/mobile copies (index-d / index-m) stored.
+				$variant = self::variant_file( $cfg, $server, $cookies, '' );
+				$desktop = self::variant_file( $cfg, $server, $cookies, 'd' );
+				$mobile  = self::variant_file( $cfg, $server, $cookies, 'm' );
+				if ( null === $variant || null === $desktop || null === $mobile ) {
+					return null;
+				}
+				$device_files = array( $dir . '/' . $desktop, $dir . '/' . $mobile );
+				$device_file  = self::is_mobile_request( $server ) ? $device_files[1] : $device_files[0];
+			} else {
+				$variant = self::variant_file( $cfg, $server, $cookies );
+				if ( null === $variant ) {
+					return null;
+				}
+			}
+
 			return array(
-				'dir'  => $dir,
-				'file' => $dir . '/' . self::variant_file( $cfg, $server ),
-				'path' => $path,
+				'dir'          => $dir,
+				'file'         => $dir . '/' . $variant,
+				'device_file'  => $device_file,
+				'device_files' => $device_files,
+				'path'         => $path,
 			);
 		}
 
@@ -369,43 +498,210 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! $ctx ) {
 				return;
 			}
-			$cfg   = self::load_config();
-			$mtime = is_file( $ctx['file'] ) && ! is_link( $ctx['file'] ) ? @filemtime( $ctx['file'] ) : false;
-			if ( false === $mtime || ( time() - $mtime ) > $cfg['ttl'] ) {
+			$cfg = self::load_config();
+
+			// A device-specific copy (page that depends on wp_is_mobile()) wins over the shared one.
+			$file  = null;
+			$mtime = false;
+			foreach ( array_filter( array( $ctx['device_file'], $ctx['file'] ) ) as $candidate ) {
+				$time = is_file( $candidate ) && ! is_link( $candidate ) ? @filemtime( $candidate ) : false;
+				if ( false !== $time && ( time() - $time ) <= $cfg['ttl'] ) {
+					$file  = $candidate;
+					$mtime = $time;
+					break;
+				}
+			}
+			if ( null === $file ) {
 				return;
 			}
-			$body = @file_get_contents( $ctx['file'] );
+			$body = @file_get_contents( $file );
 			if ( false === $body || '' === $body ) {
 				return;
+			}
+			$meta = self::read_meta( $file );
+
+			// CSP nonces are only a defence if they are unpredictable per response: give this
+			// response fresh ones, in the body and in the headers, instead of sharing the stored one.
+			$headers = $meta['h'];
+			if ( $meta['n'] ) {
+				try {
+					foreach ( $meta['n'] as $old ) {
+						$new     = bin2hex( random_bytes( 16 ) );
+						$body    = str_replace( $old, $new, $body );
+						$headers = str_replace( $old, $new, $headers );
+					}
+				} catch ( \Throwable $e ) {
+					return; // No randomness available: render the page normally.
+				}
 			}
 
 			if ( $cfg['accept_variants'] ) {
 				header( 'Vary: Accept', false );
 			}
+			if ( 'separate' === $cfg['mobile'] || ( null !== $ctx['device_file'] && $file === $ctx['device_file'] ) ) {
+				header( 'Vary: User-Agent', false );
+			}
+			// The theme and plugins never ran for this response: replay what they set when the page was built.
+			// The first line of each name REPLACES anything already sent (fallback mode runs after
+			// other plugins loaded; two different X-Frame-Options values would be invalid); further
+			// lines of the same name (Link, CSP) are appended.
+			$sent = array();
+			foreach ( $headers as $line ) {
+				$name = strtolower( strstr( $line, ':', true ) );
+				header( $line, ! isset( $sent[ $name ] ) );
+				$sent[ $name ] = true;
+			}
 			header( 'Cache-Control: max-age=0, must-revalidate' );
 			header( 'X-Beplus-Page-Cache: HIT' );
-			header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT' );
 
-			$since = isset( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ? strtotime( (string) $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) : false;
-			if ( false !== $since && $since >= $mtime ) {
-				header( 'HTTP/1.1 304 Not Modified', true, 304 );
-				exit;
+			if ( ! $meta['n'] ) {
+				// With rotating nonces the body differs on every response, so it must never be revalidated as unchanged.
+				header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT' );
+				$since = isset( $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) ? strtotime( (string) $_SERVER['HTTP_IF_MODIFIED_SINCE'] ) : false;
+				if ( false !== $since && $since >= $mtime ) {
+					header( 'HTTP/1.1 304 Not Modified', true, 304 );
+					exit;
+				}
 			}
 
 			header( 'Content-Type: text/html; charset=UTF-8' );
-			header( 'Content-Length: ' . strlen( $body ) );
 			echo $body;
 			exit;
 		}
 
 		/**
+		 * Path of the header sidecar belonging to a cached page.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return string
+		 */
+		public static function header_file( $file ) {
+			return substr( $file, 0, -5 ) . '.hdr';
+		}
+
+		/**
+		 * Keep only allowlisted, single-line, printable headers.
+		 *
+		 * Applied when storing AND when replaying, so a tampered sidecar can never
+		 * inject a header (no CR/LF, no Set-Cookie, no Location).
+		 *
+		 * @param array $lines Header lines such as "X-Frame-Options: SAMEORIGIN".
+		 * @return string[]
+		 */
+		public static function sanitize_headers( array $lines ) {
+			$out = array();
+			foreach ( $lines as $line ) {
+				if ( ! is_string( $line ) || ! preg_match( '/^([A-Za-z][A-Za-z0-9-]{0,60}):[ \t]*([\x20-\x7e]{1,2000})$/', $line, $m ) ) {
+					continue;
+				}
+				if ( in_array( strtolower( $m[1] ), self::REPLAY_HEADERS, true ) ) {
+					$out[] = $m[1] . ': ' . trim( $m[2] );
+				}
+				if ( count( $out ) >= 20 ) {
+					break;
+				}
+			}
+			return $out;
+		}
+
+		/**
+		 * Metadata recorded next to a cached page.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return array{h:string[],n:string[]} Replay headers and CSP nonces to rotate.
+		 */
+		public static function read_meta( $file ) {
+			$meta = array(
+				'h' => array(),
+				'n' => array(),
+			);
+			$path = self::header_file( $file );
+			if ( ! is_file( $path ) || is_link( $path ) ) {
+				return $meta;
+			}
+			$raw  = @file_get_contents( $path );
+			$data = false === $raw ? null : json_decode( $raw, true );
+			if ( ! is_array( $data ) ) {
+				return $meta;
+			}
+			// Either {"h":[...],"n":[...]} or a bare list of header lines.
+			$lines = isset( $data['h'] ) && is_array( $data['h'] ) ? $data['h'] : ( isset( $data['n'] ) ? array() : $data );
+			$meta['h'] = self::sanitize_headers( $lines );
+			if ( isset( $data['n'] ) && is_array( $data['n'] ) ) {
+				foreach ( $data['n'] as $nonce ) {
+					if ( is_string( $nonce ) && preg_match( '/^[A-Za-z0-9+\/=_-]{8,128}$/D', $nonce ) ) {
+						$meta['n'][] = $nonce;
+					}
+				}
+				$meta['n'] = array_slice( array_values( array_unique( $meta['n'] ) ), 0, 4 );
+			}
+			return $meta;
+		}
+
+		/**
+		 * Headers recorded for a cached page.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return string[]
+		 */
+		public static function read_headers( $file ) {
+			return self::read_meta( $file )['h'];
+		}
+
+		/**
+		 * CSP nonces used by a page: in its Content-Security-Policy headers or its CSP meta tag.
+		 *
+		 * @param string[] $headers Sanitised replay headers.
+		 * @param string   $html    Final HTML.
+		 * @return string[]
+		 */
+		public static function extract_nonces( array $headers, $html ) {
+			$sources = array();
+			foreach ( $headers as $line ) {
+				if ( 0 === stripos( $line, 'content-security-policy' ) ) {
+					$sources[] = $line;
+				}
+			}
+			if ( preg_match_all( '/<meta\b[^>]*http-equiv\s*=\s*["\']?content-security-policy[^>]*>/i', $html, $tags ) ) {
+				$sources = array_merge( $sources, $tags[0] );
+			}
+			$nonces = array();
+			foreach ( $sources as $source ) {
+				if ( preg_match_all( self::NONCE_SOURCE_REGEX, $source, $m ) ) {
+					$nonces = array_merge( $nonces, $m[1] );
+				}
+			}
+			return array_slice( array_values( array_unique( $nonces ) ), 0, 4 );
+		}
+
+		/**
+		 * Delete a cached page together with its sidecars.
+		 *
+		 * @param string $file Path of the index*.html file.
+		 * @return bool Whether the page file was removed.
+		 */
+		private static function remove_page( $file ) {
+			$removed = is_file( $file ) && @unlink( $file );
+			foreach ( array( '.hdr', '.lst' ) as $ext ) {
+				$sidecar = substr( $file, 0, -5 ) . $ext;
+				if ( is_file( $sidecar ) ) {
+					@unlink( $sidecar );
+				}
+			}
+			return $removed;
+		}
+
+		/**
 		 * Atomically store a rendered page.
 		 *
-		 * @param array  $ctx  Result of request_context().
-		 * @param string $html Final HTML.
+		 * @param array  $ctx     Result of request_context().
+		 * @param string $html    Final HTML.
+		 * @param array  $headers Response headers to replay on a HIT (filtered here).
+		 * @param array  $flags   device: page depends on wp_is_mobile() (auto mode stores per-device copies);
+		 *                        lists_others: page shows posts/comments other than its own.
 		 * @return bool
 		 */
-		public static function store( array $ctx, $html ) {
+		public static function store( array $ctx, $html, array $headers = array(), array $flags = array() ) {
 			if ( ! is_string( $html ) || '' === $html || strlen( $html ) > self::MAX_BYTES ) {
 				return false;
 			}
@@ -421,11 +717,140 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! is_dir( $dir ) && ! @mkdir( $dir, 0755, true ) && ! is_dir( $dir ) ) {
 				return false;
 			}
+
+			$device = ! empty( $flags['device'] ) && ! empty( $ctx['device_file'] );
+			$target = $device ? $ctx['device_file'] : $ctx['file'];
+
+			// A NEW variant is refused once the URL already has plenty; refreshing an existing one is always allowed.
+			if ( ! is_file( $target ) && self::count_variants( $dir ) >= self::MAX_VARIANTS ) {
+				return false;
+			}
+
+			// Sidecars first: a HIT may then miss a header only if this write fails, never see stale ones.
+			$replay = self::sanitize_headers( $headers );
+			$nonces = self::extract_nonces( $replay, $html );
+			$hdr    = self::header_file( $target );
+			if ( $replay || $nonces ) {
+				$meta = array( 'h' => $replay );
+				if ( $nonces ) {
+					$meta['n'] = $nonces;
+				}
+				if ( ! self::write_atomic( $dir, $hdr, (string) json_encode( $meta ) ) ) {
+					return false;
+				}
+			} elseif ( is_file( $hdr ) ) {
+				@unlink( $hdr );
+			}
+			$lst = substr( $target, 0, -5 ) . '.lst';
+			if ( ! empty( $flags['lists_others'] ) ) {
+				if ( ! self::write_atomic( $dir, $lst, '' ) ) {
+					return false;
+				}
+			} elseif ( is_file( $lst ) ) {
+				@unlink( $lst );
+			}
+			if ( ! self::write_atomic( $dir, $target, $html ) ) {
+				return false;
+			}
+
+			self::maybe_gc( $root );
+
+			// Keep the copies consistent: a page that depends on the device must not also leave a
+			// shared copy for the other device to pick up, and a device-independent page needs no per-device copies.
+			if ( ! empty( $ctx['device_files'] ) ) {
+				foreach ( $device ? array( $ctx['file'] ) : $ctx['device_files'] as $stale ) {
+					self::remove_page( $stale );
+				}
+			}
+			return true;
+		}
+
+		/**
+		 * Remove expired pages about once a day, from the request that stores a page.
+		 *
+		 * The daily WP-Cron event does this too, but cron may be disabled (DISABLE_WP_CRON with
+		 * no system cron) and expired files would then pile up on disk forever.
+		 *
+		 * @param string $root Cache root.
+		 */
+		private static function maybe_gc( $root ) {
+			if ( ! ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) ) {
+				return; // The daily WP-Cron event handles it.
+			}
+			$marker = $root . '/.gc';
+			$mtime  = is_file( $marker ) ? @filemtime( $marker ) : 0;
+			if ( $mtime && ( time() - $mtime ) < 86400 ) {
+				return;
+			}
+			@touch( $marker ); // Claim the slot first so concurrent requests do not all walk the tree.
+			self::gc( 20000 );
+		}
+
+		/**
+		 * Entries of one directory whose name starts/ends with the given strings.
+		 *
+		 * Replaces glob(): the install path may contain glob metacharacters ("[", "]", "*", "?",
+		 * "{"), in which case glob() quietly matches nothing and purges silently fail.
+		 *
+		 * @param string $dir       Directory.
+		 * @param string $prefix    Required file-name prefix ('' for any).
+		 * @param string $suffix    Required file-name suffix ('' for any).
+		 * @param bool   $only_dirs True for sub-directories only, false for files only.
+		 * @return string[] Full paths. Symbolic links are never returned.
+		 */
+		private static function list_dir( $dir, $prefix = '', $suffix = '', $only_dirs = false ) {
+			$out = array();
+			if ( ! is_dir( $dir ) || is_link( $dir ) ) {
+				return $out;
+			}
+			foreach ( new DirectoryIterator( $dir ) as $entry ) {
+				if ( $entry->isDot() || $entry->isLink() || ( $only_dirs ? ! $entry->isDir() : ! $entry->isFile() ) ) {
+					continue;
+				}
+				$name = $entry->getFilename();
+				if ( ( '' === $prefix || 0 === strpos( $name, $prefix ) ) && ( '' === $suffix || substr( $name, -strlen( $suffix ) ) === $suffix ) ) {
+					$out[] = $entry->getPathname();
+				}
+			}
+			return $out;
+		}
+
+		/**
+		 * Number of cached page variants in one URL directory.
+		 *
+		 * Uses a directory iterator rather than glob(): the path may contain glob metacharacters.
+		 *
+		 * @param string $dir URL directory.
+		 * @return int
+		 */
+		private static function count_variants( $dir ) {
+			$count = 0;
+			if ( ! is_dir( $dir ) ) {
+				return 0;
+			}
+			foreach ( new DirectoryIterator( $dir ) as $entry ) {
+				$name = $entry->getFilename();
+				if ( $entry->isFile() && 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) ) {
+					++$count;
+				}
+			}
+			return $count;
+		}
+
+		/**
+		 * Write a file via temp file + rename.
+		 *
+		 * @param string $dir  Directory (already confined).
+		 * @param string $dest Destination path inside $dir.
+		 * @param string $data Bytes.
+		 * @return bool
+		 */
+		private static function write_atomic( $dir, $dest, $data ) {
 			$tmp = @tempnam( $dir, '.tmp-' );
 			if ( false === $tmp ) {
 				return false;
 			}
-			if ( false === @file_put_contents( $tmp, $html ) || ! @chmod( $tmp, 0644 ) || ! @rename( $tmp, $ctx['file'] ) ) {
+			if ( false === @file_put_contents( $tmp, $data ) || ! @chmod( $tmp, 0644 ) || ! @rename( $tmp, $dest ) ) {
 				@unlink( $tmp );
 				return false;
 			}
@@ -478,15 +903,17 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 				if ( ! is_dir( $dir ) || is_link( $dir ) ) {
 					continue;
 				}
-				$files = glob( $dir . '/index*.html' );
-				foreach ( is_array( $files ) ? $files : array() as $file ) {
-					if ( is_file( $file ) && @unlink( $file ) ) {
+				foreach ( self::list_dir( $dir, 'index', '.html' ) as $file ) {
+					if ( @unlink( $file ) ) {
 						++$removed;
 					}
 				}
+				foreach ( array_merge( self::list_dir( $dir, 'index', '.hdr' ), self::list_dir( $dir, 'index', '.lst' ) ) as $file ) {
+					@unlink( $file );
+				}
 				if ( $pagination ) {
 					// Archive pagination (page/N) and comment pagination (comment-page-N).
-					$subdirs = array_merge( array( $dir . '/page' ), glob( $dir . '/comment-page-*', GLOB_ONLYDIR ) ?: array() );
+					$subdirs = array_merge( array( $dir . '/page' ), self::list_dir( $dir, 'comment-page-', '', true ) );
 					foreach ( $subdirs as $subdir ) {
 						if ( is_dir( $subdir ) && ! is_link( $subdir ) ) {
 							$removed += self::remove_tree( $subdir, $root, true );
@@ -513,20 +940,17 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! is_dir( $root ) || is_link( $root ) ) {
 				return $result;
 			}
-			if ( self::$purged_all ) {
-				$result['status'] = 'success';
-				return $result;
-			}
 			$before = self::count_files( $root );
-			foreach ( glob( $root . '/*', GLOB_ONLYDIR | GLOB_NOSORT ) ?: array() as $host_dir ) {
-				if ( is_link( $host_dir ) ) {
-					@unlink( $host_dir );
-					continue;
-				}
+			foreach ( self::list_dir( $root, '', '', true ) as $host_dir ) {
 				self::remove_tree( $host_dir, $root, true );
 			}
+			// A symbolic link planted in the root is removed, never followed (list_dir() skips links).
+			foreach ( new DirectoryIterator( $root ) as $entry ) {
+				if ( ! $entry->isDot() && $entry->isLink() ) {
+					@unlink( $entry->getPathname() );
+				}
+			}
 			$after             = self::count_files( $root );
-			self::$purged_all  = true;
 			$result['matched'] = $before['files'];
 			$result['failed']  = $after['files'];
 			$result['deleted'] = max( 0, $before['files'] - $after['files'] );
@@ -539,11 +963,48 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		}
 
 		/**
+		 * Remove every page that listed content other than its own (recent/related
+		 * posts, recent comments…) when it was built, wherever it lives.
+		 *
+		 * @return int|false Pages removed, or false when the tree was too large to
+		 *                   walk (the caller should purge everything instead).
+		 */
+		public static function purge_flagged() {
+			$root = self::cache_root();
+			if ( ! is_dir( $root ) || is_link( $root ) ) {
+				return 0;
+			}
+			$found    = array();
+			$seen     = 0;
+			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) );
+			foreach ( $iterator as $entry ) {
+				if ( ++$seen > 200000 ) {
+					return false;
+				}
+				$name = $entry->getFilename();
+				if ( $entry->isFile() && ! $entry->isLink() && 0 === strpos( $name, 'index' ) && '.lst' === substr( $name, -4 ) ) {
+					$found[] = substr( $entry->getPathname(), 0, -4 ) . '.html';
+				}
+			}
+			$removed = 0;
+			foreach ( $found as $page ) {
+				if ( self::remove_page( $page ) ) {
+					++$removed;
+				} else {
+					@unlink( substr( $page, 0, -5 ) . '.lst' );
+				}
+			}
+			return $removed;
+		}
+
+		/**
 		 * Delete files older than the TTL (and orphaned temp files); prune empty dirs.
 		 *
+		 * @param int $max_entries Stop after looking at this many entries (0 = no limit). A request that
+		 *                         runs this opportunistically must not walk a huge tree.
 		 * @return int Files removed.
 		 */
-		public static function gc() {
+		public static function gc( $max_entries = 0 ) {
 			$cfg  = self::load_config();
 			$ttl  = $cfg ? $cfg['ttl'] : 36000;
 			$root = self::cache_root();
@@ -553,15 +1014,24 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			$removed  = 0;
 			$cutoff   = time() - $ttl;
 			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::CHILD_FIRST );
+			$looked   = 0;
 			foreach ( $iterator as $entry ) {
+				if ( $max_entries > 0 && ++$looked > $max_entries ) {
+					break;
+				}
 				$path = $entry->getPathname();
 				if ( $entry->isLink() ) {
 					continue;
 				}
 				if ( $entry->isFile() ) {
 					$name = $entry->getFilename();
-					if ( ( 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) && $entry->getMTime() < $cutoff ) || ( 0 === strpos( $name, '.tmp-' ) && $entry->getMTime() < time() - 3600 ) ) {
-						if ( @unlink( $path ) ) {
+					if ( 0 === strpos( $name, 'index' ) && in_array( substr( $name, -4 ), array( '.hdr', '.lst' ), true ) ) {
+						// Orphaned sidecar (its page was purged or expired).
+						if ( ! is_file( substr( $path, 0, -4 ) . '.html' ) ) {
+							@unlink( $path );
+						}
+					} elseif ( ( 0 === strpos( $name, 'index' ) && '.html' === substr( $name, -5 ) && $entry->getMTime() < $cutoff ) || ( 0 === strpos( $name, '.tmp-' ) && $entry->getMTime() < time() - 3600 ) ) {
+						if ( self::remove_page( $path ) ) {
 							++$removed;
 						}
 					}

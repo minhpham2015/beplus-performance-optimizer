@@ -306,6 +306,10 @@ class BEPLUSPB_Admin {
 
 		$sanitized['page_cache_ttl']             = BEPLUSPB_Page_Cache::sanitize_ttl_hours( $input['page_cache_ttl'] ?? 10 );
 		$sanitized['page_cache_exclude_cookies'] = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_exclude_cookies'] ?? '' );
+		$sanitized['page_cache_vary_cookies']    = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_vary_cookies'] ?? '' );
+		$sanitized['page_cache_purge_options']   = BEPLUSPB_Page_Cache::sanitize_option_names( $input['page_cache_purge_options'] ?? '' );
+		$sanitized['page_cache_mobile']          = BEPLUSPB_Page_Cache::sanitize_choice( $input['page_cache_mobile'] ?? '', BEPLUSPB_Page_Cache::MOBILE_MODES, 'auto' );
+		$sanitized['page_cache_purge_scope']     = BEPLUSPB_Page_Cache::sanitize_choice( $input['page_cache_purge_scope'] ?? '', array( 'auto', 'related', 'all' ), 'auto' );
 
 		$sanitized['cache_exclude_pages'] = isset( $input['cache_exclude_pages'] )
 			? sanitize_textarea_field( $input['cache_exclude_pages'] )
