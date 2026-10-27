@@ -239,8 +239,6 @@ class BEPLUSPB_Admin {
 			// File minification.
 			'minify_css_files',
 			'minify_js_files',
-			// Cache exclusions.
-			'cache_for_logged_in',
 			// Page cache.
 			'page_cache_enabled',
 			// CDN.

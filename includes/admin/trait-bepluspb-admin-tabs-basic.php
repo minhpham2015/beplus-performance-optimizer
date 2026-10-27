@@ -229,7 +229,7 @@ else :
 	 * @param array $opts Current option values.
 	 */
 	private static function render_section_page_cache( $opts ) {
-		$status = BEPLUSPB_Page_Cache::get_status();
+		$status = BEPLUSPB_Page_Cache::get_status( BEPLUSPB_Page_Cache::is_enabled( $opts ) ); // The page count walks the cache directory: only when it is in use.
 		$name   = esc_attr( BEPLUSPB_OPTIONS_KEY );
 		?>
 		<div class="bepluspb-card" id="bepluspb-page-cache-card">
@@ -253,6 +253,58 @@ else :
 						<p class="description">
 							<?php esc_html_e( 'Never cached: logged-in users, carts and checkouts, password-protected posts, commenters, search, 404s, feeds, previews, and any URL with a query string (tracking parameters such as utm_* are ignored). Also requires the master Cache toggle on the Dashboard.', 'beplus-performance-booster' ); ?>
 						</p>
+						<?php
+						$mode_labels = array(
+							'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),
+							'plugin' => __( 'Active — served from the plugin (works, but a little slower than the drop-in).', 'beplus-performance-booster' ),
+						);
+						?>
+						<?php if ( $status['enabled'] ) : ?>
+						<p class="bepluspb-page-cache-status">
+							<strong><?php echo esc_html( $mode_labels[ $status['mode'] ] ); ?></strong>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: number of cached pages, 2: human-readable size. */
+									__( '%1$s cached pages (%2$s).', 'beplus-performance-booster' ),
+									number_format_i18n( $status['stats']['files'] ) . ( $status['stats']['truncated'] ? '+' : '' ),
+									BEPLUSPB_Minify::human_filesize( $status['stats']['bytes'] )
+								)
+							);
+							?>
+						</p>
+							<?php if ( ! $status['wp_cache'] || 'foreign' === $status['dropin'] ) : ?>
+						<p class="description">
+								<?php if ( 'foreign' === $status['dropin'] ) : ?>
+									<?php esc_html_e( 'Another plugin already owns wp-content/advanced-cache.php, so Beplus serves cached pages from the plugin instead. Remove the other page-cache plugin to use the faster drop-in.', 'beplus-performance-booster' ); ?>
+								<?php else : ?>
+									<?php esc_html_e( 'For the fastest delivery, add this line to wp-config.php above the "That\'s all, stop editing!" comment. Beplus never edits wp-config.php for you:', 'beplus-performance-booster' ); ?>
+									<br><code>define( 'WP_CACHE', true );</code>
+								<?php endif; ?>
+						</p>
+							<?php endif; ?>
+							<?php if ( ! $status['observers'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'Compatibility check: this site does not report device checks or secondary queries to the cache (very old WordPress, or a plugin overrides them). Automatic mode is therefore running as "Always keep a separate mobile copy", and editing a post clears every page. This is slower but always correct.', 'beplus-performance-booster' ); ?></p>
+							<?php endif; ?>
+							<?php if ( $status['bypassed'] ) : ?>
+						<p class="description">
+							<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
+							<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
+							<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
+						</p>
+							<?php endif; ?>
+							<?php foreach ( $status['errors'] as $error ) : ?>
+						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
+							<?php endforeach; ?>
+							<?php if ( $status['config_ok'] && ! $status['hosts_ok'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The site address changed since these settings were saved, so no page is being cached. It is repaired automatically on the next visit; you can also save these settings again.', 'beplus-performance-booster' ); ?></p>
+							<?php endif; ?>
+							<?php if ( ! $status['config_ok'] ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
+							<?php endif; ?>
+						<?php elseif ( ! empty( $opts['page_cache_enabled'] ) && empty( $opts['cache_enabled'] ) ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'Page Cache is switched on, but the master Cache toggle on the Dashboard is off, so nothing is cached yet.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
 					</div>
 				</div>
 
@@ -355,63 +407,6 @@ else :
 						<p class="description">
 							<?php esc_html_e( 'Core settings (site title, logo and icon, menus, widgets, reading and comment settings), WooCommerce display settings and WP Maintenance Mode already clear the cache when they change. Add the option names used by your theme framework, ACF options pages or page builder if they print something on every page (for example ACF options pages use options_*).', 'beplus-performance-booster' ); ?>
 						</p>
-					</div>
-				</div>
-
-				<?php
-				$mode_labels = array(
-					'dropin' => __( 'Active — served by the advanced-cache.php drop-in (fastest).', 'beplus-performance-booster' ),
-					'plugin' => __( 'Active — served from the plugin (works, but a little slower than the drop-in).', 'beplus-performance-booster' ),
-					'off'    => __( 'Off.', 'beplus-performance-booster' ),
-				);
-				?>
-				<div class="bepluspb-form-row">
-					<div class="bepluspb-form-row-label"><label><?php esc_html_e( 'Status', 'beplus-performance-booster' ); ?></label></div>
-					<div class="bepluspb-form-row-field">
-						<p><strong><?php echo esc_html( $mode_labels[ $status['mode'] ] ); ?></strong></p>
-						<?php if ( $status['enabled'] ) : ?>
-						<p>
-							<?php
-							echo esc_html(
-								sprintf(
-									/* translators: 1: number of cached pages, 2: human-readable size. */
-									__( '%1$s cached pages (%2$s).', 'beplus-performance-booster' ),
-									number_format_i18n( $status['stats']['files'] ) . ( $status['stats']['truncated'] ? '+' : '' ),
-									BEPLUSPB_Minify::human_filesize( $status['stats']['bytes'] )
-								)
-							);
-							?>
-						</p>
-							<?php if ( ! $status['wp_cache'] || 'foreign' === $status['dropin'] ) : ?>
-						<p class="description">
-								<?php if ( 'foreign' === $status['dropin'] ) : ?>
-									<?php esc_html_e( 'Another plugin already owns wp-content/advanced-cache.php, so Beplus serves cached pages from the plugin instead. Remove the other page-cache plugin to use the faster drop-in.', 'beplus-performance-booster' ); ?>
-								<?php else : ?>
-									<?php esc_html_e( 'For the fastest delivery, add this line to wp-config.php above the "That\'s all, stop editing!" comment. Beplus never edits wp-config.php for you:', 'beplus-performance-booster' ); ?>
-									<br><code>define( 'WP_CACHE', true );</code>
-								<?php endif; ?>
-						</p>
-						<?php endif; ?>
-						<?php endif; ?>
-						<?php if ( $status['enabled'] && ! $status['observers'] ) : ?>
-						<p class="bepluspb-warn"><?php esc_html_e( 'Compatibility check: this site does not report device checks or secondary queries to the cache (very old WordPress, or a plugin overrides them). Automatic mode is therefore running as "Always keep a separate mobile copy", and editing a post clears every page. This is slower but always correct.', 'beplus-performance-booster' ); ?></p>
-						<?php endif; ?>
-						<?php if ( $status['enabled'] && $status['bypassed'] ) : ?>
-						<p class="description">
-							<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
-							<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
-							<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
-						</p>
-						<?php endif; ?>
-						<?php foreach ( $status['errors'] as $error ) : ?>
-						<p class="bepluspb-warn"><?php echo esc_html( $error ); ?></p>
-						<?php endforeach; ?>
-						<?php if ( $status['enabled'] && $status['config_ok'] && ! $status['hosts_ok'] ) : ?>
-						<p class="bepluspb-warn"><?php esc_html_e( 'The site address changed since these settings were saved, so no page is being cached. It is repaired automatically on the next visit; you can also save these settings again.', 'beplus-performance-booster' ); ?></p>
-						<?php endif; ?>
-						<?php if ( $status['enabled'] && ! $status['config_ok'] ) : ?>
-						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
-						<?php endif; ?>
 					</div>
 				</div>
 

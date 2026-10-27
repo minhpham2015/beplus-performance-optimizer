@@ -117,7 +117,6 @@ $field_names = array(
 	'[cdn_exclude]',
 	'[cdn_webp_avif]',
 	'[cache_exclude_pages]',
-	'[cache_for_logged_in]',
 	'[cache_headers]',
 );
 foreach ( $field_names as $name ) {
@@ -135,9 +134,12 @@ $field_ids = array(
 	'id="bepluspb_cdn_exclude"',
 	'id="bepluspb_cdn_webp_avif"',
 	'id="bepluspb_cache_exclude_pages"',
-	'id="bepluspb_cache_for_logged_in"',
 	'id="bepluspb_cache_headers"',
 );
+// The "Enable Cache for Logged-In Users" option and its "User-Based Exclusions" card were removed.
+foreach ( array( '[cache_for_logged_in]', 'bepluspb_cache_for_logged_in', 'User-Based Exclusions', 'Enable Cache for Logged-In Users' ) as $gone ) {
+	assert_true( 0 === count_occurrences( $gone, $admin ), "{$gone} no longer appears in the admin UI (found " . count_occurrences( $gone, $admin ) . ')' );
+}
 foreach ( $field_ids as $id ) {
 	assert_true(
 		1 === count_occurrences( $id, $admin ),

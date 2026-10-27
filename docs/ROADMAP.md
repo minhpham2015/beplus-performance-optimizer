@@ -89,6 +89,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 21. Thư mục WordPress có ký tự `[` hoặc `]` (hiếm): Purge ALL vẫn xóa được trang.
 22. Bật "WP Maintenance Mode" (nếu dùng) → trang đã cache biến mất ngay, khách thấy trang bảo trì; tắt → trang thường trở lại.
 23. Đổi logo/site icon trong Customizer hoặc đơn vị tiền tệ WooCommerce → mọi trang cập nhật. Tác giả đổi tên hiển thị → byline cập nhật.
+24. Đăng nhập bằng tài khoản **không phải admin** (vd. Subscriber/Customer) → CSS/JS là file `bepluspb-cache/...` đã minify; đăng nhập **admin** → CSS/JS gốc. Card Page Cache khi tắt không hiện dòng nào; khi bật có một dòng trạng thái ngay dưới ô "Enable Page Cache".
 
 ## Nhật ký tiến trình
 
@@ -103,6 +104,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-26 | Xử lý 3 rủi ro: mobile "Automatic" (quan sát `wp_is_mobile`, chỉ Vary trên trang phụ thuộc thiết bị), đánh dấu trang liệt kê nội dung khác (quan sát `pre_get_posts`/`pre_get_comments`, `.lst`), xoay CSP nonce mỗi HIT. Test engine 203 + class 185 assertion; đã kiểm tra bằng 8 đột biến (phá tính năng → test fail). |
 | 2026-10-26 | Review lần 2: sửa header replay bị trùng/mâu thuẫn ở chế độ fallback và cookie có dấu `.` không khớp (+5 assertion). |
 | 2026-10-26 | Tự review #1–#3, sửa 5 lỗi (xem CHANGELOG "Fixed"), thêm 20 assertion. Các sửa này nằm ở nhánh `claude/modest-mccarthy-lheo63`, chưa vào `master`. |
+| 2026-10-27 | Bỏ option `cache_for_logged_in` + card "User-Based Exclusions" (admin thấy file gốc, người đăng nhập khác nhận file minify; Minify khởi động sau cổng admin; gộp hàm loại trừ trùng lặp trong Minify). Bỏ hàng "Status" của card Page Cache: dòng trạng thái dưới ô bật, ẩn khi tắt, thông báo chỉ hiện khi cần. Test mới `test-page-cache-settings-ui.php` (33 assertion), 9 đột biến đều bị bắt. |
 
 ## Việc còn lại từ review lần 3
 
