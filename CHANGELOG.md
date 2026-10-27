@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+- The "Enable Cache for Logged-In Users" option (`cache_for_logged_in`) and its
+  "User-Based Exclusions" card. It only controlled whether logged-in users received the
+  minified CSS/JS files (never the Page Cache, which does not cache logged-in users),
+  and its warning about "user-specific content" did not apply to static files.
+  Behaviour is now fixed and matches the other optimisers: **administrators** get the
+  original CSS/JS (Minify now starts behind the same administrator gate as defer/delay,
+  HTML and CDN; the `bepluspb_optimize_for_admins` filter previews the optimised page),
+  every **other logged-in user** (members, customers, editors) gets the minified files
+  like a visitor. The stale value in an existing database is ignored and disappears on
+  the next settings save. `BEPLUSPB_Minify::is_cache_disabled_for_page()` no longer looks
+  at the login state and shares one memoised check with the asset filters (the duplicate
+  `$page_cache_disabled` cache is gone).
+
+### Changed
+- Page Cache card: the separate "Status" row is gone. While the cache is off nothing is
+  shown (no more "Off."; the cache directory is not even walked). While it is on, one status
+  line (mode, page count, size) sits directly under the "Enable Page Cache" checkbox, and
+  the notices (WP_CACHE line, foreign drop-in, compatibility check, skipped plugins, write
+  errors, site-address and config warnings) appear below it only when they apply. A ticked
+  Page Cache with the master Cache toggle off now says why nothing is cached.
+
 ### Added
 - **Page Cache** (opt-in, Cache Files tab): anonymous visitors get a stored
   static HTML copy of public pages without loading the theme or querying the

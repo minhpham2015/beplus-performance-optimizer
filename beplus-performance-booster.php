@@ -121,7 +121,6 @@ function bepluspb_default_options() {
 
 		// --- Cache Exclusions ---
 		'cache_exclude_pages'                => "/checkout/\n/my-account/\n/cart/",
-		'cache_for_logged_in'                => 0,   // Serve cached CSS/JS to logged-in users (default: off).
 
 		// --- Master Cache Switch ---
 		'cache_enabled'                      => 0,
@@ -357,18 +356,19 @@ function bepluspb_boot_frontend() {
 		return;
 	}
 
-	BEPLUSPB_Minify::init( $opts );
+	// The Page Cache never stores a logged-in visitor's page, so it can be set up first.
 	BEPLUSPB_Page_Cache::init( $opts );
 
-	// Administrators see the untouched page so they can edit and debug it.
-	// Previously only the CSS/HTML/CDN steps honoured this while JS defer/delay
-	// still ran, so an admin's view matched neither visitors nor the raw site.
+	// Administrators see the untouched page so they can edit and debug it: no minified
+	// CSS/JS, no defer/delay, no HTML/CDN rewriting. Every other logged-in user (members,
+	// customers, editors) is optimised exactly like a visitor, since the files are static.
 	// Return true from this filter to preview exactly what visitors get.
 	$optimize_admins = (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 	if ( ! $optimize_admins && is_user_logged_in() && current_user_can( 'manage_options' ) ) {
 		return;
 	}
 
+	BEPLUSPB_Minify::init( $opts );
 	BEPLUSPB_JS::init( $opts );
 
 	BEPLUSPB_Cleanup::init( $opts );

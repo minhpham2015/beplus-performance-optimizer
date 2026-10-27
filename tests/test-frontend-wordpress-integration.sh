@@ -67,7 +67,7 @@ add_action( 'wp_enqueue_scripts', function () {
 } );
 PHP
 
-OPTS='{"cache_enabled":1,"minify_css_files":1,"minify_js_files":1,"cache_for_logged_in":1,"cdn_enabled":0}'
+OPTS='{"cache_enabled":1,"minify_css_files":1,"minify_js_files":1,"cdn_enabled":0}'
 wp option update bepluspb_settings "$OPTS" --format=json --path="$ROOT" >/dev/null
 ( cd "$ROOT" && php -S "127.0.0.1:${PORT}" -t "$ROOT" >/dev/null 2>&1 & echo $! > "$ROOT/.pid" )
 SERVER_PID="$(cat "$ROOT/.pid")"
@@ -91,7 +91,7 @@ assert_contains "$JS_BODY" '"http://x.test/a"' "JS string with // preserved"
 if grep -rqF -- "$CANARY" "$ROOT/wp-content/uploads/bepluspb-cache" 2>/dev/null; then fail "wp-config contents leaked into cache dir"; fi
 
 # --- CDN ---------------------------------------------------------------------
-wp option update bepluspb_settings '{"cache_enabled":1,"minify_css_files":1,"minify_js_files":1,"cache_for_logged_in":1,"cdn_enabled":1,"cdn_url":"https://cdn.example.net"}' --format=json --path="$ROOT" >/dev/null
+wp option update bepluspb_settings '{"cache_enabled":1,"minify_css_files":1,"minify_js_files":1,"cdn_enabled":1,"cdn_url":"https://cdn.example.net"}' --format=json --path="$ROOT" >/dev/null
 HTML="$(curl -fs "$BASE/")"
 assert_contains "$HTML" "https://cdn.example.net/wp-content/uploads/bepluspb-cache/fx-css-" "minified CSS served from CDN host"
 assert_contains "$HTML" "https://cdn.example.net/wp-content/uploads/bepluspb-cache/fx-js-" "minified JS served from CDN host"

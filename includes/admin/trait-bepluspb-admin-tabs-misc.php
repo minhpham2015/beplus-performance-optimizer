@@ -212,36 +212,6 @@ trait BEPLUSPB_Admin_Tabs_Misc {
 		</div>
 
 		<?php
-		// ---- User-Based Exclusions card -------------------------------------
-		?>
-		<div class="bepluspb-card">
-			<div class="bepluspb-card-header">
-				<h2><?php esc_html_e( 'User-Based Exclusions', 'beplus-performance-booster' ); ?></h2>
-				<p><?php esc_html_e( 'Control whether optimized CSS and JS files are served to logged-in users, or bypassed to ensure user-specific pages render correctly.', 'beplus-performance-booster' ); ?></p>
-			</div>
-			<div class="bepluspb-card-body">
-
-				<div class="bepluspb-form-row">
-					<div class="bepluspb-form-row-label">
-						<label for="bepluspb_cache_for_logged_in"><?php esc_html_e( 'Enable Cache for Logged-In Users', 'beplus-performance-booster' ); ?></label>
-					</div>
-					<div class="bepluspb-form-row-field">
-						<label class="bepluspb-check-label">
-							<input type="checkbox" id="bepluspb_cache_for_logged_in"
-								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cache_for_logged_in]" value="1"
-								<?php checked( $opts['cache_for_logged_in'], 1 ); ?>>
-							<span class="bepluspb-check-text"><?php esc_html_e( 'Serve cached/minified CSS and JS to logged-in users.', 'beplus-performance-booster' ); ?></span>
-						</label>
-						<p class="description">
-							<?php esc_html_e( 'By default, cached CSS/JS is skipped for logged-in users because pages may contain user-specific content. Enable this only if your pages look the same regardless of login state (e.g. a blog with no member-only content).', 'beplus-performance-booster' ); ?>
-						</p>
-					</div>
-				</div>
-
-			</div>
-		</div>
-
-		<?php
 		// ---- Browser Cache card ---------------------------------------------
 		// IMP-3: Detect Nginx and show copy-paste config instead of the
 		// .htaccess toggle, which has no effect on Nginx servers.

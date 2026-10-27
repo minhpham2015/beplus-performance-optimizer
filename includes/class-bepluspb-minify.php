@@ -29,14 +29,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class BEPLUSPB_Minify {
 
 	/**
-	 * Per-request cache for the "is page cache disabled?" lookup.
-	 *
-	 * @var bool|null  null = not yet checked.
-	 */
-	private static $page_cache_disabled = null;
-
-	/**
-	 * Per-request cache for the page-exclusion-only check.
+	 * Per-request cache for the page-exclusion check (per-post "disable cache" box and
+	 * the "Exclude Pages from Cache" URL patterns).
 	 *
 	 * @var bool|null  null = not yet checked.
 	 */
@@ -83,8 +77,7 @@ class BEPLUSPB_Minify {
 			return;
 		}
 
-		self::$page_cache_disabled = null;
-		self::$page_excluded       = null;
+		self::$page_excluded = null;
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 			$css_on = $opts['minify_css_files'] ? 'ON' : 'OFF';
@@ -173,8 +166,7 @@ class BEPLUSPB_Minify {
 	 *
 	 * The cache key is derived from the source file's path, mtime and size, so
 	 * a cache hit costs two stat() calls instead of reading and hashing the
-	 * whole file on every request. Logged-in visitors who are not served cached
-	 * assets bail out before any minification work is done.
+	 * whole file on every request.
 	 *
 	 * @param  string $src    Asset URL.
 	 * @param  string $handle Registered handle.
@@ -183,10 +175,6 @@ class BEPLUSPB_Minify {
 	 */
 	private static function cached_asset_url( $src, $handle, $ext ) {
 		$label = strtoupper( $ext );
-		$opts  = bepluspb_get_options();
-		if ( empty( $opts['cache_for_logged_in'] ) && is_user_logged_in() ) {
-			return $src;
-		}
 
 		$file_path = self::url_to_path( $src );
 		if ( ! $file_path ) {
@@ -311,59 +299,22 @@ class BEPLUSPB_Minify {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Return true if caching should be skipped for the current page.
+	 * Return true if the current page is excluded from caching: its per-post "disable
+	 * cache" box is ticked, or its URL matches "Exclude Pages from Cache".
+	 *
+	 * Who is logged in is deliberately not considered here. Administrators are handled
+	 * once, in bepluspb_boot_frontend() (they see the untouched page), and the Page Cache
+	 * checks the visitor itself.
 	 *
 	 * @return bool
 	 */
 	public static function is_cache_disabled_for_page() {
-		if ( null !== self::$page_cache_disabled ) {
-			return self::$page_cache_disabled;
-		}
-
-		$opts = bepluspb_get_options();
-
-		if ( empty( $opts['cache_for_logged_in'] ) && is_user_logged_in() ) {
-			self::$page_cache_disabled = true;
-			return true;
-		}
-
-		$post_id = get_queried_object_id();
-		if ( $post_id ) {
-			$meta = get_post_meta( $post_id, '_bepluspb_disable_cache', true );
-			if ( ! empty( $meta ) ) {
-				self::$page_cache_disabled = true;
-				return true;
-			}
-		}
-
-		$patterns = bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] );
-		if ( ! empty( $patterns ) ) {
-			$current_url = isset( $_SERVER['REQUEST_URI'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-				? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
-				: '';
-			$full_url    = home_url( $current_url );
-
-			foreach ( $patterns as $pattern ) {
-				if ( empty( $pattern ) ) {
-					continue;
-				}
-				if (
-					false !== strpos( $current_url, $pattern ) ||
-					false !== strpos( $full_url, $pattern )
-				) {
-					self::$page_cache_disabled = true;
-					return true;
-				}
-			}
-		}
-
-		self::$page_cache_disabled = false;
-		return false;
+		return self::is_page_excluded();
 	}
 
 	/**
 	 * Return true if the current page is excluded from caching via per-page meta
-	 * or URL pattern — WITHOUT checking login status.
+	 * or URL pattern.
 	 *
 	 * @return bool
 	 */

@@ -33,10 +33,10 @@ function sanitize_file_name( $n ) { return preg_replace( '/[^A-Za-z0-9._-]/', '-
 function wp_upload_dir() { return array( 'baseurl' => 'http://example.test/wp-content/uploads' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
 function wp_is_writable( $p ) { return is_writable( $p ); }
-function is_user_logged_in() { return false; }
+function is_user_logged_in() { return ! empty( $GLOBALS['logged_in'] ); }
 function is_admin() { return false; }
 function get_queried_object_id() { return 0; } function get_post_meta() { return ''; } function sanitize_text_field( $s ) { return trim( (string) $s ); } function wp_unslash( $s ) { return $s; }
-function bepluspb_get_options() { return array( 'cache_for_logged_in' => 1, 'cache_enabled' => 1, 'cache_exclude_pages' => '', 'css_exclude' => '' ); }
+function bepluspb_get_options() { return array( 'cache_enabled' => 1, 'cache_exclude_pages' => '', 'css_exclude' => '' ); }
 function bepluspb_parse_exclude_list( $t ) { return empty( $t ) ? array() : array_values( array_filter( array_map( 'trim', explode( "\n", $t ) ) ) ); }
 $n = 0;
 function t_ok( $c, $m ) { global $n; ++$n; if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }
@@ -77,6 +77,14 @@ t_ok( false !== strpos( $css, '.a>.b{margin:0}' ), 'child combinator compacted' 
 t_ok( false !== strpos( BEPLUSPB_Minify::minify_css( '.a :hover { x: y }' ), '.a :hover' ), 'descendant-pseudo selector space preserved: ' . BEPLUSPB_Minify::minify_css( '.a :hover { x: y }' ) );
 t_ok( false !== strpos( BEPLUSPB_Minify::minify_css( 'a::after { content: "a ; b" }' ), '"a ; b"' ), 'string contents untouched: ' . BEPLUSPB_Minify::minify_css( 'a::after { content: "a ; b" }' ) );
 t_ok( false !== strpos( BEPLUSPB_Minify::minify_css( '.x { width: calc( 1px + 2px ) }' ), 'calc(1px + 2px)' ) || false !== strpos( BEPLUSPB_Minify::minify_css( '.x { width: calc( 1px + 2px ) }' ), 'calc( 1px + 2px )' ), 'calc() operators keep spaces' );
+
+// --- logged-in users: no option any more, they are optimised like visitors -------------
+$GLOBALS['logged_in'] = true;
+$li = BEPLUSPB_Minify::maybe_minify_css( $u . 'style.css?ver=9', 'liuser-css' );
+t_ok( false !== strpos( $li, '/bepluspb-cache/liuser-css-' ), 'a logged-in (non-admin) user is served the minified file: ' . $li );
+t_ok( false !== strpos( BEPLUSPB_Minify::maybe_minify_js( $u . 'app.js', 'liuser-js' ), '/bepluspb-cache/liuser-js-' ), 'and the minified JS' );
+$GLOBALS['logged_in'] = false;
+t_ok( false === BEPLUSPB_Minify::is_cache_disabled_for_page(), 'page exclusion check does not depend on who is logged in' );
 
 // --- minify_js -------------------------------------------------------------
 $js = BEPLUSPB_Minify::minify_js( file_get_contents( "$root/wp/wp-content/themes/t/app.js" ) );

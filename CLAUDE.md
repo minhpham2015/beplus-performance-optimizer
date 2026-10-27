@@ -50,6 +50,9 @@ checking whether it would break the SVN slug binding).
 - `includes/class-bepluspb-minify.php`, `-css.php`, `-js.php`, `-html.php`,
   `-ucss.php` — asset processing pipeline; `url_to_path()` in minify.php
   resolves enqueued URLs to filesystem paths and is shared by css.php/ucss.php.
+  Minify is initialised BEHIND the administrator gate in `bepluspb_boot_frontend()`
+  (admins see the original CSS/JS, every other logged-in user is optimised like a
+  visitor) — it makes no login decision of its own; don't re-add a per-user option.
   `-ucss.php` (`BEPLUSPB_UCSS`) implements "Remove Unused CSS": a pure-PHP
   static-text match against rendered HTML (not a real browser render), cached
   per page URL + per stylesheet in `wp-content/uploads/bepluspb-cache/`. See
