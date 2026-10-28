@@ -465,10 +465,14 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Screenshots ==
 
-1. **Dashboard tab** — Master cache toggle, one-click recommended-settings panel, and cache statistics.
-2. **Cache Files tab** — CSS and JS file minification options with cache-exclusion controls.
-3. **Status tab** — Live system status report covering PHP, WordPress, server environment, and plugin settings.
-4. **Admin bar panel** — Cache size and file count, colour-coded status dot, one-click Clear Cache button.
+1. **Dashboard tab** — Cache stats, master cache toggle, and the one-click recommended-settings panel.
+2. **Cache Files tab (Page Cache)** — Full-page caching controls: lifespan, bypass cookies, mobile handling, and per-visitor exclusions.
+3. **Status tab** — Live system status report covering PHP, WordPress, server environment, and actionable recommendations.
+4. **Cloudflare tab** — API token setup, one-click cache purge, and Development Mode toggle without leaving wp-admin.
+5. **Cleanup tab** — Remove unused assets (emoji scripts, oEmbed, Gutenberg CSS) and HTML output optimization.
+6. **Advanced tab** — Font preload hints and a custom CDN (pull-zone) URL rewriter for static assets.
+7. **Predictive Navigation tab** — Core speculation-rules integration with Safe/Balanced/Fast modes and path exclusions.
+8. **Object Cache tab** — Redis/Memcached connection settings, persistent connections, and global cache groups.
 
 == Changelog ==
 
