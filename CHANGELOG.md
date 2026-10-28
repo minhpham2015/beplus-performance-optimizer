@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.14] - 2026-10-28
+
 ### Removed
 - The "Enable Cache for Logged-In Users" option (`cache_for_logged_in`) and its
   "User-Based Exclusions" card. It only controlled whether logged-in users received the

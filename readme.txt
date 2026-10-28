@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.13
+Stable tag: 1.1.14
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -472,6 +472,17 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.1.14 =
+* New: optional Page Cache (off by default, Cache Files tab). Visitors who are not logged in get a stored HTML copy of public pages, served before WordPress loads the theme. Automatically skipped for logged-in users, carts/checkouts, forms and personalised pages; cleared when you edit content, menus, widgets, themes or these settings. Separate mobile copies are kept only for pages that need them. "Purge ALL Cache" now empties it too.
+* New: admin bar "Purge ALL Cache" is a one-click button (with a confirmation) that returns you to the page you were on and shows the result on screen. The admin bar Object Cache purge button now also asks for confirmation on every screen.
+* Fix: the admin bar "Purge ALL Cache" link could open the wrong settings tab and hide the button.
+* Fix: Remove Unused CSS cache was not cleared when you saved a post or switched theme; deleted CSS/JS files no longer leave cached pages pointing at missing files.
+* Fix: administrators now see the original CSS/JS (like the other optimisers) while other logged-in users get the minified files. The "Enable Cache for Logged-In Users" option was removed because it never affected anything else.
+* Fix: .htaccess browser-cache rules no longer override an app's own Cache-Control, only mark versioned CSS/JS as immutable, and no longer cover feeds or robots.txt (re-save settings to refresh the rules).
+* Fix: Delay JS no longer breaks inline scripts; HTML/CSS/CDN transforms fall back to the untouched page instead of a blank page on very large pages; defer JS skips scripts with inline code that must run after them; page-builder editors, AMP and the Customizer preview are left alone.
+* Fix: Object Cache drop-in handles atomic add, increment/decrement, cached false values and a failed pipeline correctly, and uses fewer round trips (batched reads and writes).
+* Improvement: faster CSS/JS minify cache lookups, cached inline CSS and a lighter CDN WebP/AVIF check.
+
 = 1.1.13 =
 * Security: block web access to the object-cache drop-in backup folder (backups of another plugin's drop-in can contain cache passwords) and use unguessable backup names.
 * Security: stop a stylesheet/script symlink from exposing wp-config.php through the minified-file cache.
@@ -650,6 +661,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.1.14 =
+Adds an optional, off-by-default Page Cache, a one-click confirmed "Purge ALL Cache" in the admin bar, and many reliability fixes (Remove Unused CSS cache, .htaccess cache headers, Delay JS, Object Cache drop-in). Administrators now see the original CSS/JS; other logged-in users get the minified files. If you use Object Cache, the drop-in is updated: reinstall or update it from the Object Cache tab.
 
 = 1.1.13 =
 Security and reliability update: protects drop-in backups and the minified-file cache from exposing sensitive files, makes Object Cache replacement work on PHP-FPM hosts, and stops cache purges from affecting other sites sharing Redis/Memcached. If you use Object Cache with other sites on the same Redis server, set a unique WP_CACHE_KEY_SALT per site.

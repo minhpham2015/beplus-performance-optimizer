@@ -4,7 +4,7 @@ File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file n�
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.13 · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.14 · Nhánh mặc định: `master`
 
 ## 1.2.0 — Page cache (lỗ hổng lớn nhất)
 
