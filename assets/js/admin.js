@@ -106,8 +106,23 @@
 	try { saved = sessionStorage.getItem('bepluspb_active_tab'); } catch (e) {}
 	saved = saved ? resolveTabId(saved) : saved;
 
+	// Deep-link to a section inside a tab panel (e.g. the admin bar's
+	// "Purge ALL Cache" link -> #bepluspb-cache-actions): open the panel that
+	// contains it instead of the last-used tab, then scroll to it.
+	var anchorTarget = null;
+	var anchorPanelId = '';
+	var rawHash = window.location.hash;
+	if (rawHash && rawHash.indexOf('#bepluspb-tab-') !== 0 && /^#bepluspb-[a-z0-9_-]+$/i.test(rawHash)) {
+		anchorTarget = document.getElementById(rawHash.substring(1));
+		var anchorPanel = anchorTarget && anchorTarget.closest ? anchorTarget.closest('[id^="bepluspb-tab-"]') : null;
+		if (anchorPanel) { anchorPanelId = anchorPanel.id.substring('bepluspb-tab-'.length); }
+	}
+
 	if (window.location.hash.indexOf('#bepluspb-tab-') === 0) {
 		// Hash already handled activation above; don't override it here.
+	} else if (anchorPanelId) {
+		activate(anchorPanelId);
+		anchorTarget.scrollIntoView();
 	} else if (saved && document.getElementById('bepluspb-tab-' + saved)) {
 		activate(saved);
 	} else if (btns.length) {

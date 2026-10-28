@@ -104,6 +104,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Last-Modified`/304 for such pages, since the body changes on every response).
 
 ### Fixed
+- Admin bar "Purge ALL Cache" link now opens the Dashboard panel that holds the purge
+  button and scrolls to it. Before, `admin.js` restored the last-used tab from
+  `sessionStorage` and the button stayed hidden when that was "Cache Files"/"Advanced".
 - Page Cache: purges silently failed when the WordPress install path contained
   `[ ] * ? { }` (`glob()` treated them as patterns and matched nothing). All
   cache file listing now uses directory iterators, including the block-theme
