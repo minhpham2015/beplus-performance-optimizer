@@ -114,7 +114,11 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		/** Query parameters that do not change the rendered page. */
 		const IGNORED_PARAMS = array( 'fbclid', 'gclid', 'msclkid', 'dclid', 'yclid', 'mc_cid', 'mc_eid', '_ga', '_gl', 'gad_source' );
 
-		/** Request-level memo of the loaded config. */
+		/**
+		 * Request-level memo of the loaded config.
+		 *
+		 * @var array|null
+		 */
 		private static $config = null;
 
 		/**
@@ -311,10 +315,10 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 		 * File-name variant for the request: scheme, device, language/currency
 		 * cookies and Accept-driven image formats each get their own copy.
 		 *
-		 * @param array $cfg     Loaded config.
-		 * @param array $server  $_SERVER.
-		 * @param array $cookies $_COOKIE.
-		 * @param string|null $device Device token: null = follow the config, '' = none, 'd'/'m' = force.
+		 * @param array       $cfg     Loaded config.
+		 * @param array       $server  $_SERVER.
+		 * @param array       $cookies $_COOKIE.
+		 * @param string|null $device  Device token: null = follow the config, '' = none, 'd'/'m' = force.
 		 * @return string|null e.g. "index-s-m-1a2b3c4d-avif.html", or null when a
 		 *                     variant cookie has an unusable value (do not cache).
 		 */
@@ -624,8 +628,8 @@ if ( ! class_exists( 'BEPLUSPB_Page_Cache_Engine', false ) ) {
 			if ( ! is_array( $data ) ) {
 				return $meta;
 			}
-			// Either {"h":[...],"n":[...]} or a bare list of header lines.
-			$lines = isset( $data['h'] ) && is_array( $data['h'] ) ? $data['h'] : ( isset( $data['n'] ) ? array() : $data );
+			// Accepts an object with "h" (headers) and "n" (nonces) lists, or a bare list of header lines.
+			$lines     = isset( $data['h'] ) && is_array( $data['h'] ) ? $data['h'] : ( isset( $data['n'] ) ? array() : $data );
 			$meta['h'] = self::sanitize_headers( $lines );
 			if ( isset( $data['n'] ) && is_array( $data['n'] ) ) {
 				foreach ( $data['n'] as $nonce ) {

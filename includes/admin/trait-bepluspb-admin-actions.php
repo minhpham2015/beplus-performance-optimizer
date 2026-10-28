@@ -362,6 +362,8 @@ trait BEPLUSPB_Admin_Actions {
 	 * Reads the result from a short-lived per-user transient set by
 	 * handle_clear_cache() so the notice is shown exactly once regardless
 	 * of browser history or URL sharing.
+	 *
+	 * @param bool $frontend True to print the compact front-end toast instead of the admin notice.
 	 */
 	public static function maybe_show_cleared_notice( $frontend = false ) {
 		$key    = 'bepluspb_cache_cleared_' . get_current_user_id();

@@ -71,7 +71,7 @@ if ( file_exists( $bepluspb_pc_class ) ) {
 		}
 	}
 	if ( is_dir( $bepluspb_pc_root ) ) {
-		@rmdir( $bepluspb_pc_root ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir -- only succeeds when empty.
+		@rmdir( $bepluspb_pc_root ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- only succeeds when empty.
 	}
 }
 

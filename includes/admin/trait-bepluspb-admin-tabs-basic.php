@@ -288,9 +288,9 @@ else :
 							<?php endif; ?>
 							<?php if ( $status['bypassed'] ) : ?>
 						<p class="description">
-							<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
-							<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
-							<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
+								<strong><?php esc_html_e( 'Not run for pages served from the cache:', 'beplus-performance-booster' ); ?></strong>
+								<?php echo esc_html( implode( '; ', $status['bypassed'] ) ); ?>.
+								<?php esc_html_e( 'Their code only runs when WordPress builds a page. Exclude the affected URLs under Advanced → Page Exclusions, or use their JavaScript/REST mode where they have one. Maintenance and redirect plugins: purge the cache after changing them.', 'beplus-performance-booster' ); ?>
 						</p>
 							<?php endif; ?>
 							<?php foreach ( $status['errors'] as $error ) : ?>

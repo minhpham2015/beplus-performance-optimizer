@@ -327,11 +327,11 @@ class BEPLUSPB_Page_Cache {
 	 * Whether an option name matches a list of exact names and "prefix*" entries.
 	 *
 	 * @param string   $option Option name.
-	 * @param string[] $list   Names; entries ending in "*" are prefixes.
+	 * @param string[] $names  Names; entries ending in "*" are prefixes.
 	 * @return bool
 	 */
-	private static function option_in_list( $option, array $list ) {
-		foreach ( $list as $entry ) {
+	private static function option_in_list( $option, array $names ) {
+		foreach ( $names as $entry ) {
 			if ( ! is_string( $entry ) || '' === $entry ) {
 				continue;
 			}
@@ -388,13 +388,13 @@ class BEPLUSPB_Page_Cache {
 	/**
 	 * Restrict a select-style option to its allowed values.
 	 *
-	 * @param mixed    $value   Raw value.
-	 * @param string[] $allowed Allowed values.
-	 * @param string   $default Fallback.
+	 * @param mixed    $value    Raw value.
+	 * @param string[] $allowed  Allowed values.
+	 * @param string   $fallback Fallback.
 	 * @return string
 	 */
-	public static function sanitize_choice( $value, array $allowed, $default ) {
-		return is_string( $value ) && in_array( $value, $allowed, true ) ? $value : $default;
+	public static function sanitize_choice( $value, array $allowed, $fallback ) {
+		return is_string( $value ) && in_array( $value, $allowed, true ) ? $value : $fallback;
 	}
 
 	/**
@@ -881,11 +881,11 @@ class BEPLUSPB_Page_Cache {
 	 * Settings-change hook: re-sync with the new values.
 	 *
 	 * @param mixed $old Previous value (unused).
-	 * @param mixed $new New value.
+	 * @param mixed $new_value New value.
 	 */
-	public static function on_settings_updated( $old, $new ) {
+	public static function on_settings_updated( $old, $new_value ) {
 		unset( $old );
-		self::sync( wp_parse_args( is_array( $new ) ? $new : array(), bepluspb_default_options() ) );
+		self::sync( wp_parse_args( is_array( $new_value ) ? $new_value : array(), bepluspb_default_options() ) );
 	}
 
 	/**
@@ -1028,7 +1028,7 @@ class BEPLUSPB_Page_Cache {
 		self::$mobile_mode = $cfg ? $cfg['mobile'] : self::sanitize_choice( $opts['page_cache_mobile'] ?? 'auto', self::MOBILE_MODES, 'auto' );
 		if ( 'separate' === self::$mobile_mode ) {
 			// Every page may now depend on the device: downstream caches (proxies, CDNs) must key on it too.
-			// ("auto" announces this only on pages that actually asked WordPress about the device.)
+			// Mode "auto" announces this only on pages that actually asked WordPress about the device.
 			add_action( 'template_redirect', array( __CLASS__, 'send_vary_user_agent' ), -101 );
 		}
 	}
@@ -1090,8 +1090,9 @@ class BEPLUSPB_Page_Cache {
 		if ( self::$lists_others || ( is_admin() && ! self::$self_test ) || ! is_object( $query ) || ! isset( $query->query_vars ) ) {
 			return;
 		}
-		$post_id = isset( $query->query_vars['post_id'] ) ? (int) $query->query_vars['post_id'] : 0;
-		if ( 0 === $post_id || $post_id !== (int) get_queried_object_id() ) {
+		$post_id    = isset( $query->query_vars['post_id'] ) ? (int) $query->query_vars['post_id'] : 0;
+		$queried_id = (int) get_queried_object_id();
+		if ( 0 === $post_id || $post_id !== $queried_id ) {
 			self::$lists_others = true;
 		}
 	}
@@ -1217,7 +1218,8 @@ class BEPLUSPB_Page_Cache {
 		if ( null === self::$observed_mobile || ! in_array( self::$mobile_mode, array( 'auto', 'separate' ), true ) ) {
 			return false;
 		}
-		return self::$observed_mobile !== BEPLUSPB_Page_Cache_Engine::is_mobile_request( $_SERVER );
+		$engine_mobile = BEPLUSPB_Page_Cache_Engine::is_mobile_request( $_SERVER );
+		return self::$observed_mobile !== $engine_mobile;
 	}
 
 	/**

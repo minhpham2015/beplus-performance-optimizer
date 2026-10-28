@@ -9,7 +9,7 @@ parameters:
 		-
 			message: '#^Constant BEPLUSPB_PLUGIN_URL not found\.$#'
 			identifier: constant.notFound
-			count: 3
+			count: 4
 			path: includes/class-bepluspb-admin.php
 
 		-
@@ -66,3 +66,40 @@ parameters:
 			identifier: return.void
 			count: 2
 			path: includes/class-bepluspb-ucss.php
+
+		-
+			message: '#^Constant BEPLUSPB_PLUGIN_DIR not found\.$#'
+			identifier: constant.notFound
+			count: 2
+			path: includes/class-bepluspb-page-cache.php
+
+		-
+			message: '#^Action callback returns array\{status\: string, matched\: int, deleted\: int, failed\: int\} but should not return anything\.$#'
+			identifier: return.void
+			count: 3
+			path: includes/class-bepluspb-page-cache.php
+
+		-
+			message: '#^Action callback returns int but should not return anything\.$#'
+			identifier: return.void
+			count: 2
+			path: includes/class-bepluspb-page-cache.php
+
+		# The Page Cache engine runs from advanced-cache.php before WordPress (and so wp_doing_ajax() etc.) exist.
+		-
+			message: '#^Found usage of constant DOING_AJAX\. Use wp_doing_ajax\(\) instead\.$#'
+			identifier: phpstanWP.wpConstant.fetch
+			count: 1
+			path: lib/class-bepluspb-page-cache-engine.php
+
+		-
+			message: '#^Found usage of constant DOING_CRON\. Use wp_doing_cron\(\) instead\.$#'
+			identifier: phpstanWP.wpConstant.fetch
+			count: 1
+			path: lib/class-bepluspb-page-cache-engine.php
+
+		-
+			message: '#^Found usage of constant WP_INSTALLING\. Use wp_installing\(\) instead\.$#'
+			identifier: phpstanWP.wpConstant.fetch
+			count: 1
+			path: lib/class-bepluspb-page-cache-engine.php

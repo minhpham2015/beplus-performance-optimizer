@@ -1,6 +1,6 @@
 <?php
 /**
- * redirect_after_purge(): the admin bar sends the current page in `bepluspb_return`; the handler goes back
+ * Tests that redirect_after_purge() honours the return URL: the admin bar sends the current page in `bepluspb_return`; the handler goes back
  * there when it is a same-site URL and falls back to the settings page otherwise (no open redirect).
  * wp_validate_redirect() is stubbed with WordPress's rule: only the site's own host is allowed.
  *
