@@ -92,4 +92,11 @@
              silently to "cache miss, serve unminified" rather than ever
              surface a PHP warning on a live front-end page. -->
     </rule>
+
+    <!-- The standalone tests under tests/ stub plugin classes (BEPLUSPB_Minify, BEPLUSPB_Utils,
+         BEPLUSPB_Page_Cache, ...) so they can run without WordPress. PHPCS then sees the same class
+         name twice and warns on the real class file, which fails CI on warnings. -->
+    <rule ref="Generic.Classes.DuplicateClassName">
+        <severity>0</severity>
+    </rule>
 </ruleset>
