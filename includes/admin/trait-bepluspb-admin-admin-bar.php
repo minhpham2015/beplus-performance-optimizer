@@ -159,7 +159,12 @@ trait BEPLUSPB_Admin_Admin_Bar {
 		$html .= '<div class="bepluspb-ab-sep" aria-hidden="true"></div>';
 
 		// Full-width flush clear button.
-		$html .= '<div class="bepluspb-ab-purge-form"><a href="' . esc_url( admin_url( 'options-general.php?page=beplus-performance-booster#bepluspb-cache-actions' ) ) . '">' . esc_html__( 'Purge ALL Cache', 'beplus-performance-booster' ) . '</a></div>';
+		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-ab-purge-form">'
+			. '<input type="hidden" name="action" value="bepluspb_purge_all_cache">'
+			. wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce', true, false )
+			. self::return_url_field()
+			. '<button type="submit">' . esc_html__( 'Purge ALL Cache', 'beplus-performance-booster' ) . '</button>'
+			. '</form>';
 		$html .= self::render_object_cache_purge_control( 'admin-bar' );
 
 		$html .= '</div>'; // .bepluspb-ab-panel
@@ -167,6 +172,18 @@ trait BEPLUSPB_Admin_Admin_Bar {
 		return $html;
 	}
 
+
+	/**
+	 * Hidden field carrying the page the admin bar was clicked on, so the purge handler can send the
+	 * user back to it. Validated again on receipt by redirect_after_purge().
+	 *
+	 * @return string Safe HTML markup.
+	 */
+	private static function return_url_field() {
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitised below by esc_url_raw().
+		$url = ( is_ssl() ? 'https://' : 'http://' ) . ( isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '' ) . $uri;
+		return '<input type="hidden" name="bepluspb_return" value="' . esc_attr( esc_url_raw( $url ) ) . '">';
+	}
 
 	/**
 	 * Render the shared, POST-only Object Cache purge control.
@@ -198,6 +215,9 @@ trait BEPLUSPB_Admin_Admin_Bar {
 		$html .= '<input type="hidden" name="action" value="bepluspb_purge_object_cache">';
 		$html .= wp_nonce_field( 'bepluspb_purge_object_cache', 'bepluspb_object_purge_nonce', true, false );
 		$html .= '<input type="hidden" name="bepluspb_confirm_object_purge" value="1">';
+		if ( 'admin-bar' === $context ) {
+			$html .= self::return_url_field();
+		}
 		$html .= '<button type="submit" class="button" aria-label="' . esc_attr__( 'Purge persistent Object Cache', 'beplus-performance-booster' ) . '"' . disabled( $available, false, false ) . '>' . esc_html__( 'Purge Object Cache', 'beplus-performance-booster' ) . '</button>';
 		$html .= '</form>';
 		if ( 'dashboard' === $context ) {

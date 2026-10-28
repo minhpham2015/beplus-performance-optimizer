@@ -103,6 +103,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   swaps in a fresh random nonce in the body and in the header (no
   `Last-Modified`/304 for such pages, since the body changes on every response).
 
+### Changed
+- Admin bar "Purge ALL Cache" is now a one-click POST form (nonce + capability checked as before) and
+  returns to the page it was clicked on instead of redirecting to the settings page. The result is
+  shown as a short toast on the front end. The return URL must be same-site (`wp_validate_redirect()`),
+  otherwise the settings page is used. The Object Cache purge button in the bar behaves the same way.
+
 ### Fixed
 - Admin bar "Purge ALL Cache" link now opens the Dashboard panel that holds the purge
   button and scrolls to it. Before, `admin.js` restored the last-used tab from

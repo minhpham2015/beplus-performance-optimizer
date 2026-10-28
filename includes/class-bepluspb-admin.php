@@ -98,6 +98,7 @@ class BEPLUSPB_Admin {
 		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_object_cache_warning' ) );
+		add_action( 'wp_footer', array( __CLASS__, 'maybe_show_cleared_toast' ) );
 	}
 
 	// =========================================================================

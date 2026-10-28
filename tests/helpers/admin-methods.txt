@@ -24,6 +24,7 @@ handle_quick_enable
 handle_recommendation_action
 init
 maybe_show_cleared_notice
+maybe_show_cleared_toast
 maybe_show_object_cache_warning
 redirect_after_purge
 register_meta_box
@@ -44,6 +45,7 @@ render_section_predictive_navigation
 render_section_status
 render_settings_page
 render_status_recommendations
+return_url_field
 sanitize_options
 save_meta_box
 store_purge_result

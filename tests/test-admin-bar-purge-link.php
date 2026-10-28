@@ -14,10 +14,12 @@ $js    = file_get_contents( $root . '/assets/js/admin.js' );
 $n     = 0;
 function t_ok( $c, $m ) { global $n; ++$n; if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }
 
-preg_match( '/bepluspb-ab-purge-form"><a href="\' \. esc_url\( admin_url\( \'[^#\']*#([a-z0-9-]+)\'/', $admin, $m );
-t_ok( ! empty( $m[1] ), 'admin bar link carries an anchor' );
-$anchor = $m[1];
-t_ok( 1 === substr_count( $admin, 'id="' . $anchor . '"' ), 'the anchor exists exactly once on the settings page' );
+$bar = file_get_contents( $root . '/includes/admin/trait-bepluspb-admin-admin-bar.php' );
+t_ok( false !== strpos( $bar, 'class="bepluspb-ab-purge-form"' ) && false !== strpos( $bar, 'method="post"' ), 'admin bar purge is a POST form' );
+t_ok( false !== strpos( $bar, "wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce'" ) && false !== strpos( $bar, 'name="action" value="bepluspb_purge_all_cache"' ), 'it carries the purge nonce and action' );
+t_ok( substr_count( $bar, 'return_url_field()' ) >= 3, 'both admin bar forms send the current page back' );
+$anchor = 'bepluspb-cache-actions';
+t_ok( 1 === substr_count( $admin, 'id="' . $anchor . '"' ), 'the dashboard anchor still exists exactly once (deep links)' );
 t_ok( false !== strpos( $js, "closest('[id^=\"bepluspb-tab-\"]')" ), 'admin.js finds the tab panel that contains a deep-linked anchor' );
 $p_anchor = strpos( $js, 'else if (anchorPanelId)' );
 $p_saved  = strpos( $js, 'else if (saved &&' );
@@ -25,4 +27,4 @@ t_ok( false !== $p_anchor && false !== $p_saved && $p_anchor < $p_saved, 'an anc
 t_ok( false !== strpos( $js, 'anchorTarget.scrollIntoView()' ), 'the anchor is scrolled into view' );
 t_ok( false !== strpos( $js, '/^#bepluspb-[a-z0-9_-]+$/i' ), 'only plugin-prefixed hashes are looked up' );
 
-echo "PASS: $n admin bar purge link assertions\n";
+echo "PASS: $n admin bar purge form / deep-link assertions\n";

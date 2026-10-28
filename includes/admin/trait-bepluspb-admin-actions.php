@@ -317,7 +317,13 @@ trait BEPLUSPB_Admin_Actions {
 
 	/** Redirect after a POST to prevent refresh from repeating it. */
 	private static function redirect_after_purge() {
-		wp_safe_redirect( admin_url( 'options-general.php?page=beplus-performance-booster' ) );
+		$fallback = admin_url( 'options-general.php?page=beplus-performance-booster' );
+		$target   = $fallback;
+		// The nonce was already verified by the caller; the value is still untrusted, so only a same-site URL is followed.
+		if ( ! empty( $_POST['bepluspb_return'] ) && is_string( $_POST['bepluspb_return'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified by check_admin_referer() in the calling handler.
+			$target = wp_validate_redirect( esc_url_raw( wp_unslash( $_POST['bepluspb_return'] ) ), $fallback ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		}
+		wp_safe_redirect( $target );
 		exit;
 	}
 
@@ -357,12 +363,23 @@ trait BEPLUSPB_Admin_Actions {
 	 * handle_clear_cache() so the notice is shown exactly once regardless
 	 * of browser history or URL sharing.
 	 */
-	public static function maybe_show_cleared_notice() {
+	public static function maybe_show_cleared_notice( $frontend = false ) {
 		$key    = 'bepluspb_cache_cleared_' . get_current_user_id();
 		$report = get_transient( $key );
 		if ( ! is_array( $report ) ) {
 			return; }
 		delete_transient( $key );
+		if ( $frontend ) {
+			echo '<style>#bepluspb-purge-toast{position:fixed;top:44px;right:16px;z-index:100000;max-width:360px;padding:10px 14px;background:#fff;color:#1d2327;border-left:4px solid #00a32a;box-shadow:0 2px 8px rgba(0,0,0,.25);font:13px/1.5 sans-serif;animation:bepluspb-toast 9s forwards}#bepluspb-purge-toast.is-warning{border-color:#dba617}#bepluspb-purge-toast.is-error{border-color:#d63638}#bepluspb-purge-toast ul{margin:4px 0 0 16px;padding:0;list-style:disc}@keyframes bepluspb-toast{0%,90%{opacity:1}100%{opacity:0;visibility:hidden}}</style>';
+			$tclass = 'success' === $report['overall'] ? '' : ( 'partial' === $report['overall'] ? ' is-warning' : ' is-error' );
+			echo '<div id="bepluspb-purge-toast" class="' . esc_attr( trim( $tclass ) ) . '" role="status"><strong>' . esc_html( sprintf( /* translators: %s: overall purge status. */ __( 'Cache purge result: %s.', 'beplus-performance-booster' ), $report['overall'] ) ) . '</strong><ul>';
+			foreach ( $report['layers'] as $name => $layer ) {
+				$message = isset( $layer['message'] ) ? $layer['message'] : sprintf( /* translators: 1: matched files, 2: deleted files, 3: failed files. */ __( '%1$d matched, %2$d deleted, %3$d failed.', 'beplus-performance-booster' ), $layer['matched'], $layer['deleted'], $layer['failed'] );
+				echo '<li>' . esc_html( ucfirst( str_replace( '_', ' ', $name ) ) . ': ' . $layer['status'] . ' — ' . $message ) . '</li>';
+			}
+			echo '</ul></div>';
+			return;
+		}
 		$class = 'success' === $report['overall'] ? 'success' : ( 'partial' === $report['overall'] ? 'warning' : 'error' );
 		echo '<div class="notice notice-' . esc_attr( $class ) . ' is-dismissible"><p><strong>' . esc_html( sprintf( /* translators: %s: overall purge status. */ __( 'Cache purge result: %s.', 'beplus-performance-booster' ), $report['overall'] ) ) . '</strong></p><ul>';
 		foreach ( $report['layers'] as $name => $layer ) {
@@ -370,6 +387,13 @@ trait BEPLUSPB_Admin_Actions {
 			echo '<li>' . esc_html( ucfirst( str_replace( '_', ' ', $name ) ) . ': ' . $layer['status'] . ' — ' . $message ) . '</li>';
 		}
 		echo '</ul></div>';
+	}
+
+	/** Front-end variant: the same one-time report as a short-lived toast (admin bar showing only). */
+	public static function maybe_show_cleared_toast() {
+		if ( is_admin_bar_showing() && current_user_can( 'manage_options' ) ) {
+			self::maybe_show_cleared_notice( true );
+		}
 	}
 
 	// =========================================================================

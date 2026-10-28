@@ -16,7 +16,7 @@ $n = 0;
 function t_ok( $c, $m ) { global $n; ++$n; if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }
 
 BEPLUSPB_Admin::init();
-t_ok( 24 === count( $GLOBALS['hooks'] ), 'init() registers hooks (' . count( $GLOBALS['hooks'] ) . ')' );
+t_ok( 25 === count( $GLOBALS['hooks'] ), 'init() registers hooks (' . count( $GLOBALS['hooks'] ) . ')' );
 foreach ( $GLOBALS['hooks'] as list( $type, $tag, $cb, $priority, $accepted_args ) ) {
 	t_ok( is_array( $cb ) && 'BEPLUSPB_Admin' === $cb[0] && method_exists( 'BEPLUSPB_Admin', $cb[1] ), "$tag callback {$cb[1]} exists" );
 	t_ok( ( new ReflectionMethod( 'BEPLUSPB_Admin', $cb[1] ) )->isPublic(), "$tag callback {$cb[1]} is public" );
