@@ -5,6 +5,7 @@ build_adminbar_panel
 check_cloudflare_rate_limit
 dropin_workflow
 enqueue_admin_assets
+enqueue_adminbar_script
 enqueue_adminbar_styles
 format_recommendation_value
 handle_ajax_backup_replace_oc

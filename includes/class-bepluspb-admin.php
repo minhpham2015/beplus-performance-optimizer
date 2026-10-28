@@ -123,6 +123,11 @@ class BEPLUSPB_Admin {
 			BEPLUSPB_VERSION
 		);
 
+		// Admin bar purge confirmation on every other admin screen (the settings page's admin.js covers itself).
+		if ( 'settings_page_beplus-performance-booster' !== $hook_suffix ) {
+			self::enqueue_adminbar_script();
+		}
+
 		// CQ-3: Tab-switching logic lives in an external file so it can be
 		// cached by the browser and linted/tested independently.
 		if ( 'settings_page_beplus-performance-booster' === $hook_suffix ) {
@@ -170,6 +175,12 @@ class BEPLUSPB_Admin {
 			array(),
 			BEPLUSPB_VERSION
 		);
+		self::enqueue_adminbar_script();
+	}
+
+	/** Confirmation dialog for the admin bar purge forms (needs the admin bar to be showing). */
+	private static function enqueue_adminbar_script() {
+		wp_enqueue_script( 'bepluspb-adminbar-js', BEPLUSPB_PLUGIN_URL . 'assets/js/adminbar.js', array(), BEPLUSPB_VERSION, true );
 	}
 
 	// =========================================================================

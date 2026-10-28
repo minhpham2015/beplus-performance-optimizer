@@ -159,7 +159,7 @@ trait BEPLUSPB_Admin_Admin_Bar {
 		$html .= '<div class="bepluspb-ab-sep" aria-hidden="true"></div>';
 
 		// Full-width flush clear button.
-		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-ab-purge-form">'
+		$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="bepluspb-ab-purge-form bepluspb-purge-form" data-confirm="' . esc_attr__( 'Purge ALL cache (CSS/JS files, page cache and Cloudflare where enabled)? Pages will be rebuilt on the next visits.', 'beplus-performance-booster' ) . '">'
 			. '<input type="hidden" name="action" value="bepluspb_purge_all_cache">'
 			. wp_nonce_field( 'bepluspb_purge_all_cache', 'bepluspb_purge_nonce', true, false )
 			. self::return_url_field()
