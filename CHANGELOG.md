@@ -107,6 +107,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Admin bar "Purge ALL Cache" asks for confirmation (new `assets/js/adminbar.js`, loaded on the
   front end and on admin screens other than the settings page). This also fixes the admin bar
   Object Cache purge button, whose `data-confirm` was ignored outside the settings page.
+- Admin bar "Purge ALL Cache" button is styled as a plain admin bar link (transparent, no border,
+  `#wpadminbar`-scoped so theme/WordPress button defaults do not win).
 - Admin bar "Purge ALL Cache" is now a one-click POST form (nonce + capability checked as before) and
   returns to the page it was clicked on instead of redirecting to the settings page. The result is
   shown as a short toast on the front end. The return URL must be same-site (`wp_validate_redirect()`),

@@ -35,4 +35,8 @@ t_ok( false !== strpos( $cls, "'settings_page_beplus-performance-booster' !== \$
 $ab_js = file_get_contents( $root . '/assets/js/adminbar.js' );
 t_ok( false !== strpos( $ab_js, 'window.confirm(message)' ) && false !== strpos( $ab_js, 'preventDefault' ), 'adminbar.js cancels the submit when the dialog is dismissed' );
 
+$css = file_get_contents( $root . '/assets/css/admin.css' );
+$rule = substr( $css, strpos( $css, '#wpadminbar .bepluspb-ab-purge-form button {' ), 700 );
+t_ok( false !== strpos( $rule, 'background: transparent !important' ) && false !== strpos( $rule, 'border: 0 !important' ) && false !== strpos( $rule, 'color: #f0f0f1 !important' ), 'the admin bar purge button is styled as a plain link (beats #wpadminbar button defaults)' );
+
 echo "PASS: $n admin bar purge form / deep-link assertions\n";

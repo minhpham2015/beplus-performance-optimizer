@@ -395,27 +395,28 @@
 }
 
 
-/* Admin bar "Purge ALL Cache": a one-click POST form styled like the old link. */
-.bepluspb-ab-purge-form { margin: 0 !important; padding: 0 !important; }
-.bepluspb-ab-purge-form button {
+/* Admin bar "Purge ALL Cache": a one-click POST form whose submit button looks like a plain admin bar link. */
+#wpadminbar .bepluspb-ab-purge-form { margin: 0 !important; padding: 0 !important; }
+#wpadminbar .bepluspb-ab-purge-form button {
 	display: block !important;
 	width: 100% !important;
+	height: auto !important;
 	box-sizing: border-box !important;
 	margin: 0 !important;
 	border: 0 !important;
 	border-radius: 0 !important;
-	background: #2c3338 !important;
-	color: #fff !important;
+	box-shadow: none !important;
+	background: transparent !important;
+	color: #f0f0f1 !important;
 	padding: 10px 16px !important;
-	font-size: 12px !important;
-	font-weight: 500 !important;
-	line-height: 1.4 !important;
+	font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif !important;
 	text-align: left !important;
+	text-decoration: none !important;
 	cursor: pointer !important;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif !important;
 }
-.bepluspb-ab-purge-form button:hover,
-.bepluspb-ab-purge-form button:focus { background: #32373c !important; }
+#wpadminbar .bepluspb-ab-purge-form button:hover,
+#wpadminbar .bepluspb-ab-purge-form button:focus { color: #72aee6 !important; background: transparent !important; box-shadow: none !important; }
+#wpadminbar .bepluspb-ab-purge-form button:disabled { opacity: .6; cursor: default !important; }
 
 /* ---- Meta box (per-page cache disable) ------------------------------------ */
 
