@@ -284,7 +284,7 @@ class BEPLUSPB_Page_Cache {
 	 */
 	public static function sanitize_ttl_hours( $hours ) {
 		$hours = absint( $hours );
-		return $hours < 1 ? 10 : min( 72, $hours );
+		return $hours < 1 ? 10 : min( 24, $hours );
 	}
 
 	/**

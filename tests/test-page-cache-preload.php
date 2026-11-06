@@ -42,7 +42,7 @@ function get_posts( $args ) { $GLOBALS['query_args'] = $args; return array_keys(
 function get_permalink( $id ) { return $GLOBALS['permalinks'][ $id ] ?? false; }
 function wp_remote_get( $url, $args ) { $GLOBALS['requests'][] = array( $url, $args ); if ( ! empty( $GLOBALS['on_request'] ) ) { $f = $GLOBALS['on_request']; $GLOBALS['on_request'] = null; $f(); } return $GLOBALS['fail'] ? new WP_Error() : array( 'code' => $GLOBALS['code'] ?? 200 ); }
 function wp_remote_retrieve_response_code( $r ) { return $r['code']; }
-class BEPLUSPB_Page_Cache { public static function is_enabled( $o ) { return ! empty( $o['cache_enabled'] ) && ! empty( $o['page_cache_enabled'] ); } }
+class BEPLUSPB_Page_Cache { public static function is_enabled( $o ) { return ! empty( $o['cache_enabled'] ) && ! empty( $o['page_cache_enabled'] ); } public static function sanitize_ttl_hours( $h ) { $h = abs( (int) $h ); return $h < 1 ? 10 : min( 24, $h ); } }
 class BEPLUSPB_Page_Cache_Engine {
 	public static function load_config() { return array( 'exclude_paths' => array( '/members/' ) ); }
 	public static function path_segments( $p ) { return preg_match( '#^/[a-z0-9/_-]*$#', $p ) ? array_values( array_filter( explode( '/', $p ) ) ) : null; }
@@ -189,7 +189,7 @@ t_ok( null === $P::get_status() || $old !== ( $GLOBALS['transients'][ $P::STATE_
 // ---- ...nor overwrite a NEW run that replaced it ------------------------------------
 $P::cancel();
 $P::start();
-$GLOBALS['on_request'] = function () use ( $P ) { $P::schedule(); $P::start(); }; // Purge, then the new run begins, mid-batch.
+$GLOBALS['on_request'] = function () use ( $P ) { $P::schedule(); delete_transient( $P::LAST_TRANSIENT ); $P::start(); }; // Purge, then (rate limit elapsed) the new run begins, mid-batch.
 $P::tick();
 $st = $P::get_status();
 t_ok( 0 === $st['done'] && 12 === $st['total'] && 'running' === $st['state'], 'a replaced run keeps its fresh progress, not the old batch result' );
@@ -202,6 +202,56 @@ $GLOBALS['requests'] = array();
 $P::tick();
 t_ok( ! $GLOBALS['requests'] && null === $P::get_status(), 'switching preload off stops a running queue and clears its state' );
 $GLOBALS['opts']['page_cache_preload'] = 1;
+
+// ---- Rate limit: a purge storm cannot restart the crawl more than once per interval ----
+$P::cancel();
+$P::start();
+t_ok( 'running' === $P::get_status()['state'], 'first start runs' );
+unset( $GLOBALS['cron'][ $P::START_HOOK ], $GLOBALS['cron'][ $P::TICK_HOOK ] );
+$P::schedule();
+$GLOBALS['requests'] = array();
+$first_state = $GLOBALS['transients'][ $P::STATE_TRANSIENT ] ?? null;
+unset( $GLOBALS['cron'][ $P::START_HOOK ] ); // WP-Cron removes an event before it fires.
+$P::start(); // The start event fires right after another run began.
+t_ok( null === ( $GLOBALS['transients'][ $P::STATE_TRANSIENT ] ?? null ), 'a second start within the interval does not begin a run' );
+t_ok( isset( $GLOBALS['cron'][ $P::START_HOOK ] ) && $GLOBALS['cron'][ $P::START_HOOK ] >= time() + $P::MIN_INTERVAL - 5, 'it is postponed until the interval has passed' );
+$GLOBALS['transients'][ $P::LAST_TRANSIENT ] = time() - $P::MIN_INTERVAL - 1;
+unset( $GLOBALS['cron'][ $P::START_HOOK ] );
+$P::start();
+t_ok( 'running' === $P::get_status()['state'], 'after the interval a new run starts' );
+$P::cancel();
+t_ok( ! isset( $GLOBALS['transients'][ $P::LAST_TRANSIENT ] ), 'cancel resets the rate limit' );
+
+// ---- Refresh after the pages expire ------------------------------------------------------
+$GLOBALS['opts']['page_cache_ttl'] = 6;
+$P::cancel();
+$P::start();
+unset( $GLOBALS['cron'][ $P::TICK_HOOK ] );
+$P::tick(); $P::tick(); $P::tick();
+t_ok( 'done' === $P::get_status()['state'], 'run finished' );
+$due = $GLOBALS['cron'][ $P::START_HOOK ] ?? 0;
+t_ok( $due >= time() + 6 * 3600 - 5 && $due <= time() + 6 * 3600 + 5, 'a refresh run is queued one cache lifespan later' );
+$P::schedule();
+t_ok( $GLOBALS['cron'][ $P::START_HOOK ] <= time() + $P::START_DELAY + 1, 'a purge brings the far-away refresh forward' );
+$soon = $GLOBALS['cron'][ $P::START_HOOK ];
+$P::schedule();
+t_ok( $soon === $GLOBALS['cron'][ $P::START_HOOK ], 'a purge burst keeps the already-near start event' );
+$GLOBALS['opts']['page_cache_ttl'] = 1;
+$P::cancel();
+$P::start();
+unset( $GLOBALS['cron'][ $P::TICK_HOOK ] );
+$P::tick(); $P::tick(); $P::tick();
+t_ok( $GLOBALS['cron'][ $P::START_HOOK ] >= time() + $P::MIN_INTERVAL - 5, 'refresh is never sooner than the rate-limit interval' );
+$P::cancel();
+$GLOBALS['opts']['page_cache_ttl'] = 10;
+// A failed run must not refresh by itself.
+$GLOBALS['fail'] = true;
+$P::start();
+unset( $GLOBALS['cron'][ $P::TICK_HOOK ] );
+$P::tick();
+t_ok( 'failed' === $P::get_status()['state'] && ! isset( $GLOBALS['cron'][ $P::START_HOOK ] ), 'a failed run is not retried automatically' );
+$GLOBALS['fail'] = false;
+$P::cancel();
 
 // ---- Hooks -------------------------------------------------------------------------
 $P::register_core_hooks();

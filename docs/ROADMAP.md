@@ -15,7 +15,7 @@ Cập nhật lần cuối: 2026-11-06 · Phiên bản hiện tại: 1.1.14 (đã
 | 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | REVIEW |
 | 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | REVIEW |
 | 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | REVIEW |
-| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp. Test `test-page-cache-preload.php` (44 assertion). Chưa smoke test trên WP thật. | REVIEW |
+| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Chưa smoke test trên WP thật. | REVIEW |
 
 ## 1.3.0 — Tải trang và dễ dùng
 
@@ -98,6 +98,8 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 26. Preload + Purge ALL: bấm Purge ALL → preload chạy lại; trang trong `/cart/`, `/checkout/`, `Page Exclusions` **không** được cache.
 27. Chặn loopback (vd. firewall chặn site gọi chính nó) → trạng thái "stopped after repeated failed requests", không lặp vô hạn. Tắt Preload hoặc Page Cache → không còn event `bepluspb_page_cache_preload_*` trong WP-Cron (`wp cron event list`).
 28. Preload không làm lộ trang cá nhân hóa: sau preload, mở trang bằng tài khoản đăng nhập → không phải bản cache.
+29. TTL: nhập 72 vào "Cache Lifespan" → ô giới hạn ở 24; lưu → giá trị còn lại 24 (hoặc nhỏ hơn nếu nhập nhỏ).
+30. Preload refresh: đặt TTL 1 giờ, bật Preload, đợi run xong → `wp cron event list` có `bepluspb_page_cache_preload_start` (≥10 phút sau). Bấm Purge ALL nhiều lần liên tiếp → chỉ một lượt crawl mỗi 10 phút.
 
 ## Nhật ký tiến trình
 
@@ -116,6 +118,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-28 | Phát hành 1.1.14: gộp Page Cache (#1–#3), bỏ option logged-in CSS/JS, sửa lỗi CI (phpcs/phpstan). |
 | 2026-11-06 | Smoke test mục 1–8 (cài đặt, loại trừ cơ bản, invalidation cơ bản, purge, tắt/bật) đạt trên WordPress thật; mục 9–24 chưa chạy. |
 | 2026-11-06 | Làm #4 preload (REVIEW): class mới, option, UI, hook purge, uninstall, CHANGELOG, CLAUDE.md. Tất cả test hiện có vẫn pass. Cần smoke test #25–#28 bên dưới. |
+| 2026-11-06 | Rà soát #1–#4, xử lý 3 điểm: TTL tối đa 24h (nonce), preload tự warm lại sau TTL, rate limit 1 lượt/10 phút. Thêm smoke test #29–#30. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 
 ## Việc còn lại từ review lần 3

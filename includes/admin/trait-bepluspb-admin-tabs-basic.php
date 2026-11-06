@@ -313,11 +313,11 @@ else :
 						<label for="bepluspb_page_cache_ttl"><?php esc_html_e( 'Cache Lifespan (hours)', 'beplus-performance-booster' ); ?></label>
 					</div>
 					<div class="bepluspb-form-row-field">
-						<input type="number" id="bepluspb_page_cache_ttl" min="1" max="72" step="1" class="small-text"
+						<input type="number" id="bepluspb_page_cache_ttl" min="1" max="24" step="1" class="small-text"
 							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_ttl]"
 							value="<?php echo esc_attr( (string) BEPLUSPB_Page_Cache::sanitize_ttl_hours( $opts['page_cache_ttl'] ) ); ?>">
 						<p class="description">
-							<?php esc_html_e( 'Pages are also removed automatically when you edit content, change menus, widgets or the theme, or save these settings. Keep this under 12 hours so forms on cached pages do not outlive their WordPress security tokens.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Pages are also removed automatically when you edit content, change menus, widgets or the theme, or save these settings. Maximum 24 hours, and 12 or less is safest: forms on cached pages must not outlive their WordPress security tokens.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>

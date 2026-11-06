@@ -20,8 +20,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   invalid paths) are skipped. Five failed requests in a row stop the run (for example when
   the server blocks requests to itself); the settings screen shows progress. A new purge
   restarts the run; turning preload or Page Cache off cancels it. Mobile copies kept
-  separately are still created by real mobile visits. Test:
-  `tests/test-page-cache-preload.php`.
+  separately are still created by real mobile visits. A finished run queues a refresh
+  one cache lifespan later (never sooner than 10 minutes) so expired pages are rebuilt
+  without waiting for visitors; a purge brings it forward. Rate limit: at most one run
+  per 10 minutes however often the cache is emptied, so a plugin that keeps triggering
+  purges cannot make the site crawl itself in a loop. A run that failed is not retried
+  automatically. Test: `tests/test-page-cache-preload.php`.
+
+### Changed
+- Page Cache lifespan is now limited to 1–24 hours (was 1–72). WordPress nonces on
+  anonymous pages stop being valid after 12–24 hours, so longer lifespans left forms on
+  stored pages failing with "link expired". Saved values above 24 are clamped to 24 on the
+  next settings save and in the generated configuration.
 
 ## [1.1.14] - 2026-10-28
 

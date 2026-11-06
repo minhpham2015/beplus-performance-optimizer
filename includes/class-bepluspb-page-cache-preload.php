@@ -44,6 +44,12 @@ class BEPLUSPB_Page_Cache_Preload {
 	/** Consecutive failed requests after which a run is abandoned. */
 	const MAX_FAILURES = 5;
 
+	/** Transient remembering when the last run began (rate limit). */
+	const LAST_TRANSIENT = 'bepluspb_page_cache_preload_last';
+
+	/** Minimum seconds between two runs, however often the cache is purged. */
+	const MIN_INTERVAL = 600;
+
 	/** Seconds to wait after a purge before starting (collapses bursts of purges). */
 	const START_DELAY = 60;
 
@@ -100,7 +106,14 @@ class BEPLUSPB_Page_Cache_Preload {
 		}
 		delete_transient( self::STATE_TRANSIENT );
 		wp_clear_scheduled_hook( self::TICK_HOOK );
-		if ( ! wp_next_scheduled( self::START_HOOK ) ) {
+		$next = wp_next_scheduled( self::START_HOOK );
+		// A pending run that is already due soon is kept (bursts of purges collapse into it);
+		// a far-away refresh run is brought forward because the cache is empty now.
+		if ( $next && $next > time() + self::START_DELAY ) {
+			wp_clear_scheduled_hook( self::START_HOOK );
+			$next = false;
+		}
+		if ( ! $next ) {
 			wp_schedule_single_event( time() + self::START_DELAY, self::START_HOOK );
 		}
 	}
@@ -113,6 +126,7 @@ class BEPLUSPB_Page_Cache_Preload {
 		wp_clear_scheduled_hook( self::TICK_HOOK );
 		delete_transient( self::STATE_TRANSIENT );
 		delete_transient( self::LOCK_TRANSIENT );
+		delete_transient( self::LAST_TRANSIENT );
 	}
 
 	/**
@@ -122,6 +136,16 @@ class BEPLUSPB_Page_Cache_Preload {
 		if ( ! self::is_enabled() ) {
 			return;
 		}
+		// Rate limit: something that keeps emptying the cache (a plugin writing a watched option on every
+		// page view…) must not keep the site crawling itself. Postpone instead of starting again.
+		$last = (int) get_transient( self::LAST_TRANSIENT );
+		if ( $last && ( time() - $last ) < self::MIN_INTERVAL ) {
+			if ( ! wp_next_scheduled( self::START_HOOK ) ) {
+				wp_schedule_single_event( $last + self::MIN_INTERVAL, self::START_HOOK );
+			}
+			return;
+		}
+		set_transient( self::LAST_TRANSIENT, time(), self::MIN_INTERVAL );
 		$urls = self::collect_urls();
 		set_transient(
 			self::STATE_TRANSIENT,
@@ -140,6 +164,8 @@ class BEPLUSPB_Page_Cache_Preload {
 		);
 		if ( $urls ) {
 			wp_schedule_single_event( time() + 5, self::TICK_HOOK );
+		} else {
+			self::schedule_refresh();
 		}
 	}
 
@@ -193,7 +219,21 @@ class BEPLUSPB_Page_Cache_Preload {
 
 		if ( 'running' === $state['state'] ) {
 			wp_schedule_single_event( time() + self::TICK_DELAY, self::TICK_HOOK );
+		} elseif ( 'done' === $state['state'] ) {
+			self::schedule_refresh();
 		}
+	}
+
+	/**
+	 * Visit everything again once the pages just stored have expired, so the cache stays warm
+	 * without waiting for visitors. Pages still fresh answer from the cache, so this is cheap.
+	 */
+	private static function schedule_refresh() {
+		if ( wp_next_scheduled( self::START_HOOK ) ) {
+			return;
+		}
+		$hours = BEPLUSPB_Page_Cache::sanitize_ttl_hours( bepluspb_get_options()['page_cache_ttl'] ?? 10 );
+		wp_schedule_single_event( time() + max( self::MIN_INTERVAL, $hours * HOUR_IN_SECONDS ), self::START_HOOK );
 	}
 
 	/**
