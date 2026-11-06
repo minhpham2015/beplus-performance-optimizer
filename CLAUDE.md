@@ -67,6 +67,13 @@ checking whether it would break the SVN slug binding).
   `<?php exit; ?>` guard as Rule #1), stub install/removal, the capture buffer
   (opened at `template_redirect` priority -100 so it is outermost) and all
   invalidation hooks. See Hard Rule #8.
+- `includes/class-bepluspb-page-cache-preload.php` — optional cache warm-up
+  (v1.2.0, `page_cache_preload`, default off). WP-Cron only; URL list is built from
+  the site's own published content and every request is re-checked with
+  `is_own_url()` (same host/port, http(s), no query, no credentials, redirects off,
+  no cookies). Never add a user-supplied URL/sitemap source or follow redirects —
+  that would turn it into an SSRF vector. Treat the `bepluspb_page_cache_preload_urls`
+  filter output as untrusted (it is re-validated).
 - `includes/class-bepluspb-cdn.php` — rewrites enqueued/media/content URLs
   to a configured CDN domain. Does NOT make outbound HTTP requests itself
   (string rewrite only) — keep it that way, don't add a "verify CDN URL is

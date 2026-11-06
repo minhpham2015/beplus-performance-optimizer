@@ -284,7 +284,7 @@ class BEPLUSPB_Page_Cache {
 	 */
 	public static function sanitize_ttl_hours( $hours ) {
 		$hours = absint( $hours );
-		return $hours < 1 ? 10 : min( 72, $hours );
+		return $hours < 1 ? 10 : min( 24, $hours );
 	}
 
 	/**
@@ -862,6 +862,13 @@ class BEPLUSPB_Page_Cache {
 		}
 
 		BEPLUSPB_Page_Cache_Engine::purge_all();
+		if ( class_exists( 'BEPLUSPB_Page_Cache_Preload' ) ) {
+			if ( BEPLUSPB_Page_Cache_Preload::is_enabled( $opts ) ) {
+				BEPLUSPB_Page_Cache_Preload::schedule( $opts ); // The cache was just emptied: warm it again.
+			} else {
+				BEPLUSPB_Page_Cache_Preload::cancel();
+			}
+		}
 		if ( $problems ) {
 			set_transient( self::ERROR_TRANSIENT, $problems, 10 * MINUTE_IN_SECONDS );
 		}
@@ -874,6 +881,9 @@ class BEPLUSPB_Page_Cache {
 		self::uninstall_dropin();
 		self::delete_config();
 		wp_clear_scheduled_hook( self::CRON_HOOK );
+		if ( class_exists( 'BEPLUSPB_Page_Cache_Preload' ) ) {
+			BEPLUSPB_Page_Cache_Preload::cancel();
+		}
 		BEPLUSPB_Page_Cache_Engine::purge_all();
 	}
 
@@ -982,6 +992,7 @@ class BEPLUSPB_Page_Cache {
 				'truncated' => false,
 			),
 			'errors'      => is_array( $errors ) ? $errors : array(),
+			'preload'     => ( $enabled && class_exists( 'BEPLUSPB_Page_Cache_Preload' ) && BEPLUSPB_Page_Cache_Preload::is_enabled() ) ? BEPLUSPB_Page_Cache_Preload::get_status() : null,
 		);
 	}
 
@@ -1393,6 +1404,9 @@ class BEPLUSPB_Page_Cache {
 		}
 
 		self::register_observers();
+		if ( class_exists( 'BEPLUSPB_Page_Cache_Preload' ) ) {
+			BEPLUSPB_Page_Cache_Preload::register_invalidation_hooks( $opts );
+		}
 
 		// Posts.
 		add_action( 'save_post', array( __CLASS__, 'on_save_post' ), 20, 2 );

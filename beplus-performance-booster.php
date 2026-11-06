@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.1.14
+ * Version: 1.2.0
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.1.14' );
+define( 'BEPLUSPB_VERSION', '1.2.0' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -127,6 +127,7 @@ function bepluspb_default_options() {
 
 		// --- Page Cache (static HTML for anonymous visitors) ---
 		'page_cache_enabled'                 => 0,   // Needs the master cache toggle too. Off by default.
+		'page_cache_preload'                 => 0,   // Warm the cache from WP-Cron after it was emptied. Needs Page Cache.
 		'page_cache_ttl'                     => 10,  // Hours. Keep under 12 so WordPress nonces in cached forms stay valid.
 		'page_cache_exclude_cookies'         => '',  // Extra cookie-name prefixes that bypass the page cache (newline-separated).
 		'page_cache_mobile'                  => 'auto', // 'auto' | 'separate' | 'same' | 'bypass': how mobile devices (wp_is_mobile()) are cached.
@@ -244,9 +245,11 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cdn.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cloudflare.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-predictive-navigation.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache-preload.php';
 
 // Settings-change sync, GC cron and self-repair must exist whether or not the cache is on.
 BEPLUSPB_Page_Cache::register_core_hooks();
+BEPLUSPB_Page_Cache_Preload::register_core_hooks();
 
 // Fallback path: when advanced-cache.php is not active (WP_CACHE off, or another
 // plugin owns the drop-in) serve a stored page right now — before the theme and

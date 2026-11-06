@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.1.14
+Stable tag: 1.2.0
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -476,6 +476,10 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.2.0 =
+* New: optional Page Cache Preload (off by default, Cache Files tab → Page Cache). After the cache is cleared, WordPress cron visits your home page and up to 500 recently updated public pages in the background, a few at a time, so the first visitors get fast cached pages. Only your own site is contacted; it stops by itself if requests fail, runs at most once every 10 minutes, and rebuilds expired pages automatically.
+* Change: the Page Cache lifespan is now limited to 1–24 hours (was 72). Longer lifespans could leave forms on cached pages with expired security tokens. Higher saved values are lowered to 24.
+
 = 1.1.14 =
 * New: optional Page Cache (off by default, Cache Files tab). Visitors who are not logged in get a stored HTML copy of public pages, served before WordPress loads the theme. Automatically skipped for logged-in users, carts/checkouts, forms and personalised pages; cleared when you edit content, menus, widgets, themes or these settings. Separate mobile copies are kept only for pages that need them. "Purge ALL Cache" now empties it too.
 * New: admin bar "Purge ALL Cache" is a one-click button (with a confirmation) that returns you to the page you were on and shows the result on screen. The admin bar Object Cache purge button now also asks for confirmation on every screen.
@@ -665,6 +669,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Adds optional Page Cache Preload (off by default) that rebuilds the cache in the background after it is cleared. The Page Cache lifespan is now capped at 24 hours; a higher saved value is lowered automatically.
 
 = 1.1.14 =
 Adds an optional, off-by-default Page Cache, a one-click confirmed "Purge ALL Cache" in the admin bar, and many reliability fixes (Remove Unused CSS cache, .htaccess cache headers, Delay JS, Object Cache drop-in). Administrators now see the original CSS/JS; other logged-in users get the minified files. If you use Object Cache, the drop-in is updated: reinstall or update it from the Object Cache tab.
