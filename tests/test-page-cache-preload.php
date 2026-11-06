@@ -186,6 +186,14 @@ $GLOBALS['on_request'] = function () use ( $P ) { $P::schedule(); }; // Purge la
 $P::tick();
 t_ok( null === $P::get_status() || $old !== ( $GLOBALS['transients'][ $P::STATE_TRANSIENT ]['run'] ?? '' ), 'stale queue is not written back after a purge' );
 
+// ---- ...nor overwrite a NEW run that replaced it ------------------------------------
+$P::cancel();
+$P::start();
+$GLOBALS['on_request'] = function () use ( $P ) { $P::schedule(); $P::start(); }; // Purge, then the new run begins, mid-batch.
+$P::tick();
+$st = $P::get_status();
+t_ok( 0 === $st['done'] && 12 === $st['total'] && 'running' === $st['state'], 'a replaced run keeps its fresh progress, not the old batch result' );
+
 // ---- Turning the feature off mid-run --------------------------------------------
 $P::cancel();
 $P::start();
