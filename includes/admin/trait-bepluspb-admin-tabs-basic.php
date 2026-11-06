@@ -338,10 +338,12 @@ else :
 						</p>
 						<?php if ( ! empty( $status['preload'] ) ) : ?>
 							<?php
-							/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
 							$preload_labels = array(
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
 								'running' => __( 'Preload running: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
 								'done'    => __( 'Preload finished: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
 								'failed'  => __( 'Preload stopped after repeated failed requests (the server may block requests to itself): %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
 							);
 							$preload_state  = isset( $preload_labels[ $status['preload']['state'] ] ) ? $status['preload']['state'] : 'done';
