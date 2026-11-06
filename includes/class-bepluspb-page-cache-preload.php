@@ -131,8 +131,10 @@ class BEPLUSPB_Page_Cache_Preload {
 				'pos'     => 0,
 				'ok'      => 0,
 				'failed'  => 0,
+				'skipped' => 0,
 				'streak'  => 0,
 				'started' => time(),
+				'run'     => uniqid( '', true ), // Lets an in-flight tick notice that its run was replaced.
 			),
 			12 * HOUR_IN_SECONDS
 		);
@@ -162,9 +164,12 @@ class BEPLUSPB_Page_Cache_Preload {
 		for ( $i = 0; $i < self::BATCH_SIZE && $state['pos'] < $total; $i++ ) {
 			$url = $state['urls'][ $state['pos'] ];
 			++$state['pos'];
-			if ( self::warm( $url ) ) {
+			$result = self::warm( $url );
+			if ( 'ok' === $result ) {
 				++$state['ok'];
 				$state['streak'] = 0;
+			} elseif ( 'skip' === $result ) {
+				++$state['skipped']; // A redirect is not a server problem: don't count it towards the failure streak.
 			} else {
 				++$state['failed'];
 				++$state['streak'];
@@ -176,6 +181,12 @@ class BEPLUSPB_Page_Cache_Preload {
 		}
 		if ( 'running' === $state['state'] && $state['pos'] >= $total ) {
 			$state['state'] = 'done';
+		}
+		// A purge during this batch replaced or dropped the run: don't write the stale queue back.
+		$current = get_transient( self::STATE_TRANSIENT );
+		if ( ! is_array( $current ) || ( $current['run'] ?? '' ) !== ( $state['run'] ?? '' ) ) {
+			delete_transient( self::LOCK_TRANSIENT );
+			return;
 		}
 		set_transient( self::STATE_TRANSIENT, $state, 12 * HOUR_IN_SECONDS );
 		delete_transient( self::LOCK_TRANSIENT );
@@ -189,11 +200,11 @@ class BEPLUSPB_Page_Cache_Preload {
 	 * Request one URL as an anonymous visitor so the cache stores it.
 	 *
 	 * @param string $url Absolute URL on this site.
-	 * @return bool Whether the page answered 200.
+	 * @return string 'ok' (200), 'skip' (3xx redirect, not followed) or 'fail' (error or any other status).
 	 */
 	private static function warm( $url ) {
 		if ( ! self::is_own_url( $url ) ) {
-			return false;
+			return 'fail';
 		}
 		$response = wp_remote_get(
 			$url,
@@ -205,7 +216,14 @@ class BEPLUSPB_Page_Cache_Preload {
 				'cookies'     => array(),
 			)
 		);
-		return ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response );
+		if ( is_wp_error( $response ) ) {
+			return 'fail';
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( 200 === $code ) {
+			return 'ok';
+		}
+		return ( $code >= 300 && $code < 400 ) ? 'skip' : 'fail';
 	}
 
 	/**

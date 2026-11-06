@@ -40,7 +40,7 @@ function wp_clear_scheduled_hook( $h ) { unset( $GLOBALS['cron'][ $h ] ); }
 function get_post_types( $a ) { return array( 'post' => 'post', 'page' => 'page', 'attachment' => 'attachment' ); }
 function get_posts( $args ) { $GLOBALS['query_args'] = $args; return array_keys( $GLOBALS['permalinks'] ); }
 function get_permalink( $id ) { return $GLOBALS['permalinks'][ $id ] ?? false; }
-function wp_remote_get( $url, $args ) { $GLOBALS['requests'][] = array( $url, $args ); return $GLOBALS['fail'] ? new WP_Error() : array( 'code' => 200 ); }
+function wp_remote_get( $url, $args ) { $GLOBALS['requests'][] = array( $url, $args ); if ( ! empty( $GLOBALS['on_request'] ) ) { $f = $GLOBALS['on_request']; $GLOBALS['on_request'] = null; $f(); } return $GLOBALS['fail'] ? new WP_Error() : array( 'code' => $GLOBALS['code'] ?? 200 ); }
 function wp_remote_retrieve_response_code( $r ) { return $r['code']; }
 class BEPLUSPB_Page_Cache { public static function is_enabled( $o ) { return ! empty( $o['cache_enabled'] ) && ! empty( $o['page_cache_enabled'] ); } }
 class BEPLUSPB_Page_Cache_Engine {
@@ -161,6 +161,30 @@ $st = $P::get_status();
 t_ok( 'failed' === $st['state'] && 5 === count( $GLOBALS['requests'] ) && 5 === $st['failed'], 'five failures in a row abandon the run' );
 t_ok( ! isset( $GLOBALS['cron'][ $P::TICK_HOOK ] ), 'no further tick after abandoning' );
 $GLOBALS['fail'] = false;
+
+// ---- Redirects are skipped, not failures ------------------------------------------
+$P::cancel();
+$P::start();
+$GLOBALS['code']     = 301;
+$GLOBALS['requests'] = array();
+unset( $GLOBALS['cron'][ $P::TICK_HOOK ] );
+$P::tick(); $P::tick();
+$st = $P::get_status();
+t_ok( 'running' === $st['state'] && 0 === $st['failed'] && 0 === $st['done'], 'redirects never trip the failure streak' );
+$GLOBALS['code'] = 500;
+$P::cancel();
+$P::start();
+$P::tick();
+t_ok( 'failed' === $P::get_status()['state'], 'five HTTP 500 answers in a row abandon the run' );
+$GLOBALS['code'] = 200;
+
+// ---- A purge during a batch must not resurrect the old queue ------------------------
+$P::cancel();
+$P::start();
+$old = $GLOBALS['transients'][ $P::STATE_TRANSIENT ]['run'];
+$GLOBALS['on_request'] = function () use ( $P ) { $P::schedule(); }; // Purge lands while the batch is running.
+$P::tick();
+t_ok( null === $P::get_status() || $old !== ( $GLOBALS['transients'][ $P::STATE_TRANSIENT ]['run'] ?? '' ), 'stale queue is not written back after a purge' );
 
 // ---- Turning the feature off mid-run --------------------------------------------
 $P::cancel();

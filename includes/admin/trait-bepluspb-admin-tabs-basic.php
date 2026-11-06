@@ -338,6 +338,7 @@ else :
 						</p>
 						<?php if ( ! empty( $status['preload'] ) ) : ?>
 							<?php
+							/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
 							$preload_labels = array(
 								'running' => __( 'Preload running: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
 								'done'    => __( 'Preload finished: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
