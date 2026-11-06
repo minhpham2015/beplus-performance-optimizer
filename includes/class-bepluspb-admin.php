@@ -253,6 +253,7 @@ class BEPLUSPB_Admin {
 			'minify_js_files',
 			// Page cache.
 			'page_cache_enabled',
+			'page_cache_preload',
 			// CDN.
 			'cdn_enabled',
 			'cdn_webp_avif',

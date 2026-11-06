@@ -324,6 +324,36 @@ else :
 
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_preload"><?php esc_html_e( 'Preload', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_page_cache_preload"
+								name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_preload]" value="1"
+								<?php checked( ! empty( $opts['page_cache_preload'] ), true ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Rebuild the cache in the background after it is cleared.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Uses WP-Cron to visit your home page and up to 500 most recently updated public pages, a few at a time, as an anonymous visitor. Only your own site is contacted. Mobile copies (when kept separately) are still created by real mobile visits.', 'beplus-performance-booster' ); ?>
+						</p>
+						<?php if ( ! empty( $status['preload'] ) ) : ?>
+							<?php
+							$preload_labels = array(
+								'running' => __( 'Preload running: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								'done'    => __( 'Preload finished: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								'failed'  => __( 'Preload stopped after repeated failed requests (the server may block requests to itself): %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+							);
+							$preload_state  = isset( $preload_labels[ $status['preload']['state'] ] ) ? $status['preload']['state'] : 'done';
+							?>
+						<p class="<?php echo 'failed' === $preload_state ? 'bepluspb-warn' : 'description'; ?>">
+							<?php echo esc_html( sprintf( $preload_labels[ $preload_state ], number_format_i18n( $status['preload']['done'] ), number_format_i18n( $status['preload']['total'] ) ) ); ?>
+						</p>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
 						<label for="bepluspb_page_cache_exclude_cookies"><?php esc_html_e( 'Bypass Cookies', 'beplus-performance-booster' ); ?></label>
 						<p class="bepluspb-row-desc"><?php esc_html_e( 'One cookie name (or prefix) per line.', 'beplus-performance-booster' ); ?></p>
 					</div>

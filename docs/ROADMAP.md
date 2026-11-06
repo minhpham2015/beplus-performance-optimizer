@@ -15,7 +15,7 @@ Cập nhật lần cuối: 2026-11-06 · Phiên bản hiện tại: 1.1.14 (đã
 | 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | REVIEW |
 | 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | REVIEW |
 | 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | REVIEW |
-| 4 | Cache preload (sitemap + WP-Cron) | Cần #1 trước. Chỉ gọi URL cùng domain, không thêm SSRF. | TODO |
+| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp. Test `test-page-cache-preload.php` (44 assertion). Chưa smoke test trên WP thật. | REVIEW |
 
 ## 1.3.0 — Tải trang và dễ dùng
 
@@ -94,6 +94,11 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 23. Đổi logo/site icon trong Customizer hoặc đơn vị tiền tệ WooCommerce → mọi trang cập nhật. Tác giả đổi tên hiển thị → byline cập nhật.
 24. Đăng nhập bằng tài khoản **không phải admin** (vd. Subscriber/Customer) → CSS/JS là file `bepluspb-cache/...` đã minify; đăng nhập **admin** → CSS/JS gốc. Card Page Cache khi tắt không hiện dòng nào; khi bật có một dòng trạng thái ngay dưới ô "Enable Page Cache".
 
+25. **Preload**: bật Preload, lưu → sau ~1–2 phút (cần có traffic hoặc cron thật) card hiện "Preload running/finished: X of Y". `curl -I` trang chủ và vài bài → `X-Beplus-Page-Cache: HIT` ngay lần đầu.
+26. Preload + Purge ALL: bấm Purge ALL → preload chạy lại; trang trong `/cart/`, `/checkout/`, `Page Exclusions` **không** được cache.
+27. Chặn loopback (vd. firewall chặn site gọi chính nó) → trạng thái "stopped after repeated failed requests", không lặp vô hạn. Tắt Preload hoặc Page Cache → không còn event `bepluspb_page_cache_preload_*` trong WP-Cron (`wp cron event list`).
+28. Preload không làm lộ trang cá nhân hóa: sau preload, mở trang bằng tài khoản đăng nhập → không phải bản cache.
+
 ## Nhật ký tiến trình
 
 | Ngày | Việc đã làm |
@@ -109,6 +114,8 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-26 | Sửa #5–#8: bỏ `glob()` (đường dẫn có `[ ] * ?`), kiểm tra sống các hook quan sát + fallback an toàn + bỏ qua trang khi `wp_is_mobile()` lệch cách phân loại + chuẩn hóa `%xx`, thêm option/WooCommerce/tác giả vào danh sách xóa cache + ô cài đặt riêng, liệt kê plugin bị bỏ qua khi HIT, dọn rác khi tắt WP-Cron. Test engine 262 + class 299 assertion; 18 đột biến đều bị bắt. |
 | 2026-10-27 | Bỏ option `cache_for_logged_in` + card "User-Based Exclusions" (admin thấy file gốc, người đăng nhập khác nhận file minify; Minify khởi động sau cổng admin; gộp hàm loại trừ trùng lặp trong Minify). Bỏ hàng "Status" của card Page Cache: dòng trạng thái dưới ô bật, ẩn khi tắt, thông báo chỉ hiện khi cần. Test mới `test-page-cache-settings-ui.php` (33 assertion), 9 đột biến đều bị bắt. |
 | 2026-10-28 | Phát hành 1.1.14: gộp Page Cache (#1–#3), bỏ option logged-in CSS/JS, sửa lỗi CI (phpcs/phpstan). |
+| 2026-11-06 | Smoke test mục 1–8 (cài đặt, loại trừ cơ bản, invalidation cơ bản, purge, tắt/bật) đạt trên WordPress thật; mục 9–24 chưa chạy. |
+| 2026-11-06 | Làm #4 preload (REVIEW): class mới, option, UI, hook purge, uninstall, CHANGELOG, CLAUDE.md. Tất cả test hiện có vẫn pass. Cần smoke test #25–#28 bên dưới. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 
 ## Việc còn lại từ review lần 3

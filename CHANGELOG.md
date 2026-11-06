@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Page Cache preload** (opt-in, default off; Cache Files tab → Page Cache → Preload).
+  After the page cache is emptied (settings save, Purge ALL, theme/menu/widget changes…)
+  WP-Cron rebuilds it in the background: the home page first, then up to 500 (filter
+  `bepluspb_page_cache_preload_max_urls`, hard cap 2000) most recently modified public
+  posts, pages and custom post types, 5 pages every 30 seconds. New class
+  `BEPLUSPB_Page_Cache_Preload` (`includes/class-bepluspb-page-cache-preload.php`).
+  Safety: the URL list comes from the site's own published content (no remote sitemap, no
+  user input); only URLs on the site's own host/port over http(s) without a query string
+  are requested, redirects are never followed, no cookies are sent (so only anonymous
+  copies are stored), and URLs the cache would not store (excluded paths, cart/checkout,
+  invalid paths) are skipped. Five failed requests in a row stop the run (for example when
+  the server blocks requests to itself); the settings screen shows progress. A new purge
+  restarts the run; turning preload or Page Cache off cancels it. Mobile copies kept
+  separately are still created by real mobile visits. Test:
+  `tests/test-page-cache-preload.php`.
+
 ## [1.1.14] - 2026-10-28
 
 ### Removed
