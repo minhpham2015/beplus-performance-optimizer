@@ -195,7 +195,7 @@ class BEPLUSPB_Page_Cache_Preload {
 				++$state['ok'];
 				$state['streak'] = 0;
 			} elseif ( 'skip' === $result ) {
-				++$state['skipped']; // A redirect is not a server problem: don't count it towards the failure streak.
+				$state['skipped'] = (int) ( $state['skipped'] ?? 0 ) + 1; // A redirect is not a server problem: don't count it towards the failure streak.
 			} else {
 				++$state['failed'];
 				++$state['streak'];

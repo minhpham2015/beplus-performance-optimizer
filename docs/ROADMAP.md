@@ -4,7 +4,7 @@ File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file n�
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-11-06 · Phiên bản hiện tại: 1.1.14 (đã chứa Page Cache #1–#3, opt-in, mặc định tắt) · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-06 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
 
 > **Rủi ro lớn nhất hiện tại:** #1–#3 đã phát hành trong 1.1.14 nhưng **chưa smoke test trên WordPress thật** (24 mục ở cuối file). Làm việc này trước khi thêm tính năng mới.
 
@@ -119,6 +119,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-11-06 | Smoke test mục 1–8 (cài đặt, loại trừ cơ bản, invalidation cơ bản, purge, tắt/bật) đạt trên WordPress thật; mục 9–24 chưa chạy. |
 | 2026-11-06 | Làm #4 preload (REVIEW): class mới, option, UI, hook purge, uninstall, CHANGELOG, CLAUDE.md. Tất cả test hiện có vẫn pass. Cần smoke test #25–#28 bên dưới. |
 | 2026-11-06 | Rà soát #1–#4, xử lý 3 điểm: TTL tối đa 24h (nonce), preload tự warm lại sau TTL, rate limit 1 lượt/10 phút. Thêm smoke test #29–#30. |
+| 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 
 ## Việc còn lại từ review lần 3

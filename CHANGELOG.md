@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-06
+
 ### Added
 - **Page Cache preload** (opt-in, default off; Cache Files tab → Page Cache → Preload).
   After the page cache is emptied (settings save, Purge ALL, theme/menu/widget changes…)
