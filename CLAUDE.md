@@ -74,6 +74,19 @@ checking whether it would break the SVN slug binding).
   no cookies). Never add a user-supplied URL/sitemap source or follow redirects —
   that would turn it into an SSRF vector. Treat the `bepluspb_page_cache_preload_urls`
   filter output as untrusted (it is re-validated).
+- `includes/class-bepluspb-resource-hints.php` — `preconnect_hosts` /
+  `dns_prefetch_hosts` (via core's `wp_resource_hints` filter) and
+  `lcp_image_keywords` (`fetchpriority="high"` through core's
+  `wp_get_loading_optimization_attributes`). Output only: never fetches a host,
+  and every stored host is re-validated at render time (`parse_hosts()`: http(s),
+  >= 2 DNS labels, no credentials/IPs/paths) — keep that, don't trust the DB value.
+  Anything that prints different HTML must stay covered by the settings-save purge
+  (Hard Rule #8).
+- `includes/class-bepluspb-heartbeat.php` — Slow down / Disable the WordPress
+  Heartbeat script per location (`admin`, `editor`, `front`). Booted from
+  `plugins_loaded` (not the front-end boot) because it must also run in wp-admin;
+  honours the master `cache_enabled` switch. Settings-filter / script-deregister
+  only: no DB access, no endpoint. Default for every location is "default" (no change).
 - `includes/class-bepluspb-cdn.php` — rewrites enqueued/media/content URLs
   to a configured CDN domain. Does NOT make outbound HTTP requests itself
   (string rewrite only) — keep it that way, don't add a "verify CDN URL is

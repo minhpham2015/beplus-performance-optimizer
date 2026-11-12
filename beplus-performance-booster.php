@@ -119,6 +119,17 @@ function bepluspb_default_options() {
 		// --- Font Preload ---
 		'font_preload'                       => '',  // Font URLs to preload (newline-separated).
 
+		// --- Resource Hints & LCP image ---
+		'preconnect_hosts'                   => '',  // Hosts to preconnect to (newline-separated, optional "crossorigin").
+		'dns_prefetch_hosts'                 => '',  // Hosts to DNS-prefetch (newline-separated).
+		'lcp_image_keywords'                 => '',  // Image URL/class/id keywords that get fetchpriority="high" (newline-separated).
+
+		// --- WordPress Heartbeat ---
+		'heartbeat_admin'                    => 'default', // 'default' | 'slow' | 'disable': dashboard and other admin screens.
+		'heartbeat_editor'                   => 'default', // Same, for the post editor (post locking / classic autosave).
+		'heartbeat_front'                    => 'default', // Same, for the front-end.
+		'heartbeat_interval'                 => 60,        // Seconds between ticks when a location is set to 'slow' (15-120).
+
 		// --- Cache Exclusions ---
 		'cache_exclude_pages'                => "/checkout/\n/my-account/\n/cart/",
 
@@ -238,6 +249,8 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-resource-hints.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-heartbeat.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
@@ -325,6 +338,18 @@ function bepluspb_early_embed_cleanup() {
 add_action( 'plugins_loaded', 'bepluspb_early_embed_cleanup', 20 );
 
 /**
+ * Heartbeat control. Runs on every request type (wp-admin, front-end), not only the
+ * front-end boot below, and honours the master Cache Optimizations switch like the rest.
+ */
+function bepluspb_boot_heartbeat() {
+	$opts = bepluspb_get_options();
+	if ( ! empty( $opts['cache_enabled'] ) ) {
+		BEPLUSPB_Heartbeat::init( $opts );
+	}
+}
+add_action( 'plugins_loaded', 'bepluspb_boot_heartbeat', 20 );
+
+/**
  * Register cache-invalidation hooks that must fire from BOTH wp-admin and
  * the front-end (e.g. saving a post from wp-admin must purge the Remove
  * Unused CSS cache, but bepluspb_boot_frontend() below never runs in
@@ -378,6 +403,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_CSS::init( $opts );
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
+	BEPLUSPB_Resource_Hints::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
 }

@@ -22,8 +22,8 @@ Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
 | 5 | Critical CSS | Dịch vụ ngoài hoặc dán thủ công. Bản chạy trên máy chủ cần review bảo mật riêng. | TODO |
-| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Công sức nhỏ, thấy hiệu quả ngay. | TODO |
-| 7 | Heartbeat control | Không đụng DB. | TODO |
+| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | `class-bepluspb-resource-hints.php`, card "Resource Hints & LCP Image" ở tab Advanced. Preconnect (tối đa 6) / DNS-prefetch (tối đa 15) đi qua filter `wp_resource_hints` của core, host được validate lại mỗi lần render (không IP, không credential, không path). LCP: từ khóa khớp URL/class/id → `fetchpriority=high` + bỏ lazy, tối đa 2 ảnh/trang, thuộc tính viết sẵn trong markup luôn thắng. Không gọi mạng. Test `test-resource-hints.php` (82 assertion). Nhánh `claude/resource-hints-heartbeat`. Chưa smoke test trên WP thật. | REVIEW |
+| 7 | Heartbeat control | `class-bepluspb-heartbeat.php`, card ở tab Cleanup. Mỗi vị trí (admin, trình soạn bài, front-end) chọn Default / Slow down (15–120 giây, filter `heartbeat_settings`) / Disable (deregister script `heartbeat`). Mặc định giữ nguyên, cần công tắc Cache Optimizations, không đụng DB, không thêm endpoint. Test `test-heartbeat.php` (52 assertion). Nhánh `claude/resource-hints-heartbeat`. Chưa smoke test trên WP thật. | REVIEW |
 | 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Mở rộng `class-bepluspb-recommendations.php`. | TODO |
 | 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | | TODO |
 | 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
@@ -102,6 +102,11 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 30. Preload refresh: đặt TTL 1 giờ, bật Preload, đợi run xong → `wp cron event list` có `bepluspb_page_cache_preload_start` (≥10 phút sau). Bấm Purge ALL nhiều lần liên tiếp → chỉ một lượt crawl mỗi 10 phút.
 31. **Delay JS (Simple) + form**: bật Delay JS (Simple), mở trang có form AJAX (Contact Form 7, bình luận, add-to-cart) ở cửa sổ ẩn danh, bấm gửi ngay khi trang vừa hiện → form gửi bằng AJAX như bình thường (không reload trang), chỉ gửi **một** lần dù bấm 2 lần. Form tìm kiếm vẫn chuyển trang.
 32. **Defer + Delay cùng bật**: Console không có lỗi "X is not defined"; menu, slider, giỏ hàng chạy đúng.
+33. **Preconnect / DNS-prefetch**: nhập `https://cdn.example.com`, `https://fonts.gstatic.com crossorigin` vào Preconnect và `www.google-analytics.com` vào DNS Prefetch, lưu → `curl -s site | grep -i "rel='preconnect'\|rel='dns-prefetch'"` có đúng các thẻ (preconnect font có `crossorigin`). Nhập `javascript:alert(1)`, `127.0.0.1`, `user:pw@x.com` → bị xóa khi lưu. Với Page Cache bật: lưu settings xong, trang đã cache hiện thẻ mới ngay.
+34. **LCP image**: ghi tên tệp ảnh hero vào "LCP Image Priority", lưu, xem nguồn trang → ảnh đó có `fetchpriority="high"`, không có `loading="lazy"`; ảnh khác không đổi. Chrome DevTools → Performance → LCP đúng ảnh đó. Ảnh in thẳng bằng HTML của page builder/theme không bị ảnh hưởng (đúng thiết kế).
+35. **Heartbeat – admin**: đặt "Dashboard & other admin screens" = Slow down 120 giây, mở Dashboard 3 phút, DevTools → Network lọc `admin-ajax.php` → chỉ ~1 request/2 phút. Đặt Disable → không còn request `heartbeat`, không lỗi Console.
+36. **Heartbeat – editor**: để editor ở Default khi admin = Disable → vẫn có post lock ("X is currently editing") giữa hai tài khoản. Đặt editor = Disable → classic editor mất autosave, block editor vẫn mở và lưu được (thử cả 2).
+37. **Heartbeat – front-end**: đăng nhập, mở trang có WooCommerce/plugin dùng heartbeat; đặt front = Disable → không còn request heartbeat, trang vẫn chạy. Tắt công tắc Cache Optimizations → cả ba vị trí trở lại như WordPress mặc định.
 
 ## Nhật ký tiến trình
 
@@ -124,6 +129,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 | 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
+| 2026-11-12 | Làm #6 (resource hints + LCP) và #7 (Heartbeat) trên nhánh `claude/resource-hints-heartbeat` (REVIEW). Test mới `test-resource-hints.php` (82) và `test-heartbeat.php` (52); 14 đột biến đều bị bắt. Đã sửa luôn một lỗi nhỏ phát hiện khi viết test (giá trị mode dạng mảng gây notice). Cần smoke test #33–#37. |
 
 ## Việc còn lại từ review lần 3
 

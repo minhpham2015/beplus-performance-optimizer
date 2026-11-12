@@ -50,3 +50,5 @@ return_url_field
 sanitize_options
 save_meta_box
 store_purge_result
+render_section_heartbeat
+render_section_resource_hints

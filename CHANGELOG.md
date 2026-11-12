@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Resource hints** (Advanced tab → "Resource Hints & LCP Image"): optional **Preconnect**
+  (up to 6 hosts, `crossorigin` can be added per line) and **DNS Prefetch** (up to 15 hosts)
+  lists. They are handed to WordPress core's own `wp_resource_hints` filter, so core escapes
+  and de-duplicates the `<link>` tags. Hosts are re-validated on every render and on save:
+  only `http(s)` hosts with at least two DNS labels, no credentials, no IP addresses, no
+  paths. Output only: no outbound request is ever made. New class
+  `BEPLUSPB_Resource_Hints` (`includes/class-bepluspb-resource-hints.php`).
+- **LCP image priority**: images whose URL, CSS class or ID contains a configured keyword get
+  `fetchpriority="high"` and are never lazy-loaded (through core's
+  `wp_get_loading_optimization_attributes` filter, WordPress 6.1+). At most two images per
+  page are boosted, and attributes written directly in the image markup always win. CSS
+  background images and raw HTML printed by page builders are not covered.
+- **WordPress Heartbeat control** (Cleanup tab): per location (dashboard and other admin
+  screens, post editor, front-end) choose Default, Slow down (15-120 s) or Disable. Slow
+  down uses core's `heartbeat_settings` filter; Disable deregisters the `heartbeat` script on
+  that location only (scripts that depend on it, such as classic-editor autosave and the
+  "session expired" prompt, go with it, which is why the post editor defaults to Default).
+  Everything defaults to Default, needs the master Cache Optimizations switch, does not touch
+  the database and adds no endpoint. New class `BEPLUSPB_Heartbeat`
+  (`includes/class-bepluspb-heartbeat.php`). Tests: `tests/test-resource-hints.php`,
+  `tests/test-heartbeat.php`.
+
 ### Fixed
 - Delay JS (Simple): a form submitted while the delayed scripts are still loading is held
   and replayed once they have run, instead of being sent as a plain page-reload POST

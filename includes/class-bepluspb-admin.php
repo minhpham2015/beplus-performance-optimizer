@@ -315,6 +315,15 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';
 
+		// ---- Resource hints, LCP image and Heartbeat. ----
+		$sanitized['preconnect_hosts']   = BEPLUSPB_Resource_Hints::sanitize_host_list( $input['preconnect_hosts'] ?? '', BEPLUSPB_Resource_Hints::MAX_PRECONNECT );
+		$sanitized['dns_prefetch_hosts'] = BEPLUSPB_Resource_Hints::sanitize_host_list( $input['dns_prefetch_hosts'] ?? '', BEPLUSPB_Resource_Hints::MAX_DNS_PREFETCH );
+		$sanitized['lcp_image_keywords'] = BEPLUSPB_Resource_Hints::sanitize_keyword_list( $input['lcp_image_keywords'] ?? '' );
+		$sanitized['heartbeat_admin']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['heartbeat_admin'] ?? '', BEPLUSPB_Heartbeat::MODES, 'default' );
+		$sanitized['heartbeat_editor']   = BEPLUSPB_Page_Cache::sanitize_choice( $input['heartbeat_editor'] ?? '', BEPLUSPB_Heartbeat::MODES, 'default' );
+		$sanitized['heartbeat_front']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['heartbeat_front'] ?? '', BEPLUSPB_Heartbeat::MODES, 'default' );
+		$sanitized['heartbeat_interval'] = BEPLUSPB_Heartbeat::sanitize_interval( $input['heartbeat_interval'] ?? BEPLUSPB_Heartbeat::DEFAULT_INTERVAL );
+
 		$sanitized['page_cache_ttl']             = BEPLUSPB_Page_Cache::sanitize_ttl_hours( $input['page_cache_ttl'] ?? 10 );
 		$sanitized['page_cache_exclude_cookies'] = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_exclude_cookies'] ?? '' );
 		$sanitized['page_cache_vary_cookies']    = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_vary_cookies'] ?? '' );
@@ -510,6 +519,7 @@ class BEPLUSPB_Admin {
 
 				<div id="bepluspb-tab-cleanup" class="bepluspb-tab-panel" role="tabpanel">
 					<?php self::render_section_cleanup_all( $opts ); ?>
+					<?php self::render_section_heartbeat( $opts ); ?>
 				</div>
 
 				<!-- Advanced tab: Font Optimization, CDN & Asset Delivery, Cache
@@ -520,6 +530,10 @@ class BEPLUSPB_Admin {
 				<div id="bepluspb-tab-advanced" class="bepluspb-tab-panel" role="tabpanel" aria-labelledby="bepluspb-tab-btn-advanced">
 					<section id="bepluspb-advanced-section-fonts" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'Font Optimization', 'beplus-performance-booster' ); ?>">
 						<?php self::render_section_fonts( $opts ); ?>
+					</section>
+
+					<section id="bepluspb-advanced-section-resource-hints" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'Resource Hints & LCP Image', 'beplus-performance-booster' ); ?>">
+						<?php self::render_section_resource_hints( $opts ); ?>
 					</section>
 
 					<section id="bepluspb-advanced-section-cdn" class="bepluspb-advanced-section" aria-label="<?php esc_attr_e( 'CDN & Asset Delivery', 'beplus-performance-booster' ); ?>">

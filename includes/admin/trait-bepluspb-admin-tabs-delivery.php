@@ -56,6 +56,166 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 	}
 
 	/**
+	 * Render the "Resource Hints & LCP" card (Advanced tab): preconnect, DNS-prefetch
+	 * and fetchpriority for the largest above-the-fold image.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_resource_hints( $opts ) {
+		$key = BEPLUSPB_OPTIONS_KEY;
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Resource Hints & LCP Image', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Tell the browser early which third-party servers it will need, and which image is the main one on the page. These are hints: they never change what loads, only when.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_preconnect_hosts"><?php esc_html_e( 'Preconnect', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc">
+							<?php
+							/* translators: %d: maximum number of preconnect hosts. */
+							echo esc_html( sprintf( __( 'One host per line, up to %d.', 'beplus-performance-booster' ), BEPLUSPB_Resource_Hints::MAX_PRECONNECT ) );
+							?>
+						</p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_preconnect_hosts" aria-describedby="bepluspb-preconnect-help"
+							name="<?php echo esc_attr( $key ); ?>[preconnect_hosts]"
+							rows="4" class="large-text code"><?php echo esc_textarea( $opts['preconnect_hosts'] ); ?></textarea>
+						<p id="bepluspb-preconnect-help" class="description">
+							<?php esc_html_e( 'Opens the connection (DNS + TCP + TLS) early. Use it only for the one to three servers that deliver above-the-fold files, for example your CDN or font host. Add the word crossorigin after hosts that serve fonts.', 'beplus-performance-booster' ); ?><br>
+							<code>https://cdn.example.com</code><br>
+							<code>https://fonts.gstatic.com crossorigin</code><br>
+							<?php esc_html_e( 'Only the host is used (paths are dropped). Invalid lines, IP addresses and non-http(s) schemes are removed when you save.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_dns_prefetch_hosts"><?php esc_html_e( 'DNS Prefetch', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc">
+							<?php
+							/* translators: %d: maximum number of DNS-prefetch hosts. */
+							echo esc_html( sprintf( __( 'One host per line, up to %d.', 'beplus-performance-booster' ), BEPLUSPB_Resource_Hints::MAX_DNS_PREFETCH ) );
+							?>
+						</p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_dns_prefetch_hosts" aria-describedby="bepluspb-dns-help"
+							name="<?php echo esc_attr( $key ); ?>[dns_prefetch_hosts]"
+							rows="4" class="large-text code"><?php echo esc_textarea( $opts['dns_prefetch_hosts'] ); ?></textarea>
+						<p id="bepluspb-dns-help" class="description">
+							<?php esc_html_e( 'Only resolves the name, which is cheaper than preconnect. Suitable for servers used later in the page (analytics, embeds, social buttons).', 'beplus-performance-booster' ); ?><br>
+							<code>www.google-analytics.com</code>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lcp_image_keywords"><?php esc_html_e( 'LCP Image Priority', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One keyword per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_lcp_image_keywords" aria-describedby="bepluspb-lcp-help"
+							name="<?php echo esc_attr( $key ); ?>[lcp_image_keywords]"
+							rows="3" class="large-text code"><?php echo esc_textarea( $opts['lcp_image_keywords'] ); ?></textarea>
+						<p id="bepluspb-lcp-help" class="description">
+							<?php esc_html_e( 'An image whose URL, CSS class or ID contains one of these keywords gets fetchpriority="high" and is never lazy-loaded. Find the LCP element in PageSpeed Insights or Chrome DevTools (Performance panel) and enter a piece of its file name, such as hero-banner.', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'At most two images per page are boosted. Attributes written directly in the image markup always win. Only images rendered by WordPress core are affected: images printed by a page builder or a theme as raw HTML, and CSS background images, are not.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "WordPress Heartbeat" card (Cleanup tab).
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_section_heartbeat( $opts ) {
+		$key = BEPLUSPB_OPTIONS_KEY;
+
+		$locations = array(
+			'admin'  => array(
+				'label' => __( 'Dashboard & other admin screens', 'beplus-performance-booster' ),
+				'desc'  => __( 'Powers the "session expired" login prompt and some plugins\' live widgets. Safe to slow down; disabling it is the biggest saving on busy back-ends.', 'beplus-performance-booster' ),
+			),
+			'editor' => array(
+				'label' => __( 'Post editor', 'beplus-performance-booster' ),
+				'desc'  => __( 'Powers post locking ("someone else is editing") and, in the classic editor, autosave. Leave on Default unless only one person edits; Disable removes those features.', 'beplus-performance-booster' ),
+			),
+			'front'  => array(
+				'label' => __( 'Front-end', 'beplus-performance-booster' ),
+				'desc'  => __( 'Only loaded for logged-in users by some themes and plugins (for example WooCommerce or membership plugins). Safe to disable unless a plugin shows live data to visitors.', 'beplus-performance-booster' ),
+			),
+		);
+
+		$modes = array(
+			'default' => __( 'Default (WordPress)', 'beplus-performance-booster' ),
+			'slow'    => __( 'Slow down', 'beplus-performance-booster' ),
+			'disable' => __( 'Disable', 'beplus-performance-booster' ),
+		);
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'WordPress Heartbeat', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Heartbeat is a request the browser sends to admin-ajax.php every 15–60 seconds while a WordPress screen is open. Each one runs a full WordPress request, which adds up on small servers. Changes apply the next time a screen is loaded, to every user, and need the Cache Optimizations master switch on.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<?php foreach ( $locations as $location => $info ) : ?>
+					<?php $current = BEPLUSPB_Heartbeat::mode_for_location( $opts, $location ); ?>
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_heartbeat_<?php echo esc_attr( $location ); ?>"><?php echo esc_html( $info['label'] ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_heartbeat_<?php echo esc_attr( $location ); ?>"
+							name="<?php echo esc_attr( $key ); ?>[heartbeat_<?php echo esc_attr( $location ); ?>]">
+							<?php foreach ( $modes as $value => $text ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $current, $value ); ?>><?php echo esc_html( $text ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description"><?php echo esc_html( $info['desc'] ); ?></p>
+					</div>
+				</div>
+				<?php endforeach; ?>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_heartbeat_interval"><?php esc_html_e( 'Slow-down interval', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_heartbeat_interval" class="small-text"
+							name="<?php echo esc_attr( $key ); ?>[heartbeat_interval]"
+							min="<?php echo esc_attr( BEPLUSPB_Heartbeat::MIN_INTERVAL ); ?>"
+							max="<?php echo esc_attr( BEPLUSPB_Heartbeat::MAX_INTERVAL ); ?>" step="1"
+							value="<?php echo esc_attr( BEPLUSPB_Heartbeat::sanitize_interval( $opts['heartbeat_interval'] ) ); ?>">
+						<span><?php esc_html_e( 'seconds', 'beplus-performance-booster' ); ?></span>
+						<p class="description">
+							<?php
+							/* translators: 1: minimum seconds, 2: maximum seconds. */
+							echo esc_html( sprintf( __( 'Used by every location set to "Slow down". WordPress accepts %1$d–%2$d seconds.', 'beplus-performance-booster' ), BEPLUSPB_Heartbeat::MIN_INTERVAL, BEPLUSPB_Heartbeat::MAX_INTERVAL ) );
+							?>
+						</p>
+					</div>
+				</div>
+
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Render the "Cloudflare" tab — API-triggered cache purge, zone lookup,
 	 * and development mode toggle.
 	 *
