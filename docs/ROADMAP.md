@@ -1,19 +1,21 @@
-# Roadmap 1.1.13 → 1.4.0
+# Roadmap 1.1.14 → 1.4.0
 
 File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file này và cập nhật cột **Trạng thái**.
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.14 · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
 
-## 1.2.0 — Page cache (lỗ hổng lớn nhất)
+> **Rủi ro lớn nhất hiện tại:** #1–#3 đã phát hành trong 1.1.14 nhưng **chưa smoke test trên WordPress thật** (24 mục ở cuối file). Làm việc này trước khi thêm tính năng mới.
+
+## 1.2.0 — Page cache (lỗ hổng lớn nhất) — code đã nằm trong 1.1.14, còn #4 để đóng mốc 1.2.0
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
 | 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | REVIEW |
 | 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | REVIEW |
 | 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | REVIEW |
-| 4 | Cache preload (sitemap + WP-Cron) | Cần #1 trước. Chỉ gọi URL cùng domain, không thêm SSRF. | TODO |
+| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Chưa smoke test trên WP thật. | REVIEW |
 
 ## 1.3.0 — Tải trang và dễ dùng
 
@@ -46,8 +48,9 @@ Cập nhật lần cuối: 2026-10-26 · Phiên bản hiện tại: 1.1.14 · Nh
 
 ## Quyết định đã chốt
 
-- Đề xuất chia bản 1.2.0 → 1.3.0 → 1.4.0 (page cache cần thời gian test riêng). _Chưa xác nhận: chia bản hay nhảy thẳng 1.4.0._
-- Ưu tiên: #1–#3 trước; #6, #7 làm song song; #11 để cuối.
+- Page cache #1–#3 đã được gộp vào 1.1.14 (opt-in, mặc định tắt) thay vì chờ 1.2.0. Mốc **1.2.0** = #4 preload + smoke test xong + #1–#3 chuyển `DONE`.
+- Vẫn chia 1.2.0 → 1.3.0 → 1.4.0. _Chưa xác nhận với chủ dự án; nếu muốn gộp thì nhảy thẳng 1.4.0._
+- Ưu tiên: smoke test #1–#3 → #4 → #6, #7 (song song) → #8/#9 → #11 để cuối.
 
 ## Hạn chế đã biết của Page Cache
 
@@ -60,7 +63,7 @@ Còn lại:
 - **Theme/plugin tự phát hiện điện thoại bằng code riêng** (không gọi `wp_is_mobile()`): chế độ Automatic không thấy được, chọn "Always keep a separate mobile copy" (chế độ này gửi `Vary: User-Agent` trên mọi trang → cache server như Varnish/nginx fastcgi_cache mất hit-rate).
 - **Plugin "related posts" đọc bài bằng SQL thô** (`$wpdb`) thay vì `WP_Query`/`get_posts` không được quan sát; chọn "Every cached page". Tên bài láng giềng ở nút Prev/Next chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài.
 - Chưa có giới hạn tổng dung lượng/số file (chỉ giới hạn bằng TTL + cron dọn hằng ngày + chặn URL chữ hoa/query string). Cache mobile tách riêng làm số file tăng gần gấp đôi.
-- Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI.
+- Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI. (Đã sửa lỗi CI ở commit `9a11656`; xác nhận lại CI xanh trên `master`.)
 
 ## Smoke test thủ công trước khi chuyển #1–#3 sang DONE
 
@@ -91,6 +94,15 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 23. Đổi logo/site icon trong Customizer hoặc đơn vị tiền tệ WooCommerce → mọi trang cập nhật. Tác giả đổi tên hiển thị → byline cập nhật.
 24. Đăng nhập bằng tài khoản **không phải admin** (vd. Subscriber/Customer) → CSS/JS là file `bepluspb-cache/...` đã minify; đăng nhập **admin** → CSS/JS gốc. Card Page Cache khi tắt không hiện dòng nào; khi bật có một dòng trạng thái ngay dưới ô "Enable Page Cache".
 
+25. **Preload**: bật Preload, lưu → sau ~1–2 phút (cần có traffic hoặc cron thật) card hiện "Preload running/finished: X of Y". `curl -I` trang chủ và vài bài → `X-Beplus-Page-Cache: HIT` ngay lần đầu.
+26. Preload + Purge ALL: bấm Purge ALL → preload chạy lại; trang trong `/cart/`, `/checkout/`, `Page Exclusions` **không** được cache.
+27. Chặn loopback (vd. firewall chặn site gọi chính nó) → trạng thái "stopped after repeated failed requests", không lặp vô hạn. Tắt Preload hoặc Page Cache → không còn event `bepluspb_page_cache_preload_*` trong WP-Cron (`wp cron event list`).
+28. Preload không làm lộ trang cá nhân hóa: sau preload, mở trang bằng tài khoản đăng nhập → không phải bản cache.
+29. TTL: nhập 72 vào "Cache Lifespan" → ô giới hạn ở 24; lưu → giá trị còn lại 24 (hoặc nhỏ hơn nếu nhập nhỏ).
+30. Preload refresh: đặt TTL 1 giờ, bật Preload, đợi run xong → `wp cron event list` có `bepluspb_page_cache_preload_start` (≥10 phút sau). Bấm Purge ALL nhiều lần liên tiếp → chỉ một lượt crawl mỗi 10 phút.
+31. **Delay JS (Simple) + form**: bật Delay JS (Simple), mở trang có form AJAX (Contact Form 7, bình luận, add-to-cart) ở cửa sổ ẩn danh, bấm gửi ngay khi trang vừa hiện → form gửi bằng AJAX như bình thường (không reload trang), chỉ gửi **một** lần dù bấm 2 lần. Form tìm kiếm vẫn chuyển trang.
+32. **Defer + Delay cùng bật**: Console không có lỗi "X is not defined"; menu, slider, giỏ hàng chạy đúng.
+
 ## Nhật ký tiến trình
 
 | Ngày | Việc đã làm |
@@ -98,13 +110,20 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-10-25 | Lập roadmap, chưa bắt đầu tính năng nào. |
 | 2026-10-26 | Hoàn thành code #1–#3 (page cache + invalidation + loại trừ), test standalone `test-page-cache-engine.php` và `test-page-cache-class.php`, CI guard, CHANGELOG, CLAUDE.md rule #8. Chưa smoke test trên WordPress thật. Chưa tăng version (chờ #4 preload hoặc quyết định phát hành). |
 | 2026-10-26 | Merge #1–#3 vào `master` để test. |
-| 2026-10-26 | Xử lý 3 hạn chế còn lại: replay header, biến thể mobile/ngôn ngữ/tiền tệ, purge scope theo widget toàn site. Test engine 162 + class 163 assertion. Nằm ở nhánh `claude/modest-mccarthy-lheo63`. |
-| 2026-10-26 | Sửa #5–#8: bỏ `glob()` (đường dẫn có `[ ] * ?`), kiểm tra sống các hook quan sát + fallback an toàn + bỏ qua trang khi `wp_is_mobile()` lệch cách phân loại + chuẩn hóa `%xx`, thêm option/WooCommerce/tác giả vào danh sách xóa cache + ô cài đặt riêng, liệt kê plugin bị bỏ qua khi HIT, dọn rác khi tắt WP-Cron. Test engine 262 + class 299 assertion; 18 đột biến đều bị bắt. |
-| 2026-10-26 | Review lần 3 → sửa #1–#4: giới hạn giá trị cookie biến thể + tối đa 96 biến thể/URL (+ lỗi `$` nhận ký tự xuống dòng), purge toàn bộ khi đổi tiêu đề/slug/cha/thứ tự bài đã đăng, purge khi sửa template/template part/global styles/navigation/block/builder/form (phải là người có quyền sửa bài hoặc WP-CLI), tự sửa config khi đổi địa chỉ site. Test engine 236 + class 242 assertion; 12 đột biến đều bị test bắt. Chưa sửa #5–#8 (glob có ký tự đặc biệt, option/tác giả chưa hook, quan sát chưa kiểm chứng trên WP thật, rủi ro vốn có của page cache). |
-| 2026-10-26 | Xử lý 3 rủi ro: mobile "Automatic" (quan sát `wp_is_mobile`, chỉ Vary trên trang phụ thuộc thiết bị), đánh dấu trang liệt kê nội dung khác (quan sát `pre_get_posts`/`pre_get_comments`, `.lst`), xoay CSP nonce mỗi HIT. Test engine 203 + class 185 assertion; đã kiểm tra bằng 8 đột biến (phá tính năng → test fail). |
-| 2026-10-26 | Review lần 2: sửa header replay bị trùng/mâu thuẫn ở chế độ fallback và cookie có dấu `.` không khớp (+5 assertion). |
 | 2026-10-26 | Tự review #1–#3, sửa 5 lỗi (xem CHANGELOG "Fixed"), thêm 20 assertion. Các sửa này nằm ở nhánh `claude/modest-mccarthy-lheo63`, chưa vào `master`. |
+| 2026-10-26 | Review lần 2: sửa header replay bị trùng/mâu thuẫn ở chế độ fallback và cookie có dấu `.` không khớp (+5 assertion). |
+| 2026-10-26 | Xử lý 3 hạn chế còn lại: replay header, biến thể mobile/ngôn ngữ/tiền tệ, purge scope theo widget toàn site. Test engine 162 + class 163 assertion. Nằm ở nhánh `claude/modest-mccarthy-lheo63`. |
+| 2026-10-26 | Xử lý 3 rủi ro: mobile "Automatic" (quan sát `wp_is_mobile`, chỉ Vary trên trang phụ thuộc thiết bị), đánh dấu trang liệt kê nội dung khác (quan sát `pre_get_posts`/`pre_get_comments`, `.lst`), xoay CSP nonce mỗi HIT. Test engine 203 + class 185 assertion; đã kiểm tra bằng 8 đột biến (phá tính năng → test fail). |
+| 2026-10-26 | Review lần 3 → sửa #1–#4: giới hạn giá trị cookie biến thể + tối đa 96 biến thể/URL (+ lỗi `$` nhận ký tự xuống dòng), purge toàn bộ khi đổi tiêu đề/slug/cha/thứ tự bài đã đăng, purge khi sửa template/template part/global styles/navigation/block/builder/form (phải là người có quyền sửa bài hoặc WP-CLI), tự sửa config khi đổi địa chỉ site. Test engine 236 + class 242 assertion; 12 đột biến đều bị test bắt. Chưa sửa #5–#8 (glob có ký tự đặc biệt, option/tác giả chưa hook, quan sát chưa kiểm chứng trên WP thật, rủi ro vốn có của page cache). |
+| 2026-10-26 | Sửa #5–#8: bỏ `glob()` (đường dẫn có `[ ] * ?`), kiểm tra sống các hook quan sát + fallback an toàn + bỏ qua trang khi `wp_is_mobile()` lệch cách phân loại + chuẩn hóa `%xx`, thêm option/WooCommerce/tác giả vào danh sách xóa cache + ô cài đặt riêng, liệt kê plugin bị bỏ qua khi HIT, dọn rác khi tắt WP-Cron. Test engine 262 + class 299 assertion; 18 đột biến đều bị bắt. |
 | 2026-10-27 | Bỏ option `cache_for_logged_in` + card "User-Based Exclusions" (admin thấy file gốc, người đăng nhập khác nhận file minify; Minify khởi động sau cổng admin; gộp hàm loại trừ trùng lặp trong Minify). Bỏ hàng "Status" của card Page Cache: dòng trạng thái dưới ô bật, ẩn khi tắt, thông báo chỉ hiện khi cần. Test mới `test-page-cache-settings-ui.php` (33 assertion), 9 đột biến đều bị bắt. |
+| 2026-10-28 | Phát hành 1.1.14: gộp Page Cache (#1–#3), bỏ option logged-in CSS/JS, sửa lỗi CI (phpcs/phpstan). |
+| 2026-11-06 | Smoke test mục 1–8 (cài đặt, loại trừ cơ bản, invalidation cơ bản, purge, tắt/bật) đạt trên WordPress thật; mục 9–24 chưa chạy. |
+| 2026-11-06 | Làm #4 preload (REVIEW): class mới, option, UI, hook purge, uninstall, CHANGELOG, CLAUDE.md. Tất cả test hiện có vẫn pass. Cần smoke test #25–#28 bên dưới. |
+| 2026-11-06 | Rà soát #1–#4, xử lý 3 điểm: TTL tối đa 24h (nonce), preload tự warm lại sau TTL, rate limit 1 lượt/10 phút. Thêm smoke test #29–#30. |
+| 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
+| 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
+| 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
 
 ## Việc còn lại từ review lần 3
 

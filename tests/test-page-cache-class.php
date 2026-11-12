@@ -104,7 +104,7 @@ $E  = 'BEPLUSPB_Page_Cache_Engine';
 $html = '<!doctype html><html><body>' . str_repeat( 'x', 300 ) . '</body></html>';
 
 // ---- Settings sanitisers ----------------------------------------------------
-t_ok( 10 === $PC::sanitize_ttl_hours( 0 ) && 10 === $PC::sanitize_ttl_hours( 'abc' ) && 5 === $PC::sanitize_ttl_hours( '5' ) && 72 === $PC::sanitize_ttl_hours( 9999 ), 'TTL is clamped to 1..72 hours (default 10)' );
+t_ok( 10 === $PC::sanitize_ttl_hours( 0 ) && 10 === $PC::sanitize_ttl_hours( 'abc' ) && 5 === $PC::sanitize_ttl_hours( '5' ) && 24 === $PC::sanitize_ttl_hours( 9999 ) && 24 === $PC::sanitize_ttl_hours( 72 ), 'TTL is clamped to 1..24 hours (default 10)' );
 t_ok( "my_cookie\nother-1.x" === $PC::sanitize_cookie_list( "my_cookie\nbad cookie!\n../etc\nother-1.x\nmy_cookie" ), 'cookie list keeps only safe, unique names' );
 t_ok( '' === $PC::sanitize_cookie_list( array( 'x' ) ), 'non-string cookie list is rejected' );
 

@@ -127,6 +127,12 @@ class BEPLUSPB_JS {
 			return $tag;
 		}
 
+		// The same goes for that file's dependencies: a deferred dependency would
+		// run after the non-deferred script that needs it.
+		if ( in_array( $handle, self::inline_after_dependencies(), true ) ) {
+			return $tag;
+		}
+
 		// Touch only the first <script ... src=> so inline before/after blocks
 		// that happen to contain " src=" are left alone.
 		$deferred = preg_replace( '/(<script\b[^>]*?)\ssrc=/i', '$1 defer src=', $tag, 1 );
@@ -156,6 +162,20 @@ class BEPLUSPB_JS {
 		}
 
 		if ( false !== strpos( $tag, 'data-bepluspb-delay' ) ) {
+			return $tag;
+		}
+
+		// An inline script attached with wp_add_inline_script( ..., 'after' ) runs
+		// immediately (inline scripts are never delayed in Simple mode). Delaying
+		// the file it relies on, or one of that file's dependencies, would make it
+		// throw "X is not defined" and leave forms/AJAX widgets uninitialised.
+		if ( in_array( $handle, self::inline_after_dependencies(), true ) ) {
+			return $tag;
+		}
+
+		// The list above is built once per request; an 'after' block added later
+		// (for example by a shortcode, for a footer script) is caught here.
+		if ( function_exists( 'wp_scripts' ) && wp_scripts()->get_data( $handle, 'after' ) ) {
 			return $tag;
 		}
 
@@ -198,6 +218,45 @@ class BEPLUSPB_JS {
 		);
 
 		return $tag;
+	}
+
+	/**
+	 * Handles that must not be delayed in Simple mode: every script carrying an
+	 * inline 'after' block, plus all of their (recursive) dependencies.
+	 *
+	 * @return string[]
+	 */
+	private static function inline_after_dependencies() {
+		static $cache = null;
+		if ( null !== $cache ) {
+			return $cache;
+		}
+		$cache = array();
+		if ( ! function_exists( 'wp_scripts' ) ) {
+			return $cache;
+		}
+
+		$scripts = wp_scripts();
+		if ( empty( $scripts->registered ) || ! is_array( $scripts->registered ) ) {
+			return $cache;
+		}
+		$keep  = array();
+		$visit = function ( $handle ) use ( &$visit, &$keep, $scripts ) {
+			if ( isset( $keep[ $handle ] ) || empty( $scripts->registered[ $handle ] ) ) {
+				return;
+			}
+			$keep[ $handle ] = true;
+			foreach ( (array) $scripts->registered[ $handle ]->deps as $dep ) {
+				$visit( $dep );
+			}
+		};
+		foreach ( array_keys( $scripts->registered ) as $handle ) {
+			if ( $scripts->get_data( $handle, 'after' ) ) {
+				$visit( $handle );
+			}
+		}
+		$cache = array_keys( $keep );
+		return $cache;
 	}
 
 	/**

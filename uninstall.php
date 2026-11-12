@@ -62,6 +62,9 @@ if ( file_exists( $bepluspb_pc_class ) ) {
 		define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
 	}
 	require_once $bepluspb_pc_class;
+	if ( file_exists( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache-preload.php' ) ) {
+		require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache-preload.php';
+	}
 	BEPLUSPB_Page_Cache::shutdown();
 	// shutdown() empties the cache; remove the now-empty root and its protection files.
 	$bepluspb_pc_root = BEPLUSPB_Page_Cache_Engine::cache_root();

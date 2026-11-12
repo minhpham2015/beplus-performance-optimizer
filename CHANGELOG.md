@@ -6,6 +6,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Delay JS (Simple): a form submitted while the delayed scripts are still loading is held
+  and replayed once they have run, instead of being sent as a plain page-reload POST
+  before its AJAX handler exists. A second click while it is held no longer sends the
+  form twice, and the replay uses the `HTMLFormElement` prototype methods so a field
+  named `submit` (WordPress comment form) cannot break it on browsers without
+  `requestSubmit()`. Held forms are released after 8 seconds even if a script stalls.
+- Delay JS (Simple) and Defer: a script that carries a `wp_add_inline_script( …, 'after' )`
+  block, and every script it depends on, is left alone. Previously Delay moved the file
+  behind the inline code that needs it, and Defer could run a dependency after the
+  script that uses it ("X is not defined"). Test: `tests/test-delay-js-inline-after-deps.php`.
+
+### Changed
+- Settings: the Defer JS and Delay JS options explain how they work together.
+
+## [1.2.0] - 2026-11-06
+
+### Added
+- **Page Cache preload** (opt-in, default off; Cache Files tab → Page Cache → Preload).
+  After the page cache is emptied (settings save, Purge ALL, theme/menu/widget changes…)
+  WP-Cron rebuilds it in the background: the home page first, then up to 500 (filter
+  `bepluspb_page_cache_preload_max_urls`, hard cap 2000) most recently modified public
+  posts, pages and custom post types, 5 pages every 30 seconds. New class
+  `BEPLUSPB_Page_Cache_Preload` (`includes/class-bepluspb-page-cache-preload.php`).
+  Safety: the URL list comes from the site's own published content (no remote sitemap, no
+  user input); only URLs on the site's own host/port over http(s) without a query string
+  are requested, redirects are never followed, no cookies are sent (so only anonymous
+  copies are stored), and URLs the cache would not store (excluded paths, cart/checkout,
+  invalid paths) are skipped. Five failed requests in a row stop the run (for example when
+  the server blocks requests to itself); the settings screen shows progress. A new purge
+  restarts the run; turning preload or Page Cache off cancels it. Mobile copies kept
+  separately are still created by real mobile visits. A finished run queues a refresh
+  one cache lifespan later (never sooner than 10 minutes) so expired pages are rebuilt
+  without waiting for visitors; a purge brings it forward. Rate limit: at most one run
+  per 10 minutes however often the cache is emptied, so a plugin that keeps triggering
+  purges cannot make the site crawl itself in a loop. A run that failed is not retried
+  automatically. Test: `tests/test-page-cache-preload.php`.
+
+### Changed
+- Page Cache lifespan is now limited to 1–24 hours (was 1–72). WordPress nonces on
+  anonymous pages stop being valid after 12–24 hours, so longer lifespans left forms on
+  stored pages failing with "link expired". Saved values above 24 are clamped to 24 on the
+  next settings save and in the generated configuration.
+
 ## [1.1.14] - 2026-10-28
 
 ### Removed

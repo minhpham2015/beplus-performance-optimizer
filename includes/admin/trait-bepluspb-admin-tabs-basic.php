@@ -313,12 +313,45 @@ else :
 						<label for="bepluspb_page_cache_ttl"><?php esc_html_e( 'Cache Lifespan (hours)', 'beplus-performance-booster' ); ?></label>
 					</div>
 					<div class="bepluspb-form-row-field">
-						<input type="number" id="bepluspb_page_cache_ttl" min="1" max="72" step="1" class="small-text"
+						<input type="number" id="bepluspb_page_cache_ttl" min="1" max="24" step="1" class="small-text"
 							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_ttl]"
 							value="<?php echo esc_attr( (string) BEPLUSPB_Page_Cache::sanitize_ttl_hours( $opts['page_cache_ttl'] ) ); ?>">
 						<p class="description">
-							<?php esc_html_e( 'Pages are also removed automatically when you edit content, change menus, widgets or the theme, or save these settings. Keep this under 12 hours so forms on cached pages do not outlive their WordPress security tokens.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Pages are also removed automatically when you edit content, change menus, widgets or the theme, or save these settings. Maximum 24 hours, and 12 or less is safest: forms on cached pages must not outlive their WordPress security tokens.', 'beplus-performance-booster' ); ?>
 						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_preload"><?php esc_html_e( 'Preload', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_page_cache_preload"
+								name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_preload]" value="1"
+								<?php checked( ! empty( $opts['page_cache_preload'] ), true ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Rebuild the cache in the background after it is cleared.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Uses WP-Cron to visit your home page and up to 500 most recently updated public pages, a few at a time, as an anonymous visitor. Only your own site is contacted. Mobile copies (when kept separately) are still created by real mobile visits.', 'beplus-performance-booster' ); ?>
+						</p>
+						<?php if ( ! empty( $status['preload'] ) ) : ?>
+							<?php
+							$preload_labels = array(
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
+								'running' => __( 'Preload running: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
+								'done'    => __( 'Preload finished: %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+								/* translators: 1: number of pages warmed so far, 2: number of pages in the queue. */
+								'failed'  => __( 'Preload stopped after repeated failed requests (the server may block requests to itself): %1$s of %2$s pages warmed.', 'beplus-performance-booster' ),
+							);
+							$preload_state  = isset( $preload_labels[ $status['preload']['state'] ] ) ? $status['preload']['state'] : 'done';
+							?>
+						<p class="<?php echo 'failed' === $preload_state ? 'bepluspb-warn' : 'description'; ?>">
+							<?php echo esc_html( sprintf( $preload_labels[ $preload_state ], number_format_i18n( $status['preload']['done'] ), number_format_i18n( $status['preload']['total'] ) ) ); ?>
+						</p>
+						<?php endif; ?>
 					</div>
 				</div>
 
@@ -463,6 +496,7 @@ else :
 								<?php checked( $opts['js_defer'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Add the defer attribute to non-excluded script tags so they are fetched in parallel and executed after HTML parsing. jQuery and jquery-migrate are always protected.', 'beplus-performance-booster' ); ?></span>
 						</label>
+						<p class="description"><?php esc_html_e( 'Safe to use together with Delay JS Execution. Scripts that are delayed ignore defer (they wait for the first interaction instead), so Defer only affects scripts that Delay does not handle, such as excluded scripts.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -478,6 +512,7 @@ else :
 								<?php checked( $opts['js_delay'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Delay all non-excluded scripts until the first user interaction (mousemove, click, scroll, keydown, touch) or JS Release Delay (ms)', 'beplus-performance-booster' ); ?></span>
 						</label>
+						<p class="description"><?php esc_html_e( 'Gives the biggest gain for PageSpeed/TBT. Can be combined with Defer and Minify JS. Start with Simple mode, then test menus, sliders, forms and checkout, and add any script that breaks to the exclude list.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
