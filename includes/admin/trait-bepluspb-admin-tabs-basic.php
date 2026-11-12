@@ -371,6 +371,37 @@ else :
 
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_skip_markers"><?php esc_html_e( 'Do Not Cache Pages Containing', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One text snippet per line.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_page_cache_skip_markers" rows="3" class="large-text code"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_skip_markers]"><?php echo esc_textarea( $opts['page_cache_skip_markers'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'A page whose HTML contains any of these snippets is never stored, so it is always built live. Use it for a widget or slider that breaks when served from the cache, for example n2-ss-slider (Smart Slider). Matching is exact and case-sensitive. Takes effect after saving; pages already cached are cleared on save.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_page_cache_foreign_buffer"><?php esc_html_e( 'Other Plugins That Rewrite the Page', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<?php $foreign_mode = BEPLUSPB_Page_Cache::sanitize_choice( $opts['page_cache_foreign_buffer'], BEPLUSPB_Page_Cache::FOREIGN_BUFFER_MODES, 'skip' ); ?>
+						<select id="bepluspb_page_cache_foreign_buffer"
+							name="<?php echo $name; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped above. ?>[page_cache_foreign_buffer]">
+							<option value="skip" <?php selected( $foreign_mode, 'skip' ); ?>><?php esc_html_e( 'Do not cache those pages (safest)', 'beplus-performance-booster' ); ?></option>
+							<option value="store" <?php selected( $foreign_mode, 'store' ); ?>><?php esc_html_e( 'Cache them anyway (as before)', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Some plugins (page translators, slider and asset loaders) capture the whole page before this cache sees it and change it afterwards, so the stored copy would lack their changes. By default such pages are built live instead. Choose "Cache them anyway" only if you know the other plugin does not need to change the cached page. Pages that are skipped send the response header X-Beplus-Page-Cache: SKIP foreign-output-buffer.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
 						<label for="bepluspb_page_cache_mobile"><?php esc_html_e( 'Mobile Devices', 'beplus-performance-booster' ); ?></label>
 					</div>
 					<div class="bepluspb-form-row-field">

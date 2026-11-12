@@ -65,6 +65,15 @@ Còn lại:
 - Chưa có giới hạn tổng dung lượng/số file (chỉ giới hạn bằng TTL + cron dọn hằng ngày + chặn URL chữ hoa/query string). Cache mobile tách riêng làm số file tăng gần gấp đôi.
 - Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI. (Đã sửa lỗi CI ở commit `9a11656`; xác nhận lại CI xanh trên `master`.)
 
+## Smoke test: Page Cache + plugin ghi đè output (Smart Slider, plugin dịch trang…)
+
+Nhánh `claude/page-cache-foreign-buffer`. Chưa chạy trên WordPress thật.
+
+- **S1** Bật Page Cache, trang có Smart Slider, mở 3 lần ẩn danh → slider chạy đúng ở cả 3 lần. `curl -sI URL` cho thấy `X-Beplus-Page-Cache: SKIP foreign-output-buffer` (nếu Smart Slider mở output buffer sớm) hoặc `HIT` (nếu không) — ghi lại kết quả vào đây để biết giả thuyết nào đúng.
+- **S2** Đổi "Other Plugins That Rewrite the Page" sang "Cache them anyway" → lỗi cũ quay lại ở trang có slider (xác nhận nguyên nhân). Đổi lại "Do not cache" → hết lỗi.
+- **S3** Nếu S1 vẫn lỗi mà header là `HIT`: nhập `n2-ss-slider` vào "Do Not Cache Pages Containing", lưu → trang có slider luôn `SKIP excluded-content`, trang khác vẫn `HIT`. Nếu cách này mới hết lỗi, nguyên nhân KHÔNG phải output buffer (xem thiết bị / file 404).
+- **S4** Site không có plugin nào ghi đè output: header vẫn `HIT` như cũ (không bị mất cache do thay đổi này).
+
 ## Smoke test thủ công trước khi chuyển #1–#3 sang DONE
 
 Môi trường dev chưa có WordPress thật (không tải được wordpress.org), nên các mục dưới chưa được chạy:

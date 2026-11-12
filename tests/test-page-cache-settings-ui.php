@@ -25,6 +25,7 @@ function number_format_i18n( $n ) { return number_format( (int) $n ); }
 class BEPLUSPB_Minify { public static function human_filesize( $b ) { return $b . ' B'; } }
 class BEPLUSPB_Page_Cache {
 	const MOBILE_MODES = array( 'auto', 'separate', 'same', 'bypass' );
+	const FOREIGN_BUFFER_MODES = array( 'skip', 'store' );
 	public static $status = array();
 	public static $enabled = true;
 	public static $stats_requested = null;
@@ -52,7 +53,7 @@ function healthy( array $over = array() ) {
 function render( array $status, $enabled, array $opts_over = array() ) {
 	BEPLUSPB_Page_Cache::$status  = $status;
 	BEPLUSPB_Page_Cache::$enabled = $enabled;
-	$opts = array_merge( array( 'page_cache_enabled' => $enabled ? 1 : 0, 'cache_enabled' => 1, 'page_cache_ttl' => 10, 'page_cache_exclude_cookies' => '', 'page_cache_mobile' => 'auto', 'page_cache_vary_cookies' => '', 'page_cache_purge_scope' => 'auto', 'page_cache_purge_options' => '' ), $opts_over );
+	$opts = array_merge( array( 'page_cache_enabled' => $enabled ? 1 : 0, 'cache_enabled' => 1, 'page_cache_ttl' => 10, 'page_cache_exclude_cookies' => '', 'page_cache_mobile' => 'auto', 'page_cache_vary_cookies' => '', 'page_cache_purge_scope' => 'auto', 'page_cache_purge_options' => '', 'page_cache_foreign_buffer' => 'skip', 'page_cache_skip_markers' => '' ), $opts_over );
 	$m = new ReflectionMethod( 'BEPLUSPB_Admin', 'render_section_page_cache' );
 	$m->setAccessible( true );
 	ob_start();

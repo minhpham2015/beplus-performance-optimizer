@@ -7,6 +7,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- Page Cache no longer stores a page that another plugin's output buffer still rewrites. A
+  plugin that captures the whole page earlier than `template_redirect` (a slider or asset
+  loader that injects its scripts/styles at the end, a page translator…) receives our output
+  after we saved it, so the stored copy lacked its changes while the first, live response
+  looked right: the page broke only once it was served from the cache. The capture buffer now
+  checks, before it opens, whether such a buffer is already open (`ob_get_status()`; PHP's own
+  buffer and compression handlers are ignored) and, in the default mode, serves that page live
+  instead of storing it. It sends `X-Beplus-Page-Cache: SKIP foreign-output-buffer` so the
+  cause is visible with `curl -I`.
+
+### Added
+- Page Cache setting **Other Plugins That Rewrite the Page** (`page_cache_foreign_buffer`):
+  "Do not cache those pages" (default, safest) or "Cache them anyway (as before)" for sites
+  where the other plugin's changes do not matter for the stored copy.
+- Page Cache setting **Do Not Cache Pages Containing** (`page_cache_skip_markers`, default
+  empty): one plain-text snippet per line (up to 20); a page whose final HTML contains any of
+  them is never stored (reason header `SKIP excluded-content`). For a widget or slider that
+  breaks when served from the cache, for example `n2-ss-slider` for Smart Slider.
+  Saving settings already clears the cache, so pages stored earlier are rebuilt.
+
+### Fixed
 - Delay JS (Simple): a form submitted while the delayed scripts are still loading is held
   and replayed once they have run, instead of being sent as a plain page-reload POST
   before its AJAX handler exists. A second click while it is held no longer sends the

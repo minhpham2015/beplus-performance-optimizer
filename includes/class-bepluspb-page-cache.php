@@ -72,6 +72,16 @@ class BEPLUSPB_Page_Cache {
 	/** How mobile visitors are cached. */
 	const MOBILE_MODES = array( 'auto', 'separate', 'same', 'bypass' );
 
+	/** What to do with a page that another plugin's output buffer will still rewrite. */
+	const FOREIGN_BUFFER_MODES = array( 'skip', 'store' );
+
+	/** Output handlers that never change the HTML (compression, PHP's own buffer). */
+	const HARMLESS_OUTPUT_HANDLERS = array( 'default output handler', 'zlib output compression', 'ob_gzhandler' );
+
+	/** Limits for the "do not cache pages containing" list. */
+	const MAX_SKIP_MARKERS       = 20;
+	const MAX_SKIP_MARKER_LENGTH = 200;
+
 	/**
 	 * Whether the current request asked WordPress if the visitor is on a mobile device.
 	 *
@@ -121,6 +131,15 @@ class BEPLUSPB_Page_Cache {
 	 * @var array|null
 	 */
 	private static $ctx = null;
+
+	/**
+	 * Whether another plugin's output buffer was already open, around ours, when the capture
+	 * buffer started. That buffer receives our output and may still change it, so what we
+	 * would store is not what visitors get.
+	 *
+	 * @var bool
+	 */
+	private static $foreign_buffer = false;
 
 	/**
 	 * Option names whose change alters rendered pages on every URL.
@@ -302,6 +321,30 @@ class BEPLUSPB_Page_Cache {
 			}
 		}
 		return implode( "\n", array_slice( array_values( array_unique( $out ) ), 0, 50 ) );
+	}
+
+	/**
+	 * Normalise the "do not cache pages containing" list: one plain text snippet per line.
+	 *
+	 * Snippets are only ever compared with the page HTML (never printed, never used in a path),
+	 * so any printable text is allowed; control characters and over-long lines are dropped.
+	 *
+	 * @param mixed $raw Raw textarea value.
+	 * @return string Newline-separated list.
+	 */
+	public static function sanitize_marker_list( $raw ) {
+		$out = array();
+		foreach ( preg_split( '/\R/', is_string( $raw ) ? $raw : '' ) as $marker ) {
+			$marker = trim( $marker );
+			if ( '' === $marker || strlen( $marker ) > self::MAX_SKIP_MARKER_LENGTH || preg_match( '/[\x00-\x1f\x7f]/', $marker ) ) {
+				continue;
+			}
+			$out[ $marker ] = true;
+			if ( count( $out ) >= self::MAX_SKIP_MARKERS ) {
+				break;
+			}
+		}
+		return implode( "\n", array_keys( $out ) );
 	}
 
 	/**
@@ -1178,8 +1221,49 @@ class BEPLUSPB_Page_Cache {
 		if ( ! $ctx ) {
 			return;
 		}
-		self::$ctx = $ctx;
+		self::$ctx            = $ctx;
+		self::$foreign_buffer = self::has_foreign_output_buffer();
 		ob_start( array( __CLASS__, 'handle_buffer' ) );
+	}
+
+	/**
+	 * Whether an output buffer that can change the page is already open around ours.
+	 *
+	 * Called before the capture buffer starts, so every buffer listed is an outer one: it gets
+	 * our output after we have stored it. PHP's own buffer and compression handlers do not
+	 * alter the HTML and are ignored.
+	 *
+	 * @return bool
+	 */
+	private static function has_foreign_output_buffer() {
+		foreach ( ob_get_status( true ) as $status ) {
+			$name = isset( $status['name'] ) ? (string) $status['name'] : '';
+			if ( ! in_array( $name, self::HARMLESS_OUTPUT_HANDLERS, true ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Why a page that could otherwise be stored is deliberately not stored.
+	 *
+	 * @param string $html Final HTML.
+	 * @return string '' to store it, or 'foreign-output-buffer' / 'excluded-content'.
+	 */
+	private static function skip_reason( $html ) {
+		$opts = bepluspb_get_options();
+
+		if ( self::$foreign_buffer && 'store' !== self::sanitize_choice( $opts['page_cache_foreign_buffer'] ?? 'skip', self::FOREIGN_BUFFER_MODES, 'skip' ) ) {
+			return 'foreign-output-buffer';
+		}
+
+		foreach ( explode( "\n", self::sanitize_marker_list( $opts['page_cache_skip_markers'] ?? '' ) ) as $marker ) {
+			if ( '' !== $marker && false !== strpos( $html, $marker ) ) {
+				return 'excluded-content';
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -1198,6 +1282,14 @@ class BEPLUSPB_Page_Cache {
 		// Only a complete, un-flushed, un-discarded document is stored.
 		$complete = ( $phase & PHP_OUTPUT_HANDLER_START ) && ( $phase & PHP_OUTPUT_HANDLER_FINAL ) && ! ( $phase & PHP_OUTPUT_HANDLER_CLEAN );
 		if ( $complete && self::$ctx && self::response_is_cacheable( $html ) && ! self::mobile_classification_differs() ) {
+			$skip = self::skip_reason( $html );
+			if ( '' !== $skip ) {
+				// Tells whoever debugs a page why it is never a HIT. Not replayed (not on the header allowlist).
+				if ( ! headers_sent() ) {
+					header( 'X-Beplus-Page-Cache: SKIP ' . $skip );
+				}
+				return $html;
+			}
 			try {
 				BEPLUSPB_Page_Cache_Engine::store(
 					self::$ctx,

@@ -319,6 +319,8 @@ class BEPLUSPB_Admin {
 		$sanitized['page_cache_exclude_cookies'] = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_exclude_cookies'] ?? '' );
 		$sanitized['page_cache_vary_cookies']    = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_vary_cookies'] ?? '' );
 		$sanitized['page_cache_purge_options']   = BEPLUSPB_Page_Cache::sanitize_option_names( $input['page_cache_purge_options'] ?? '' );
+		$sanitized['page_cache_foreign_buffer']  = BEPLUSPB_Page_Cache::sanitize_choice( $input['page_cache_foreign_buffer'] ?? '', BEPLUSPB_Page_Cache::FOREIGN_BUFFER_MODES, 'skip' );
+		$sanitized['page_cache_skip_markers']    = BEPLUSPB_Page_Cache::sanitize_marker_list( $input['page_cache_skip_markers'] ?? '' );
 		$sanitized['page_cache_mobile']          = BEPLUSPB_Page_Cache::sanitize_choice( $input['page_cache_mobile'] ?? '', BEPLUSPB_Page_Cache::MOBILE_MODES, 'auto' );
 		$sanitized['page_cache_purge_scope']     = BEPLUSPB_Page_Cache::sanitize_choice( $input['page_cache_purge_scope'] ?? '', array( 'auto', 'related', 'all' ), 'auto' );
 

@@ -131,6 +131,8 @@ function bepluspb_default_options() {
 		'page_cache_ttl'                     => 10,  // Hours. Keep under 12 so WordPress nonces in cached forms stay valid.
 		'page_cache_exclude_cookies'         => '',  // Extra cookie-name prefixes that bypass the page cache (newline-separated).
 		'page_cache_mobile'                  => 'auto', // 'auto' | 'separate' | 'same' | 'bypass': how mobile devices (wp_is_mobile()) are cached.
+		'page_cache_foreign_buffer'          => 'skip', // 'skip' | 'store': pages that another plugin's output buffer still rewrites.
+		'page_cache_skip_markers'            => '',  // Never store a page whose HTML contains one of these snippets (newline-separated).
 		'page_cache_vary_cookies'            => '',  // Cookie names whose value gets its own cached copy (language/currency), newline-separated.
 		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.

@@ -210,6 +210,95 @@ set_ctx( null );
 $PC::handle_buffer( $html, $START_FINAL );
 t_ok( ! file_exists( $ctx['file'] ), 'no context => nothing stored' );
 
+// ---- Pages another plugin's output buffer still rewrites ----------------------------
+class FB_Handler { public static function pass( $b ) { return $b; } }
+function set_foreign( $v ) { $p = new ReflectionProperty( 'BEPLUSPB_Page_Cache', 'foreign_buffer' ); $p->setAccessible( true ); $p->setValue( null, $v ); }
+$base_level = ob_get_level();
+t_ok( false === priv( 'has_foreign_output_buffer' ), 'no output buffer around us: nothing foreign' );
+ob_start();
+t_ok( false === priv( 'has_foreign_output_buffer' ), "PHP's own plain buffer does not count" );
+ob_start( function ( $b ) { return $b; } );
+t_ok( true === priv( 'has_foreign_output_buffer' ), 'a buffer with its own callback (translator, asset loader…) counts' );
+ob_end_clean();
+ob_start( 'ob_gzhandler' );
+t_ok( false === priv( 'has_foreign_output_buffer' ), 'compression handlers do not change the HTML and do not count' );
+ob_end_clean();
+ob_start( array( 'FB_Handler', 'pass' ) );
+t_ok( true === priv( 'has_foreign_output_buffer' ), 'a buffer owned by a class method counts' );
+ob_end_clean();
+ob_end_clean();
+t_ok( ob_get_level() === $base_level, 'test left the output buffer stack as it found it' );
+
+$ctx = $E::request_context( $ctxSrv, array() );
+set_ctx( $ctx );
+@unlink( $ctx['file'] );
+$GLOBALS['opts']['page_cache_foreign_buffer'] = 'skip';
+$GLOBALS['opts']['page_cache_skip_markers']   = '';
+set_foreign( true );
+t_ok( $html === $PC::handle_buffer( $html, $START_FINAL ), 'a skipped page is still sent unchanged' );
+t_ok( ! is_file( $ctx['file'] ), 'foreign output buffer + default mode: the page is NOT stored (the stored copy would lack the other plugin\'s changes)' );
+unset( $GLOBALS['opts']['page_cache_foreign_buffer'] );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( ! is_file( $ctx['file'] ), 'option missing from an old database: defaults to skipping' );
+$GLOBALS['opts']['page_cache_foreign_buffer'] = 'nonsense';
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( ! is_file( $ctx['file'] ), 'unknown mode value: defaults to skipping' );
+$GLOBALS['opts']['page_cache_foreign_buffer'] = 'store';
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), '"Cache them anyway": stored as before' );
+unlink( $ctx['file'] );
+$GLOBALS['opts']['page_cache_foreign_buffer'] = 'skip';
+set_foreign( false );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'no foreign buffer: stored exactly as before' );
+unlink( $ctx['file'] );
+
+// "Do not cache pages containing"
+$slider = str_replace( '</body>', '<div class="n2-ss-slider">slide</div></body>', $html );
+$GLOBALS['opts']['page_cache_skip_markers'] = "n2-ss-slider\n";
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( ! is_file( $ctx['file'] ), 'page containing a listed snippet is not stored' );
+$PC::handle_buffer( $html, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'a page without the snippet is stored' );
+unlink( $ctx['file'] );
+$PC::handle_buffer( str_replace( 'n2-ss-slider', 'N2-SS-SLIDER', $slider ), $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'matching is case-sensitive' );
+unlink( $ctx['file'] );
+$GLOBALS['opts']['page_cache_skip_markers'] = "unrelated\nn2-ss-slider";
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( ! is_file( $ctx['file'] ), 'any line of the list can match' );
+$GLOBALS['opts']['page_cache_skip_markers'] = '';
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'empty list (the default): nothing is excluded' );
+unlink( $ctx['file'] );
+unset( $GLOBALS['opts']['page_cache_skip_markers'] );
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'option missing from an old database: nothing is excluded' );
+unlink( $ctx['file'] );
+// A tampered / hand-edited value is re-validated when used.
+$GLOBALS['opts']['page_cache_skip_markers'] = "\x00\x01bad\nn2-ss-slider";
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( ! is_file( $ctx['file'] ), 'invalid lines are dropped, valid ones still apply' );
+$GLOBALS['opts']['page_cache_skip_markers'] = array( 'n2-ss-slider' );
+$PC::handle_buffer( $slider, $START_FINAL );
+t_ok( is_file( $ctx['file'] ), 'a non-string stored value is ignored, not trusted' );
+unlink( $ctx['file'] );
+$GLOBALS['opts']['page_cache_skip_markers'] = '';
+set_ctx( null );
+
+t_ok( "a\nb<c>\n\"q\"" === $PC::sanitize_marker_list( " a \r\n\r\na\nb<c>\n\"q\"\n" ), 'markers: trimmed, de-duplicated, markup and quotes allowed (plain text compare)' );
+t_ok( '' === $PC::sanitize_marker_list( "x\x00y\n\x1fz" ), 'markers: control characters rejected' );
+t_ok( '' === $PC::sanitize_marker_list( str_repeat( 'x', 201 ) ), 'markers: over-long line rejected' );
+t_ok( 200 === strlen( $PC::sanitize_marker_list( str_repeat( 'x', 200 ) ) ), 'markers: 200 characters accepted' );
+t_ok( 20 === count( explode( "\n", $PC::sanitize_marker_list( implode( "\n", range( 1, 50 ) ) ) ) ), 'markers: capped at 20 lines' );
+t_ok( '' === $PC::sanitize_marker_list( null ) && '' === $PC::sanitize_marker_list( array( 'x' ) ), 'markers: non-strings become empty' );
+t_ok( array() === $E::sanitize_headers( array( 'X-Beplus-Page-Cache: SKIP foreign-output-buffer' ) ), 'the diagnostic header is never replayed on a HIT' );
+$src = file_get_contents( $root . '/includes/class-bepluspb-page-cache.php' );
+// (The CLI does not record headers, so the header contract is checked on the source.)
+t_ok( 1 === preg_match( "/if \( ! headers_sent\(\) \) \{\s*header\( 'X-Beplus-Page-Cache: SKIP ' \. \\\$skip \);/", $src ), 'the skip reason header is sent only while headers can still be sent' );
+t_ok( false !== strpos( $src, "return 'foreign-output-buffer';" ) && false !== strpos( $src, "return 'excluded-content';" ), 'both skip reasons exist' );
+t_ok( strpos( $src, 'self::$foreign_buffer = self::has_foreign_output_buffer();' ) < strpos( $src, "ob_start( array( __CLASS__, 'handle_buffer' ) );" ), 'foreign buffers are looked for BEFORE the capture buffer opens' );
+
 // ---- Invalidation wiring (hard rule #7) -------------------------------------
 $GLOBALS['hooks'] = array();
 $PC::register_invalidation_hooks( array( 'cache_enabled' => 0, 'page_cache_enabled' => 1 ) );

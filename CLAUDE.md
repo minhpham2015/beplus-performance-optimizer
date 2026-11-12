@@ -249,6 +249,14 @@ checking whether it would break the SVN slug binding).
      pages" without that check.
    - The capture buffer must stay the OUTERMOST buffer so it stores the final
      HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
+   - **If it cannot be outermost, don't store.** Another plugin may open a buffer
+     before `template_redirect` -100 (translators, slider/asset loaders) and rewrite
+     the page after we saved it. `start_buffer()` checks `ob_get_status()` for such an
+     outer buffer (`has_foreign_output_buffer()`; only `HARMLESS_OUTPUT_HANDLERS` are
+     ignored) and `skip_reason()` then refuses to store unless the admin chose
+     `page_cache_foreign_buffer = store`. The same method applies the
+     `page_cache_skip_markers` list. Both run only when the page would otherwise be
+     stored, and the reason goes out in `X-Beplus-Page-Cache: SKIP …` (never replayed).
 
 ## Testing before every PR
 
