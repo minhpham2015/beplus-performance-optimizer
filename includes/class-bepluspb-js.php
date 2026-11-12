@@ -240,8 +240,8 @@ class BEPLUSPB_JS {
 		if ( empty( $scripts->registered ) || ! is_array( $scripts->registered ) ) {
 			return $cache;
 		}
-		$keep = array();
-		$visit   = function ( $handle ) use ( &$visit, &$keep, $scripts ) {
+		$keep  = array();
+		$visit = function ( $handle ) use ( &$visit, &$keep, $scripts ) {
 			if ( isset( $keep[ $handle ] ) || empty( $scripts->registered[ $handle ] ) ) {
 				return;
 			}
