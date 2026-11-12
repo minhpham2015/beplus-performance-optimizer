@@ -46,7 +46,9 @@ class BEPLUSPB_Resource_Hints {
 			add_filter( 'wp_resource_hints', array( __CLASS__, 'filter_resource_hints' ), 10, 2 );
 		}
 
-		if ( ! empty( $opts['lcp_image_keywords'] ) ) {
+		// Feeds, AJAX and REST responses are not pages with an LCP element (same scope as BEPLUSPB_Images).
+		$is_page = ! is_feed() && ! wp_doing_ajax() && ! ( defined( 'REST_REQUEST' ) && REST_REQUEST );
+		if ( $is_page && ! empty( $opts['lcp_image_keywords'] ) ) {
 			// WordPress 6.1+ passes every core-rendered <img> through this filter.
 			add_filter( 'wp_get_loading_optimization_attributes', array( __CLASS__, 'filter_lcp_attributes' ), 20, 4 );
 		}

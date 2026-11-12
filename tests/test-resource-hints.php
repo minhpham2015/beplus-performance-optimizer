@@ -15,6 +15,9 @@ $root = dirname( __DIR__ );
 
 $GLOBALS['opts']    = array( 'cache_headers' => 0, 'preconnect_hosts' => '', 'dns_prefetch_hosts' => '', 'lcp_image_keywords' => '' );
 $GLOBALS['filters'] = array();
+$GLOBALS['is_feed'] = false; $GLOBALS['ajax'] = false;
+function is_feed() { return $GLOBALS['is_feed']; }
+function wp_doing_ajax() { return $GLOBALS['ajax']; }
 function add_action() {}
 function add_filter( $tag, $cb, $prio = 10, $args = 1 ) { $GLOBALS['filters'][] = array( $tag, $cb, $prio, $args ); }
 function bepluspb_get_options() { return $GLOBALS['opts']; }
@@ -115,6 +118,15 @@ t_ok( 1 === count( $GLOBALS['filters'] ) && 'wp_resource_hints' === $GLOBALS['fi
 $GLOBALS['filters'] = array();
 BEPLUSPB_Resource_Hints::init( array( 'preconnect_hosts' => '', 'dns_prefetch_hosts' => '', 'lcp_image_keywords' => 'hero' ) );
 t_ok( 1 === count( $GLOBALS['filters'] ) && 'wp_get_loading_optimization_attributes' === $GLOBALS['filters'][0][0] && 4 === $GLOBALS['filters'][0][3], 'loading-attributes filter registered with 4 args' );
+
+$GLOBALS['filters'] = array();
+$GLOBALS['is_feed'] = true;
+BEPLUSPB_Resource_Hints::init( array( 'preconnect_hosts' => '', 'dns_prefetch_hosts' => '', 'lcp_image_keywords' => 'hero' ) );
+t_ok( array() === $GLOBALS['filters'], 'LCP priority is not registered for feeds' );
+$GLOBALS['is_feed'] = false; $GLOBALS['ajax'] = true;
+BEPLUSPB_Resource_Hints::init( array( 'preconnect_hosts' => '', 'dns_prefetch_hosts' => '', 'lcp_image_keywords' => 'hero' ) );
+t_ok( array() === $GLOBALS['filters'], 'LCP priority is not registered for AJAX' );
+$GLOBALS['ajax'] = false;
 
 // --- LCP image priority ----------------------------------------------------------------
 $GLOBALS['opts']['lcp_image_keywords'] = "hero-banner\n\n  \nslider-first";
