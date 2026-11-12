@@ -49,7 +49,10 @@ $bepluspb_oc_class = BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-object-cache
 if ( file_exists( $bepluspb_oc_class ) ) {
 	require_once $bepluspb_oc_class;
 	BEPLUSPB_Object_Cache::uninstall_dropin();
-	BEPLUSPB_Object_Cache::delete_config();
+	// A Beplus drop-in that could not be removed still needs its config (older builds die without it).
+	if ( ! BEPLUSPB_Object_Cache::is_dropin_installed() ) {
+		BEPLUSPB_Object_Cache::delete_config();
+	}
 }
 
 // ---------------------------------------------------------------------------

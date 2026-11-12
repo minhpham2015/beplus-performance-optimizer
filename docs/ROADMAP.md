@@ -132,3 +132,14 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 - Khi HIT, code của plugin khác không chạy: tường lửa/chặn IP, chế độ bảo trì, age-gate, redirect mới thêm, bộ đếm lượt xem server-side. Màn hình cài đặt liệt kê plugin đang bật thuộc nhóm này; chế độ bảo trì và tùy chọn cài đặt khác dùng ô "Extra Settings That Clear the Cache".
 - Quan sát `pre_get_posts` không thấy plugin đọc bài bằng SQL thô (`$wpdb`): chọn "Every cached page". Tên bài láng giềng ở Prev/Next chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài.
 - Còn cần **smoke test trên WordPress thật** (xem checklist) — kiểm tra "Compatibility check" trong card Page Cache không báo lỗi.
+
+## Smoke test: Object Cache drop-in khi cấu hình tắt/mất (nhánh `claude/fix-oc-dropin-fatal`)
+
+Chưa chạy trên WordPress thật. Test tự động dùng file `cache.php` giả của core.
+
+- **O1** Site đang chạy drop-in BẢN CŨ (1.2.0 trước bản sửa): vào tab Object Cache → có cảnh báo vàng "older Beplus build". Bấm Install Drop-in → cảnh báo biến mất, Object Cache vẫn kết nối Redis (`wp_using_ext_object_cache()` = true, có key `bepluspb:*` trong Redis).
+- **O2** Bỏ tick "Enable Object Cache", lưu → site và wp-admin vẫn lên (HTTP 200, `debug.log` không có `Cannot redeclare`). Site Health không còn báo có persistent object cache; transient lại nằm trong bảng options.
+- **O3** Xóa tay `wp-content/.bepluspb_oc.php` khi drop-in MỚI đang cài → site vẫn lên, cache mặc định của WordPress hoạt động.
+- **O4** Drop-in CŨ đang cài, bỏ tick Enable rồi lưu → drop-in cũ tự bị gỡ (file `object-cache.php` biến mất), site không chết. Nếu `wp-content` không ghi được: lưu báo lỗi, config KHÔNG bị ghi thành tắt.
+- **O5** Gỡ plugin (Delete) khi drop-in còn cài → `object-cache.php` và `.bepluspb_oc.php` cùng biến mất; nếu không xóa được drop-in thì config được giữ lại.
+
