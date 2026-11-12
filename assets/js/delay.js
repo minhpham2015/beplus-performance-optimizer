@@ -12,6 +12,9 @@
 		? bepluspbDelayConfig.skip
 		: [];
 	var _bepluspbLoaded = false;
+	var _bepluspbReady = false;
+	var _bepluspbPendingForms = [];
+	var _bepluspbRemaining = 0;
 
 	function _bepluspbIsExcluded( src ) {
 		for ( var i = 0; i < _bepluspbExclude.length; i++ ) {
@@ -21,6 +24,43 @@
 	}
 
 	var _bepluspbCopyAttrs = [ 'integrity', 'crossorigin', 'nonce', 'referrerpolicy' ];
+
+	// Forms submitted while the delayed scripts are still loading would be sent as
+	// a plain page-reload POST (their AJAX handlers are not attached yet). Hold the
+	// submit and replay it through requestSubmit() once every script has run, so the
+	// form's own JS handles it exactly as if the scripts had been there all along.
+	function _bepluspbFlushForms() {
+		if ( _bepluspbReady ) return;
+		_bepluspbReady = true;
+		var forms = _bepluspbPendingForms;
+		_bepluspbPendingForms = [];
+		forms.forEach( function ( item ) {
+			setTimeout( function () {
+				try {
+					if ( typeof item.form.requestSubmit === 'function' ) {
+						item.form.requestSubmit( item.submitter || undefined );
+					} else {
+						item.form.submit();
+					}
+				} catch ( err ) {
+					item.form.submit();
+				}
+			}, 0 );
+		} );
+	}
+
+	function _bepluspbScriptSettled() {
+		_bepluspbRemaining--;
+		if ( _bepluspbRemaining <= 0 ) _bepluspbFlushForms();
+	}
+
+	document.addEventListener( 'submit', function ( event ) {
+		if ( _bepluspbReady ) return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		_bepluspbPendingForms.push( { form: event.target, submitter: event.submitter } );
+		_bepluspbLoadAll();
+	}, true );
 
 	function _bepluspbLoadAll() {
 		if ( _bepluspbLoaded ) return;
@@ -43,12 +83,22 @@
 				} );
 				s.src   = src;
 				s.async = false;
+				_bepluspbRemaining++;
+				s.addEventListener( 'load', _bepluspbScriptSettled );
+				s.addEventListener( 'error', _bepluspbScriptSettled );
 				document.body.appendChild( s );
 			}
 			if ( placeholder.parentNode ) {
 				placeholder.parentNode.removeChild( placeholder );
 			}
 		} );
+
+		if ( _bepluspbRemaining <= 0 ) {
+			_bepluspbFlushForms();
+		} else {
+			// Never keep a held form waiting on a stalled script.
+			setTimeout( _bepluspbFlushForms, 8000 );
+		}
 	}
 
 	var _bepluspbEvents = [
