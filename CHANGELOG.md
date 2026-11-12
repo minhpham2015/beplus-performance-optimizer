@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Delay JS (Simple): a form submitted while the delayed scripts are still loading is held
+  and replayed once they have run, instead of being sent as a plain page-reload POST
+  before its AJAX handler exists. A second click while it is held no longer sends the
+  form twice, and the replay uses the `HTMLFormElement` prototype methods so a field
+  named `submit` (WordPress comment form) cannot break it on browsers without
+  `requestSubmit()`. Held forms are released after 8 seconds even if a script stalls.
+- Delay JS (Simple) and Defer: a script that carries a `wp_add_inline_script( …, 'after' )`
+  block, and every script it depends on, is left alone. Previously Delay moved the file
+  behind the inline code that needs it, and Defer could run a dependency after the
+  script that uses it ("X is not defined"). Test: `tests/test-delay-js-inline-after-deps.php`.
+
+### Changed
+- Settings: the Defer JS and Delay JS options explain how they work together.
+
 ## [1.2.0] - 2026-11-06
 
 ### Added

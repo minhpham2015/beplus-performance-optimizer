@@ -29,6 +29,12 @@
 	// a plain page-reload POST (their AJAX handlers are not attached yet). Hold the
 	// submit and replay it through requestSubmit() once every script has run, so the
 	// form's own JS handles it exactly as if the scripts had been there all along.
+	// form.submit / form.requestSubmit can be shadowed by a field named "submit"
+	// (the WordPress comment form has one), so always call the prototype methods.
+	function _bepluspbNativeSubmit( form ) {
+		HTMLFormElement.prototype.submit.call( form );
+	}
+
 	function _bepluspbFlushForms() {
 		if ( _bepluspbReady ) return;
 		_bepluspbReady = true;
@@ -36,14 +42,19 @@
 		_bepluspbPendingForms = [];
 		forms.forEach( function ( item ) {
 			setTimeout( function () {
+				var proto = HTMLFormElement.prototype;
 				try {
-					if ( typeof item.form.requestSubmit === 'function' ) {
-						item.form.requestSubmit( item.submitter || undefined );
+					if ( typeof proto.requestSubmit === 'function' ) {
+						if ( item.submitter ) {
+							proto.requestSubmit.call( item.form, item.submitter );
+						} else {
+							proto.requestSubmit.call( item.form );
+						}
 					} else {
-						item.form.submit();
+						_bepluspbNativeSubmit( item.form );
 					}
 				} catch ( err ) {
-					item.form.submit();
+					_bepluspbNativeSubmit( item.form );
 				}
 			}, 0 );
 		} );
@@ -58,7 +69,17 @@
 		if ( _bepluspbReady ) return;
 		event.preventDefault();
 		event.stopImmediatePropagation();
-		_bepluspbPendingForms.push( { form: event.target, submitter: event.submitter } );
+		// A second click while the form is held must not send it twice.
+		var held = false;
+		for ( var i = 0; i < _bepluspbPendingForms.length; i++ ) {
+			if ( _bepluspbPendingForms[ i ].form === event.target ) {
+				_bepluspbPendingForms[ i ].submitter = event.submitter;
+				held = true;
+			}
+		}
+		if ( ! held ) {
+			_bepluspbPendingForms.push( { form: event.target, submitter: event.submitter } );
+		}
 		_bepluspbLoadAll();
 	}, true );
 

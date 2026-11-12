@@ -4,7 +4,7 @@ File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file n�
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-11-06 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
 
 > **Rủi ro lớn nhất hiện tại:** #1–#3 đã phát hành trong 1.1.14 nhưng **chưa smoke test trên WordPress thật** (24 mục ở cuối file). Làm việc này trước khi thêm tính năng mới.
 
@@ -100,6 +100,8 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 28. Preload không làm lộ trang cá nhân hóa: sau preload, mở trang bằng tài khoản đăng nhập → không phải bản cache.
 29. TTL: nhập 72 vào "Cache Lifespan" → ô giới hạn ở 24; lưu → giá trị còn lại 24 (hoặc nhỏ hơn nếu nhập nhỏ).
 30. Preload refresh: đặt TTL 1 giờ, bật Preload, đợi run xong → `wp cron event list` có `bepluspb_page_cache_preload_start` (≥10 phút sau). Bấm Purge ALL nhiều lần liên tiếp → chỉ một lượt crawl mỗi 10 phút.
+31. **Delay JS (Simple) + form**: bật Delay JS (Simple), mở trang có form AJAX (Contact Form 7, bình luận, add-to-cart) ở cửa sổ ẩn danh, bấm gửi ngay khi trang vừa hiện → form gửi bằng AJAX như bình thường (không reload trang), chỉ gửi **một** lần dù bấm 2 lần. Form tìm kiếm vẫn chuyển trang.
+32. **Defer + Delay cùng bật**: Console không có lỗi "X is not defined"; menu, slider, giỏ hàng chạy đúng.
 
 ## Nhật ký tiến trình
 
@@ -121,6 +123,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-11-06 | Rà soát #1–#4, xử lý 3 điểm: TTL tối đa 24h (nonce), preload tự warm lại sau TTL, rate limit 1 lượt/10 phút. Thêm smoke test #29–#30. |
 | 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
+| 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
 
 ## Việc còn lại từ review lần 3
 
