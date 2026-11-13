@@ -47,6 +47,17 @@ checking whether it would break the SVN slug binding).
   into `wp-content/object-cache.php`. Runs extremely early in bootstrap,
   before most WordPress security machinery. Any bug here has an outsized
   blast radius compared to a normal plugin file.
+  **Never declare a global `wp_cache_*()` function unconditionally in this file,
+  and never `require` core's `cache.php` from it:** PHP hoists top-level
+  functions at compile time, so an early `return` does not stop them, and core's
+  own `cache.php` then dies with "Cannot redeclare wp_cache_init()" (whole-site
+  fatal, see "Known bugs" 2026-11-12). When the config is off the file must define
+  nothing and `return`. Changing the file means a new `BEPLUSPB_DROPIN_BUILD_ID`
+  in all three places (this file, `BEPLUSPB_Object_Cache`,
+  `BEPLUSPB_Dropin_Workflow`), keeping the old ids in `KNOWN_DROPIN_BUILD_IDS`.
+  Sites keep the OLD file in `wp-content` until the admin reinstalls it, so any
+  plugin-side code must stay safe next to an outdated drop-in
+  (`is_outdated_dropin_installed()`).
 - `includes/class-bepluspb-minify.php`, `-css.php`, `-js.php`, `-html.php`,
   `-ucss.php` — asset processing pipeline; `url_to_path()` in minify.php
   resolves enqueued URLs to filesystem paths and is shared by css.php/ucss.php.
@@ -451,6 +462,24 @@ for every `wp_cache_get()`/`wp_cache_set()`/`wp_cache_add()` call
 against that literal group name first. `site-transient` "sounds like"
 it should hold simple transient values and doesn't obviously scream
 "object" the way `users` does — check, don't guess.
+
+## Known bugs (found 2026-11-12) — ✅ FIXED
+
+✅ **[FIXED]** The 2026-09-15 "install before config" fix above only blocked the
+Install button; the drop-in file itself still carried the bug. With its config
+disabled/missing/unreadable it did `require_once ABSPATH . WPINC . '/cache.php'; return;`
+while its own `wp_cache_*()` functions sat at the top level of the file. PHP declares those
+at compile time, before the `return` runs, so core's `cache.php` hit "Cannot redeclare
+wp_cache_init()" on every request, wp-admin included. Triggers: unticking "Enable Object
+Cache" and saving (the drop-in stays installed), moving a site without the hidden
+`.bepluspb_oc.php`, a failed uninstall (config deleted, drop-in left). Reported from a live
+site where deleting `object-cache.php` brought it back. **Fix:** disabled config → `return`
+without defining anything (core loads its own cache and `wp_using_ext_object_cache()` stays
+false); the API is declared inside `if ( ! function_exists( 'wp_cache_init' ) )`; new build id;
+saving a disabled config removes an outdated drop-in first; uninstall keeps the config while
+a drop-in remains; the Object Cache tab asks for a reinstall when the build is outdated.
+Regression test: `tests/test-object-cache-dropin-disabled-load.php` (runs the real file the
+way `wp_start_object_cache()` does).
 
 ## Known future improvements (not scheduled)
 

@@ -71,7 +71,7 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/** Exact machine-readable identity of the bundled drop-in. */
-	const DROPIN_BUILD_ID = 'bepluspb-1.1.13-20261014';
+	const DROPIN_BUILD_ID = 'bepluspb-1.2.0-20261112';
 
 	/**
 	 * Every build id this plugin has ever shipped in lib/object-cache.php.
@@ -83,7 +83,7 @@ class BEPLUSPB_Object_Cache {
 	 * referencing that class's constant here would fatal during uninstall.
 	 * Append new ids on future releases; never remove old ones.
 	 */
-	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.13-20261013', 'bepluspb-1.1.13-20261008', 'bepluspb-1.1.12-20261007', 'bepluspb-1.1.12-20260930' );
+	const KNOWN_DROPIN_BUILD_IDS = array( self::DROPIN_BUILD_ID, 'bepluspb-1.1.13-20261014', 'bepluspb-1.1.13-20261013', 'bepluspb-1.1.13-20261008', 'bepluspb-1.1.12-20261007', 'bepluspb-1.1.12-20260930' );
 
 	/** Exact hashes of historical Beplus drop-ins shipped before build IDs. */
 	const KNOWN_LEGACY_DROPIN_HASHES = array(
@@ -552,6 +552,19 @@ class BEPLUSPB_Object_Cache {
 	}
 
 	/**
+	 * Whether a Beplus drop-in from an older build than the bundled one is installed.
+	 *
+	 * Builds before 1.2.0 fatal on every request once their config is disabled, missing or
+	 * unreadable; reinstalling the drop-in replaces them with the fixed build.
+	 *
+	 * @return bool
+	 */
+	public static function is_outdated_dropin_installed() {
+		$dst = self::target_file();
+		return file_exists( $dst ) && self::is_our_dropin( $dst ) && ! self::is_current_dropin( $dst );
+	}
+
+	/**
 	 * Whether the Beplus drop-in is currently installed.
 	 *
 	 * @return bool
@@ -602,10 +615,20 @@ class BEPLUSPB_Object_Cache {
 	 * @return bool        True on success.
 	 */
 	public static function write_config( $opts ) {
+		$cfg = self::config_from_options( $opts );
+
+		// Drop-ins built before 1.2.0 cannot be loaded without an enabled config (they die with
+		// "Cannot redeclare wp_cache_init()"), so one must never be left behind a disabled config.
+		if ( empty( $cfg['enabled'] ) && self::is_outdated_dropin_installed() ) {
+			self::uninstall_dropin();
+			if ( self::is_outdated_dropin_installed() ) {
+				return false;
+			}
+		}
+
 		if ( ! self::migrate_legacy_config() ) {
 			return false;
 		}
-		$cfg = self::config_from_options( $opts );
 
 		$written = self::write_config_file( $cfg );
 		if ( $written && is_file( WP_CONTENT_DIR . '/.bepluspb_oc.json' ) ) {
@@ -838,6 +861,7 @@ class BEPLUSPB_Object_Cache {
 
 		return array(
 			'dropin_installed'    => self::is_dropin_installed(),
+			'dropin_outdated'     => self::is_outdated_dropin_installed(),
 			'enabled_in_settings' => ! empty( $opts['object_cache_enabled'] ),
 			'driver'              => $driver,
 			'host'                => $opts['object_cache_host'] ?? '127.0.0.1',

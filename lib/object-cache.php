@@ -16,7 +16,7 @@ defined( 'WPINC' ) || exit;
 
 /** Runtime identity used by the isolated post-install probe. */
 if ( ! defined( 'BEPLUSPB_DROPIN_BUILD_ID' ) ) {
-	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.1.13-20261014' );
+	define( 'BEPLUSPB_DROPIN_BUILD_ID', 'bepluspb-1.2.0-20261112' );
 }
 
 // ---------------------------------------------------------------------------
@@ -59,9 +59,14 @@ if ( $_bepluspb_oc_config_file && file_exists( $_bepluspb_oc_config_file ) ) {
 	}
 }
 
-// If Object Cache is disabled in config, fall back to WP default.
+// If Object Cache is disabled in config (or the config is missing/unreadable), define NOTHING and
+// let WordPress core load its own default cache. This file must not require core's cache.php
+// itself: PHP declares top-level functions when it COMPILES a file, so a global wp_cache_*()
+// function written at the top level below would already exist when core's cache.php is
+// required, and the site dies with "Cannot redeclare wp_cache_init()". That is why every global
+// function below sits inside a conditional block: a conditional function is only declared when
+// execution reaches it, and this `return` stops execution first.
 if ( empty( $_bepluspb_oc_cfg['enabled'] ) ) {
-	require_once ABSPATH . WPINC . '/cache.php';
 	return;
 }
 
@@ -911,242 +916,244 @@ endif; // class_exists( 'WP_Object_Cache' ). phpcs:ignore Squiz.PHP.CommentedOut
 // Global WP cache functions (required API surface).
 // ---------------------------------------------------------------------------
 
-global $wp_object_cache, $_bepluspb_oc_cfg;
-
-/**
- * Initialise the object cache.
- */
-function wp_cache_init() {
+if ( ! function_exists( 'wp_cache_init' ) ) {
 	global $wp_object_cache, $_bepluspb_oc_cfg;
-	$wp_object_cache = new WP_Object_Cache( $_bepluspb_oc_cfg );
-}
 
-/**
- * Add data to the cache if it doesn't already exist.
- *
- * @param int|string $key    Cache key.
- * @param mixed      $data   Cache data.
- * @param string     $group  Cache group. Default 'default'.
- * @param int        $expire Expire time in seconds. Default 0.
- * @return bool
- */
-function wp_cache_add( $key, $data, $group = '', $expire = 0 ) {
-	global $wp_object_cache;
-	return $wp_object_cache->add( $key, $data, $group ? $group : 'default', (int) $expire );
-}
+	/**
+	 * Initialise the object cache.
+	 */
+	function wp_cache_init() {
+		global $wp_object_cache, $_bepluspb_oc_cfg;
+		$wp_object_cache = new WP_Object_Cache( $_bepluspb_oc_cfg );
+	}
 
-/**
- * Replace a value in the cache.
- *
- * @param int|string $key    Cache key.
- * @param mixed      $data   Cache data.
- * @param string     $group  Cache group.
- * @param int        $expire Expire time in seconds.
- * @return bool
- */
-function wp_cache_replace( $key, $data, $group = '', $expire = 0 ) {
-	global $wp_object_cache;
-	return $wp_object_cache->replace( $key, $data, $group ? $group : 'default', (int) $expire );
-}
+	/**
+	 * Add data to the cache if it doesn't already exist.
+	 *
+	 * @param int|string $key    Cache key.
+	 * @param mixed      $data   Cache data.
+	 * @param string     $group  Cache group. Default 'default'.
+	 * @param int        $expire Expire time in seconds. Default 0.
+	 * @return bool
+	 */
+	function wp_cache_add( $key, $data, $group = '', $expire = 0 ) {
+		global $wp_object_cache;
+		return $wp_object_cache->add( $key, $data, $group ? $group : 'default', (int) $expire );
+	}
 
-/**
- * Save data to the cache.
- *
- * @param int|string $key    Cache key.
- * @param mixed      $data   Cache data.
- * @param string     $group  Cache group. Default 'default'.
- * @param int        $expire Expire time in seconds. Default 0.
- * @return bool
- */
-function wp_cache_set( $key, $data, $group = '', $expire = 0 ) {
-	global $wp_object_cache;
-	return $wp_object_cache->set( $key, $data, $group ? $group : 'default', (int) $expire );
-}
+	/**
+	 * Replace a value in the cache.
+	 *
+	 * @param int|string $key    Cache key.
+	 * @param mixed      $data   Cache data.
+	 * @param string     $group  Cache group.
+	 * @param int        $expire Expire time in seconds.
+	 * @return bool
+	 */
+	function wp_cache_replace( $key, $data, $group = '', $expire = 0 ) {
+		global $wp_object_cache;
+		return $wp_object_cache->replace( $key, $data, $group ? $group : 'default', (int) $expire );
+	}
 
-/**
- * Retrieve the cache contents from the cache by key and group.
- *
- * @param int|string $key   Cache key.
- * @param string     $group Cache group. Default 'default'.
- * @param bool       $force Optional. Whether to force an update of the local cache. Default false.
- * @param bool       &$found Optional. Whether the key was found in the cache. Default null.
- * @return mixed|false
- */
-function wp_cache_get( $key, $group = '', $force = false, &$found = null ) {
-	global $wp_object_cache;
-	return $wp_object_cache->get( $key, $group ? $group : 'default', $force, $found );
-}
+	/**
+	 * Save data to the cache.
+	 *
+	 * @param int|string $key    Cache key.
+	 * @param mixed      $data   Cache data.
+	 * @param string     $group  Cache group. Default 'default'.
+	 * @param int        $expire Expire time in seconds. Default 0.
+	 * @return bool
+	 */
+	function wp_cache_set( $key, $data, $group = '', $expire = 0 ) {
+		global $wp_object_cache;
+		return $wp_object_cache->set( $key, $data, $group ? $group : 'default', (int) $expire );
+	}
 
-/**
- * Remove the cache contents matching key and group.
- *
- * @param int|string $key   Cache key.
- * @param string     $group Cache group. Default 'default'.
- * @param int        $deprecated Deprecated. Not used.
- * @return bool
- */
-function wp_cache_delete( $key, $group = '', $deprecated = 0 ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- required by the wp_cache_delete() core API signature.
-	global $wp_object_cache;
-	return $wp_object_cache->delete( $key, $group ? $group : 'default' );
-}
+	/**
+	 * Retrieve the cache contents from the cache by key and group.
+	 *
+	 * @param int|string $key   Cache key.
+	 * @param string     $group Cache group. Default 'default'.
+	 * @param bool       $force Optional. Whether to force an update of the local cache. Default false.
+	 * @param bool       &$found Optional. Whether the key was found in the cache. Default null.
+	 * @return mixed|false
+	 */
+	function wp_cache_get( $key, $group = '', $force = false, &$found = null ) {
+		global $wp_object_cache;
+		return $wp_object_cache->get( $key, $group ? $group : 'default', $force, $found );
+	}
 
-/**
- * Increment numeric cache item's value.
- *
- * @param int|string $key    Cache key.
- * @param int        $offset The amount by which to increment the item's value.
- * @param string     $group  Cache group. Default 'default'.
- * @return int|false
- */
-function wp_cache_incr( $key, $offset = 1, $group = '' ) {
-	global $wp_object_cache;
-	return $wp_object_cache->incr( $key, $offset, $group ? $group : 'default' );
-}
+	/**
+	 * Remove the cache contents matching key and group.
+	 *
+	 * @param int|string $key   Cache key.
+	 * @param string     $group Cache group. Default 'default'.
+	 * @param int        $deprecated Deprecated. Not used.
+	 * @return bool
+	 */
+	function wp_cache_delete( $key, $group = '', $deprecated = 0 ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- required by the wp_cache_delete() core API signature.
+		global $wp_object_cache;
+		return $wp_object_cache->delete( $key, $group ? $group : 'default' );
+	}
 
-/**
- * Decrement numeric cache item's value.
- *
- * @param int|string $key    Cache key.
- * @param int        $offset The amount by which to decrement the item's value.
- * @param string     $group  Cache group.
- * @return int|false
- */
-function wp_cache_decr( $key, $offset = 1, $group = '' ) {
-	global $wp_object_cache;
-	return $wp_object_cache->decr( $key, $offset, $group ? $group : 'default' );
-}
+	/**
+	 * Increment numeric cache item's value.
+	 *
+	 * @param int|string $key    Cache key.
+	 * @param int        $offset The amount by which to increment the item's value.
+	 * @param string     $group  Cache group. Default 'default'.
+	 * @return int|false
+	 */
+	function wp_cache_incr( $key, $offset = 1, $group = '' ) {
+		global $wp_object_cache;
+		return $wp_object_cache->incr( $key, $offset, $group ? $group : 'default' );
+	}
 
-/**
- * Remove all cache items.
- *
- * @return bool
- */
-function wp_cache_flush() {
-	global $wp_object_cache;
-	return $wp_object_cache->flush();
-}
+	/**
+	 * Decrement numeric cache item's value.
+	 *
+	 * @param int|string $key    Cache key.
+	 * @param int        $offset The amount by which to decrement the item's value.
+	 * @param string     $group  Cache group.
+	 * @return int|false
+	 */
+	function wp_cache_decr( $key, $offset = 1, $group = '' ) {
+		global $wp_object_cache;
+		return $wp_object_cache->decr( $key, $offset, $group ? $group : 'default' );
+	}
 
-/**
- * Retrieve several cache items at once.
- *
- * @param array  $keys  Cache keys.
- * @param string $group Cache group.
- * @param bool   $force Whether to bypass the local copy.
- * @return array
- */
-function wp_cache_get_multiple( $keys, $group = '', $force = false ) {
-	global $wp_object_cache;
-	return $wp_object_cache->get_multiple( $keys, $group ? $group : 'default', $force );
-}
+	/**
+	 * Remove all cache items.
+	 *
+	 * @return bool
+	 */
+	function wp_cache_flush() {
+		global $wp_object_cache;
+		return $wp_object_cache->flush();
+	}
 
-/**
- * Save several cache items at once.
- *
- * @param array  $data   key => value.
- * @param string $group  Cache group.
- * @param int    $expire Expire time in seconds.
- * @return array
- */
-function wp_cache_set_multiple( $data, $group = '', $expire = 0 ) {
-	global $wp_object_cache;
-	return $wp_object_cache->set_multiple( $data, $group ? $group : 'default', (int) $expire );
-}
+	/**
+	 * Retrieve several cache items at once.
+	 *
+	 * @param array  $keys  Cache keys.
+	 * @param string $group Cache group.
+	 * @param bool   $force Whether to bypass the local copy.
+	 * @return array
+	 */
+	function wp_cache_get_multiple( $keys, $group = '', $force = false ) {
+		global $wp_object_cache;
+		return $wp_object_cache->get_multiple( $keys, $group ? $group : 'default', $force );
+	}
 
-/**
- * Add several cache items at once.
- *
- * @param array  $data   key => value.
- * @param string $group  Cache group.
- * @param int    $expire Expire time in seconds.
- * @return array
- */
-function wp_cache_add_multiple( $data, $group = '', $expire = 0 ) {
-	global $wp_object_cache;
-	return $wp_object_cache->add_multiple( $data, $group ? $group : 'default', (int) $expire );
-}
+	/**
+	 * Save several cache items at once.
+	 *
+	 * @param array  $data   key => value.
+	 * @param string $group  Cache group.
+	 * @param int    $expire Expire time in seconds.
+	 * @return array
+	 */
+	function wp_cache_set_multiple( $data, $group = '', $expire = 0 ) {
+		global $wp_object_cache;
+		return $wp_object_cache->set_multiple( $data, $group ? $group : 'default', (int) $expire );
+	}
 
-/**
- * Delete several cache items at once.
- *
- * @param array  $keys  Cache keys.
- * @param string $group Cache group.
- * @return array
- */
-function wp_cache_delete_multiple( $keys, $group = '' ) {
-	global $wp_object_cache;
-	return $wp_object_cache->delete_multiple( $keys, $group ? $group : 'default' );
-}
+	/**
+	 * Add several cache items at once.
+	 *
+	 * @param array  $data   key => value.
+	 * @param string $group  Cache group.
+	 * @param int    $expire Expire time in seconds.
+	 * @return array
+	 */
+	function wp_cache_add_multiple( $data, $group = '', $expire = 0 ) {
+		global $wp_object_cache;
+		return $wp_object_cache->add_multiple( $data, $group ? $group : 'default', (int) $expire );
+	}
 
-/**
- * Clear the per-request in-memory cache only.
- *
- * @return bool
- */
-function wp_cache_flush_runtime() {
-	global $wp_object_cache;
-	return $wp_object_cache->flush_runtime();
-}
+	/**
+	 * Delete several cache items at once.
+	 *
+	 * @param array  $keys  Cache keys.
+	 * @param string $group Cache group.
+	 * @return array
+	 */
+	function wp_cache_delete_multiple( $keys, $group = '' ) {
+		global $wp_object_cache;
+		return $wp_object_cache->delete_multiple( $keys, $group ? $group : 'default' );
+	}
 
-/**
- * Remove all items in one cache group.
- *
- * @param string $group Cache group.
- * @return bool
- */
-function wp_cache_flush_group( $group ) {
-	global $wp_object_cache;
-	return $wp_object_cache->flush_group( $group );
-}
+	/**
+	 * Clear the per-request in-memory cache only.
+	 *
+	 * @return bool
+	 */
+	function wp_cache_flush_runtime() {
+		global $wp_object_cache;
+		return $wp_object_cache->flush_runtime();
+	}
 
-/**
- * Whether this cache implementation supports a feature.
- *
- * @param string $feature Feature name.
- * @return bool
- */
-function wp_cache_supports( $feature ) {
-	global $wp_object_cache;
-	return $wp_object_cache->supports( $feature );
-}
+	/**
+	 * Remove all items in one cache group.
+	 *
+	 * @param string $group Cache group.
+	 * @return bool
+	 */
+	function wp_cache_flush_group( $group ) {
+		global $wp_object_cache;
+		return $wp_object_cache->flush_group( $group );
+	}
 
-/**
- * Closes the cache.
- *
- * @return bool
- */
-function wp_cache_close() {
-	return true;
-}
+	/**
+	 * Whether this cache implementation supports a feature.
+	 *
+	 * @param string $feature Feature name.
+	 * @return bool
+	 */
+	function wp_cache_supports( $feature ) {
+		global $wp_object_cache;
+		return $wp_object_cache->supports( $feature );
+	}
 
-/**
- * Add a group or set of groups to the list of global groups.
- *
- * @param string|array $groups Group name(s).
- */
-function wp_cache_add_global_groups( $groups ) {
-	global $wp_object_cache;
-	$wp_object_cache->add_global_groups( $groups );
-}
+	/**
+	 * Closes the cache.
+	 *
+	 * @return bool
+	 */
+	function wp_cache_close() {
+		return true;
+	}
 
-/**
- * Add a group or set of groups to the list of non-persistent groups.
- *
- * @param string|array $groups Group name(s).
- */
-function wp_cache_add_non_persistent_groups( $groups ) {
-	global $wp_object_cache;
-	$wp_object_cache->add_non_persistent_groups( $groups );
-}
+	/**
+	 * Add a group or set of groups to the list of global groups.
+	 *
+	 * @param string|array $groups Group name(s).
+	 */
+	function wp_cache_add_global_groups( $groups ) {
+		global $wp_object_cache;
+		$wp_object_cache->add_global_groups( $groups );
+	}
 
-/**
- * Switch the internal blog ID. Used in Multisite.
- *
- * @param int $blog_id Blog ID.
- */
-function wp_cache_switch_to_blog( $blog_id ) {
-	global $wp_object_cache;
-	$wp_object_cache->switch_to_blog( $blog_id );
-}
+	/**
+	 * Add a group or set of groups to the list of non-persistent groups.
+	 *
+	 * @param string|array $groups Group name(s).
+	 */
+	function wp_cache_add_non_persistent_groups( $groups ) {
+		global $wp_object_cache;
+		$wp_object_cache->add_non_persistent_groups( $groups );
+	}
 
-// Initialise immediately.
-wp_cache_init();
+	/**
+	 * Switch the internal blog ID. Used in Multisite.
+	 *
+	 * @param int $blog_id Blog ID.
+	 */
+	function wp_cache_switch_to_blog( $blog_id ) {
+		global $wp_object_cache;
+		$wp_object_cache->switch_to_blog( $blog_id );
+	}
+
+	// Initialise immediately.
+	wp_cache_init();
+}
