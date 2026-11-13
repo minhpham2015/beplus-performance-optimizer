@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-13
+
 ### Fixed
 - **Object Cache: the whole site (wp-admin included) died with "Fatal error: Cannot redeclare
   wp_cache_init()"** whenever `wp-content/object-cache.php` was installed while its config was
