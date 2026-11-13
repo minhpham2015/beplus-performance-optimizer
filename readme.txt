@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -476,6 +476,11 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.2.1 =
+* Fix: a site could crash completely (including wp-admin, "Cannot redeclare wp_cache_init()") after you turned Object Cache off and saved, or when its hidden settings file was missing. The Object Cache drop-in now steps aside and WordPress uses its normal cache. If you use Object Cache, open the Object Cache tab and press "Install Drop-in" once to update it.
+* Fix: saving settings with Object Cache off now removes an outdated drop-in first, and uninstalling no longer deletes the Object Cache settings while a drop-in is still installed.
+* Fix: Delay JS - a form submitted while delayed scripts are still loading is held and sent once they have run (no double submit), and scripts that other scripts depend on through inline "after" code are no longer moved out of order by Delay JS or Defer.
+
 = 1.2.0 =
 * New: optional Page Cache Preload (off by default, Cache Files tab → Page Cache). After the cache is cleared, WordPress cron visits your home page and up to 500 recently updated public pages in the background, a few at a time, so the first visitors get fast cached pages. Only your own site is contacted; it stops by itself if requests fail, runs at most once every 10 minutes, and rebuilds expired pages automatically.
 * Change: the Page Cache lifespan is now limited to 1–24 hours (was 72). Longer lifespans could leave forms on cached pages with expired security tokens. Higher saved values are lowered to 24.
@@ -669,6 +674,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.2.1 =
+Fixes a site-wide crash that could follow turning Object Cache off. If you use Object Cache, press "Install Drop-in" once on the Object Cache tab after updating.
 
 = 1.2.0 =
 Adds optional Page Cache Preload (off by default) that rebuilds the cache in the background after it is cleared. The Page Cache lifespan is now capped at 24 hours; a higher saved value is lowered automatically.

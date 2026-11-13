@@ -263,6 +263,11 @@ trait BEPLUSPB_Admin_Tabs_Object_Cache {
 								<span id="bepluspb-oc-dropin-result"></span>
 							</div>
 						<?php else : ?>
+							<?php if ( ! empty( $status['dropin_outdated'] ) ) : ?>
+							<div class="notice notice-warning bepluspb-notice-warning inline" style="margin:0 0 10px;">
+								<p><?php esc_html_e( 'The installed object-cache.php is an older Beplus build. It stops the whole site if its configuration is ever disabled or missing. Click "Install Drop-in" to update it; your settings are kept.', 'beplus-performance-booster' ); ?></p>
+							</div>
+							<?php endif; ?>
 							<button type="button" class="button button-primary" id="bepluspb-oc-install-btn">
 								<?php esc_html_e( 'Install Drop-in', 'beplus-performance-booster' ); ?>
 							</button>

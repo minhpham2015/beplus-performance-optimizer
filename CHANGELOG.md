@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-13
+
+### Fixed
+- **Object Cache: the whole site (wp-admin included) died with "Fatal error: Cannot redeclare
+  wp_cache_init()"** whenever `wp-content/object-cache.php` was installed while its config was
+  disabled, missing or unusable: after unticking "Enable Object Cache" and saving, after moving a
+  site without the hidden `.bepluspb_oc.php`, or after a failed uninstall. Cause: with the config
+  off the drop-in required core's `wp-includes/cache.php` and returned, but PHP declares a file's
+  top-level functions when it compiles it, so the drop-in's own `wp_cache_*()` functions already
+  existed and core's declared them a second time. The drop-in (build `bepluspb-1.2.0-20261112`)
+  now returns without declaring anything when disabled, so core loads its own cache and no longer
+  believes an external object cache exists; the `wp_cache_*()` API is declared only inside a
+  `function_exists( 'wp_cache_init' )` block. **Sites that already have the drop-in must press
+  "Install Drop-in" once** (the Object Cache tab now says so for older builds).
+- Saving settings with Object Cache disabled now removes an OUTDATED Beplus drop-in first (they
+  die behind a disabled config) and refuses to write the disabled config if it cannot be removed.
+  A foreign drop-in or a current-build drop-in is never touched.
+- Uninstall no longer deletes `.bepluspb_oc.php` while a Beplus drop-in is still installed.
+- Test: `tests/test-object-cache-dropin-disabled-load.php` boots the real drop-in in a separate
+  PHP process the way `wp_start_object_cache()` does.
+
 ### Fixed
 - Delay JS (Simple): a form submitted while the delayed scripts are still loading is held
   and replayed once they have run, instead of being sent as a plain page-reload POST
