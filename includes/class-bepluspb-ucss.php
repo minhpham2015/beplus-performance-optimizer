@@ -68,6 +68,25 @@ class BEPLUSPB_UCSS {
 	private static $building = false;
 
 	/**
+	 * Learned-state header of the current page URL: ['v' => token-set version, 'n' => rebuild count].
+	 *
+	 * @var array|null
+	 */
+	private static $meta = null;
+
+	/**
+	 * Build plan computed by plan_builds() and consumed by buffer_end().
+	 *
+	 * @var array|null
+	 */
+	private static $plan = null;
+
+	/**
+	 * Hard cap on the learned tokens kept per page URL (bounds disk and memory).
+	 */
+	const TOKEN_CAP = 20000;
+
+	/**
 	 * The ob_get_level() value recorded immediately before buffer_start()'s
 	 * ob_start() call. Used by buffer_end() to verify it is closing exactly
 	 * the buffer it opened, not an inner buffer opened by another feature
@@ -223,12 +242,16 @@ class BEPLUSPB_UCSS {
 	 * Build the cache filename for one stylesheet on the current page.
 	 *
 	 * @param  string $handle Style handle.
-	 * @param  string $path   Absolute filesystem path of the source file.
+	 * @param  string      $path    Absolute filesystem path of the source file.
+	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
 	 */
-	private static function cache_name( $handle, $path ) {
-		// The '|2' salt invalidates files written by older, less careful versions of the filter.
-		$content_hash = substr( md5( md5_file( $path ) . '|2' ), 0, 10 );
+	private static function cache_name( $handle, $path, $version = null ) {
+		// The salt invalidates files written by older versions of the filter; the
+		// version is the learned token set, so a rebuild with more tokens gets a new
+		// file name (browsers and CDNs never keep serving the previous, smaller one).
+		$version      = null === $version ? self::meta_version() : $version;
+		$content_hash = substr( md5( md5_file( $path ) . '|3|' . $version ), 0, 10 );
 		return 'ucss-' . self::$url_tag . '-' . sanitize_file_name( $handle ) . '-' . $content_hash . '.css';
 	}
 
@@ -236,11 +259,12 @@ class BEPLUSPB_UCSS {
 	 * Absolute filesystem path of the cache file for a stylesheet.
 	 *
 	 * @param  string $handle Style handle.
-	 * @param  string $path   Absolute filesystem path of the source file.
+	 * @param  string      $path    Absolute filesystem path of the source file.
+	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
 	 */
-	private static function cache_path( $handle, $path ) {
-		return BEPLUSPB_CACHE_DIR . self::cache_name( $handle, $path );
+	private static function cache_path( $handle, $path, $version = null ) {
+		return BEPLUSPB_CACHE_DIR . self::cache_name( $handle, $path, $version );
 	}
 
 	/**
@@ -252,6 +276,110 @@ class BEPLUSPB_UCSS {
 	 */
 	private static function cache_url( $handle, $path ) {
 		return BEPLUSPB_Minify::cache_url() . self::cache_name( $handle, $path );
+	}
+
+	// -------------------------------------------------------------------------
+	// Learned token set (union across visits)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Path of the learned-state file of the current page URL.
+	 *
+	 * Format: line 1 = JSON header {"v":version,"n":rebuilds}, line 2 = JSON list of
+	 * every class/id/tag seen on this URL. Serving only reads line 1.
+	 *
+	 * @return string
+	 */
+	private static function state_path() {
+		return BEPLUSPB_CACHE_DIR . 'ucss-tokens-' . self::$url_tag . '.txt';
+	}
+
+	/**
+	 * Header of the learned state (version + rebuild count), read once per request.
+	 *
+	 * @return array{v:string,n:int}
+	 */
+	private static function load_meta() {
+		if ( null !== self::$meta ) {
+			return self::$meta;
+		}
+		self::$meta = array(
+			'v' => '',
+			'n' => 0,
+		);
+		$file = self::state_path();
+		if ( is_file( $file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			$h = @fopen( $file, 'r' );
+			if ( $h ) {
+				$line = fgets( $h, 512 );
+				fclose( $h ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				$data = is_string( $line ) ? json_decode( $line, true ) : null;
+				if ( is_array( $data ) && isset( $data['v'], $data['n'] ) && is_string( $data['v'] ) && preg_match( '/^[a-f0-9]{10}$/D', $data['v'] ) ) {
+					self::$meta = array(
+						'v' => $data['v'],
+						'n' => max( 0, (int) $data['n'] ),
+					);
+				}
+			}
+		}
+		return self::$meta;
+	}
+
+	/**
+	 * Current token-set version of this page URL ('' before anything was learned).
+	 *
+	 * @return string
+	 */
+	private static function meta_version() {
+		return self::load_meta()['v'];
+	}
+
+	/**
+	 * Every token learned so far for the current page URL.
+	 *
+	 * @return array Token set (token => true).
+	 */
+	private static function load_tokens() {
+		$set  = array();
+		$file = self::state_path();
+		if ( ! is_file( $file ) || self::load_meta()['v'] === '' ) {
+			return $set;
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$raw   = @file_get_contents( $file );
+		$lines = is_string( $raw ) ? explode( "\n", $raw, 3 ) : array();
+		$list  = isset( $lines[1] ) ? json_decode( $lines[1], true ) : null;
+		if ( is_array( $list ) ) {
+			foreach ( array_slice( $list, 0, self::TOKEN_CAP ) as $token ) {
+				if ( is_string( $token ) && '' !== $token && strlen( $token ) <= 120 ) {
+					$set[ $token ] = true;
+				}
+			}
+		}
+		return $set;
+	}
+
+	/**
+	 * Persist the learned state.
+	 *
+	 * @param array  $tokens  Token set (token => true).
+	 * @param string $version Version of that set.
+	 * @param int    $count   Rebuilds done for this URL.
+	 * @return bool
+	 */
+	private static function save_state( $tokens, $version, $count ) {
+		$body = wp_json_encode(
+			array(
+				'v' => $version,
+				'n' => $count,
+			)
+		) . "\n" . wp_json_encode( array_map( 'strval', array_keys( $tokens ) ) ) . "\n";
+		self::$meta = array(
+			'v' => $version,
+			'n' => $count,
+		);
+		return BEPLUSPB_Minify::write_cache_file_atomic( self::state_path(), $body );
 	}
 
 	// -------------------------------------------------------------------------
@@ -287,6 +415,17 @@ class BEPLUSPB_UCSS {
 				}
 			}
 		}
+
+		// Learned token sets describe the old content; start learning again.
+		$states = glob( $dir . 'ucss-tokens-*.txt' );
+		if ( is_array( $states ) ) {
+			foreach ( $states as $state ) {
+				if ( is_file( $state ) ) {
+					wp_delete_file( $state );
+				}
+			}
+		}
+		self::$meta = null;
 
 		$files = glob( $dir . 'ucss-*.css' );
 		if ( ! $files ) {
@@ -449,12 +588,13 @@ class BEPLUSPB_UCSS {
 			return;
 		}
 
-		$used     = self::extract_used_tokens( $html );
+		$plan     = self::$plan;
+		$used     = $plan['tokens'];
 		$opts     = bepluspb_get_options();
 		$safelist = array_merge( self::default_safelist(), bepluspb_parse_exclude_list( $opts['css_unused_safelist'] ) );
 
 		foreach ( $todo as $handle => $path ) {
-			$cache_file = self::cache_path( $handle, $path );
+			$cache_file = self::cache_path( $handle, $path, $plan['version'] );
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$css = @file_get_contents( $path );
@@ -469,6 +609,18 @@ class BEPLUSPB_UCSS {
 			$filtered = BEPLUSPB_Minify::minify_css( $filtered );
 
 			self::write_deduplicated_cache( $cache_file, $filtered );
+		}
+
+		if ( $plan['grow'] ) {
+			// Switch the URL over to the enlarged token set only after its files exist.
+			self::save_state( $used, $plan['version'], $plan['count'] );
+
+			// A stored copy of this page links the previous, smaller generation.
+			if ( '' !== $plan['old_version'] ) {
+				$host = wp_parse_url( home_url(), PHP_URL_HOST );
+				$uri  = isset( $_SERVER['REQUEST_URI'] ) ? strtok( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), '?' ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+				do_action( 'bepluspb_page_cache_purge_url', ( is_ssl() ? 'https://' : 'http://' ) . $host . $uri, false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+			}
 		}
 	}
 
@@ -509,10 +661,42 @@ class BEPLUSPB_UCSS {
 			}
 		}
 
+		// Learn: the stylesheet is built from the UNION of what every visit to this URL
+		// showed, so markup that only some visits render (cookie banner, notices,
+		// logged-out popups) is covered after it has been seen once.
+		$meta  = self::load_meta();
+		$known = self::load_tokens();
+		$seen  = array();
+		foreach ( array_keys( self::extract_used_tokens( $html ) ) as $token ) {
+			if ( strlen( $token ) <= 120 ) {
+				$seen[ $token ] = true;
+			}
+		}
+		$new = array_diff_key( $seen, $known );
+
+		/**
+		 * Filters how many times the used-only CSS of one page URL may be rebuilt
+		 * because new markup appeared (bounds work for pages that print random ids).
+		 *
+		 * @param int $max Default 8.
+		 */
+		$max_rebuilds = (int) apply_filters( 'bepluspb_ucss_max_rebuilds', 8 );
+		$grow         = ! empty( $new ) && count( $known ) < self::TOKEN_CAP && ( $meta['n'] < $max_rebuilds || '' === $meta['v'] );
+
+		$tokens = $known;
+		if ( $grow ) {
+			$tokens = $known + array_slice( $new, 0, self::TOKEN_CAP - count( $known ), true );
+			ksort( $tokens, SORT_STRING );
+			$version = substr( md5( implode( "\n", array_keys( $tokens ) ) ), 0, 10 );
+		} else {
+			$tokens  = $known + $seen; // Built from everything known plus this view; not persisted.
+			$version = $meta['v'];
+		}
+
 		$todo = array();
 		foreach ( self::$seen_styles as $handle => $path ) {
-			$cache_file = self::cache_path( $handle, $path );
-			if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
+			$cache_file = self::cache_path( $handle, $path, $version );
+			if ( ! $grow && file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
 				continue; // Already fresh.
 			}
 			$todo[ $handle ] = $path;
@@ -529,6 +713,14 @@ class BEPLUSPB_UCSS {
 			$slots = $max_files - ( is_array( $files ) ? count( $files ) : 0 );
 			$todo  = $slots > 0 ? array_slice( $todo, 0, $slots, true ) : array(); // Cache full: keep serving the originals.
 		}
+
+		self::$plan = array(
+			'tokens'      => $tokens,
+			'version'     => $version,
+			'grow'        => $grow && ! empty( $todo ),
+			'count'       => $meta['n'] + 1,
+			'old_version' => $meta['v'],
+		);
 
 		return $todo;
 	}
@@ -620,7 +812,8 @@ class BEPLUSPB_UCSS {
 		$old_files = glob( $dir . $generation . '-*.css' );
 		if ( is_array( $old_files ) ) {
 			foreach ( $old_files as $old_file ) {
-				if ( $old_file !== $cache_file && is_file( $old_file ) ) {
+				// Pages already sent to browsers/CDNs may still link the previous generation: keep it a day.
+				if ( $old_file !== $cache_file && is_file( $old_file ) && filemtime( $old_file ) < time() - 86400 ) {
 					wp_delete_file( $old_file );
 				}
 			}

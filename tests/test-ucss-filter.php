@@ -9,7 +9,12 @@
 // phpcs:disable
 define( 'ABSPATH', __DIR__ . '/' );
 function apply_filters( $tag, $value ) { return $value; }
+function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]/', '', $s ); }
+function wp_json_encode( $v ) { return json_encode( $v ); }
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
+$tmp = sys_get_temp_dir() . '/ucss-test-' . getmypid() . '/';
+mkdir( $tmp );
+define( 'BEPLUSPB_CACHE_DIR', $tmp );
 require dirname( __DIR__ ) . '/includes/class-bepluspb-minify.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-ucss.php';
 
@@ -92,5 +97,31 @@ t_ok( ! BEPLUSPB_UCSS::is_complete_html_response( '{"a":1}', 200 ), 'non-HTML re
 t_ok( false === BEPLUSPB_UCSS::is_building(), 'not building by default' );
 t_ok( false !== strpos( file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-page-cache.php' ), 'BEPLUSPB_UCSS::is_building()' ), 'page cache consults UCSS::is_building()' );
 t_ok( false === strpos( file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-css.php' ), 'function rewrite_relative_urls' ), 'CSS class reuses the shared url rewriter' );
+
+// --- learned token union -------------------------------------------------------
+$r = new ReflectionClass( 'BEPLUSPB_UCSS' );
+$call = function ( $name, ...$args ) use ( $r ) { $m = $r->getMethod( $name ); $m->setAccessible( true ); return $m->invoke( null, ...$args ); };
+$set = function ( $prop, $val ) use ( $r ) { $p = $r->getProperty( $prop ); $p->setAccessible( true ); $p->setValue( null, $val ); };
+$set( 'url_tag', 'abc123abc123' );
+t_ok( '' === $call( 'meta_version' ), 'no state yet: empty version' );
+t_ok( array() === $call( 'load_tokens' ), 'no state yet: no tokens' );
+t_ok( true === $call( 'save_state', array( '.a' => true, '#b' => true, 'div' => true ), 'abcdef0123', 2 ), 'state saved' );
+$set( 'meta', null );
+t_ok( 'abcdef0123' === $call( 'meta_version' ) && 2 === $call( 'load_meta' )['n'], 'header round-trips' );
+t_ok( array( '.a' => true, '#b' => true, 'div' => true ) === $call( 'load_tokens' ), 'tokens round-trip' );
+$src = $tmp . 'style.css';
+file_put_contents( $src, '.a{b:c}' );
+$n1 = $call( 'cache_name', 'h', $src, 'abcdef0123' );
+$n2 = $call( 'cache_name', 'h', $src, '0123456789' );
+t_ok( $n1 !== $n2 && preg_match( '/^ucss-abc123abc123-h-[a-f0-9]{10}\.css$/', $n1 ), 'a larger token set gets a new file name (no stale browser copy)' );
+t_ok( $call( 'cache_name', 'h', $src ) === $n1, 'default version = learned version' );
+file_put_contents( $tmp . 'ucss-tokens-abc123abc123.txt', "not json\n[]\n" );
+$set( 'meta', null );
+t_ok( '' === $call( 'meta_version' ), 'corrupt header is ignored (fails open)' );
+file_put_contents( $tmp . 'ucss-tokens-abc123abc123.txt', "{\"v\":\"../../etc/pw\",\"n\":1}\n[]\n" );
+$set( 'meta', null );
+t_ok( '' === $call( 'meta_version' ), 'version with path characters is rejected' );
+array_map( 'unlink', glob( $tmp . '*' ) );
+rmdir( $tmp );
 
 echo "OK ($n assertions)\n";
