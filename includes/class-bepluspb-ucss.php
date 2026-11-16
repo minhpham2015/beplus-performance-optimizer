@@ -38,6 +38,15 @@ class BEPLUSPB_UCSS {
 	private static $seen_styles = array();
 
 	/**
+	 * Public URL of each local stylesheet seen on this request: handle => src.
+	 * Needed to keep relative url()/@import references working once the used-only
+	 * copy lives in the cache directory.
+	 *
+	 * @var array
+	 */
+	private static $seen_urls = array();
+
+	/**
 	 * Cache key fragment identifying the current page URL.
 	 *
 	 * @var string|null
@@ -50,6 +59,39 @@ class BEPLUSPB_UCSS {
 	 * @var bool
 	 */
 	private static $buffering = false;
+
+	/**
+	 * Whether this request is rebuilding used-only files (see is_building()).
+	 *
+	 * @var bool
+	 */
+	private static $building = false;
+
+	/**
+	 * Learned-state header of the current page URL: ['v' => token-set version, 'n' => rebuild count].
+	 *
+	 * @var array|null
+	 */
+	private static $meta = null;
+
+	/**
+	 * Build plan computed by plan_builds() and consumed by buffer_end().
+	 *
+	 * @var array|null
+	 */
+	private static $plan = null;
+
+	/**
+	 * Hard cap on the learned tokens kept per page URL (bounds disk and memory).
+	 */
+	const TOKEN_CAP = 20000;
+
+	/**
+	 * Whether the last filter_css() call parsed the stylesheet cleanly.
+	 *
+	 * @var bool
+	 */
+	private static $parse_ok = true;
 
 	/**
 	 * The ob_get_level() value recorded immediately before buffer_start()'s
@@ -191,6 +233,7 @@ class BEPLUSPB_UCSS {
 		}
 
 		self::$seen_styles[ $handle ] = $path;
+		self::$seen_urls[ $handle ]   = $src;
 
 		$cache_file = self::cache_path( $handle, $path );
 		if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
@@ -205,24 +248,30 @@ class BEPLUSPB_UCSS {
 	/**
 	 * Build the cache filename for one stylesheet on the current page.
 	 *
-	 * @param  string $handle Style handle.
-	 * @param  string $path   Absolute filesystem path of the source file.
+	 * @param  string      $handle Style handle.
+	 * @param  string      $path    Absolute filesystem path of the source file.
+	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
 	 */
-	private static function cache_name( $handle, $path ) {
-		$content_hash = substr( md5_file( $path ), 0, 10 );
+	private static function cache_name( $handle, $path, $version = null ) {
+		// The salt invalidates files written by older versions of the filter; the
+		// version is the learned token set, so a rebuild with more tokens gets a new
+		// file name (browsers and CDNs never keep serving the previous, smaller one).
+		$version      = null === $version ? self::meta_version() : $version;
+		$content_hash = substr( md5( md5_file( $path ) . '|3|' . $version ), 0, 10 );
 		return 'ucss-' . self::$url_tag . '-' . sanitize_file_name( $handle ) . '-' . $content_hash . '.css';
 	}
 
 	/**
 	 * Absolute filesystem path of the cache file for a stylesheet.
 	 *
-	 * @param  string $handle Style handle.
-	 * @param  string $path   Absolute filesystem path of the source file.
+	 * @param  string      $handle Style handle.
+	 * @param  string      $path    Absolute filesystem path of the source file.
+	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
 	 */
-	private static function cache_path( $handle, $path ) {
-		return BEPLUSPB_CACHE_DIR . self::cache_name( $handle, $path );
+	private static function cache_path( $handle, $path, $version = null ) {
+		return BEPLUSPB_CACHE_DIR . self::cache_name( $handle, $path, $version );
 	}
 
 	/**
@@ -234,6 +283,110 @@ class BEPLUSPB_UCSS {
 	 */
 	private static function cache_url( $handle, $path ) {
 		return BEPLUSPB_Minify::cache_url() . self::cache_name( $handle, $path );
+	}
+
+	// -------------------------------------------------------------------------
+	// Learned token set (union across visits)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Path of the learned-state file of the current page URL.
+	 *
+	 * Format: line 1 = JSON header {"v":version,"n":rebuilds}, line 2 = JSON list of
+	 * every class/id/tag seen on this URL. Serving only reads line 1.
+	 *
+	 * @return string
+	 */
+	private static function state_path() {
+		return BEPLUSPB_CACHE_DIR . 'ucss-tokens-' . self::$url_tag . '.txt';
+	}
+
+	/**
+	 * Header of the learned state (version + rebuild count), read once per request.
+	 *
+	 * @return array{v:string,n:int}
+	 */
+	private static function load_meta() {
+		if ( null !== self::$meta ) {
+			return self::$meta;
+		}
+		self::$meta = array(
+			'v' => '',
+			'n' => 0,
+		);
+		$file       = self::state_path();
+		if ( is_file( $file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+			$h = @fopen( $file, 'r' );
+			if ( $h ) {
+				$line = fgets( $h, 512 );
+				fclose( $h ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				$data = is_string( $line ) ? json_decode( $line, true ) : null;
+				if ( is_array( $data ) && isset( $data['v'], $data['n'] ) && is_string( $data['v'] ) && preg_match( '/^[a-f0-9]{10}$/D', $data['v'] ) ) {
+					self::$meta = array(
+						'v' => $data['v'],
+						'n' => max( 0, (int) $data['n'] ),
+					);
+				}
+			}
+		}
+		return self::$meta;
+	}
+
+	/**
+	 * Current token-set version of this page URL ('' before anything was learned).
+	 *
+	 * @return string
+	 */
+	private static function meta_version() {
+		return self::load_meta()['v'];
+	}
+
+	/**
+	 * Every token learned so far for the current page URL.
+	 *
+	 * @return array Token set (token => true).
+	 */
+	private static function load_tokens() {
+		$set  = array();
+		$file = self::state_path();
+		if ( ! is_file( $file ) || '' === self::load_meta()['v'] ) {
+			return $set;
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$raw   = @file_get_contents( $file );
+		$lines = is_string( $raw ) ? explode( "\n", $raw, 3 ) : array();
+		$list  = isset( $lines[1] ) ? json_decode( $lines[1], true ) : null;
+		if ( is_array( $list ) ) {
+			foreach ( array_slice( $list, 0, self::TOKEN_CAP ) as $token ) {
+				if ( is_string( $token ) && '' !== $token && strlen( $token ) <= 120 ) {
+					$set[ $token ] = true;
+				}
+			}
+		}
+		return $set;
+	}
+
+	/**
+	 * Persist the learned state.
+	 *
+	 * @param array  $tokens  Token set (token => true).
+	 * @param string $version Version of that set.
+	 * @param int    $count   Rebuilds done for this URL.
+	 * @return bool
+	 */
+	private static function save_state( $tokens, $version, $count ) {
+		$body       = wp_json_encode(
+			array(
+				'v' => $version,
+				'n' => $count,
+			)
+		) . "\n" . wp_json_encode( array_map( 'strval', array_keys( $tokens ) ) ) . "\n";
+		self::$meta = array(
+			'v' => $version,
+			'n' => $count,
+		);
+		return BEPLUSPB_Minify::write_cache_file_atomic( self::state_path(), $body );
 	}
 
 	// -------------------------------------------------------------------------
@@ -269,6 +422,17 @@ class BEPLUSPB_UCSS {
 				}
 			}
 		}
+
+		// Learned token sets describe the old content; start learning again.
+		$states = glob( $dir . 'ucss-tokens-*.txt' );
+		if ( is_array( $states ) ) {
+			foreach ( $states as $state ) {
+				if ( is_file( $state ) ) {
+					wp_delete_file( $state );
+				}
+			}
+		}
+		self::$meta = null;
 
 		$files = glob( $dir . 'ucss-*.css' );
 		if ( ! $files ) {
@@ -413,6 +577,12 @@ class BEPLUSPB_UCSS {
 			return;
 		}
 
+		// Decide BEFORE the page is sent whether files will be (re)built: a page
+		// cache must not store this response, because it still links the full
+		// stylesheets. The next visit renders with the used-only links and is stored.
+		$todo           = self::plan_builds( $html );
+		self::$building = ! empty( $todo );
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo $html;
 
@@ -421,37 +591,17 @@ class BEPLUSPB_UCSS {
 			fastcgi_finish_request();
 		}
 
-		if ( empty( self::$seen_styles ) ) {
+		if ( empty( $todo ) ) {
 			return;
 		}
 
-		$used     = self::extract_used_tokens( $html );
+		$plan     = self::$plan;
+		$used     = $plan['tokens'];
 		$opts     = bepluspb_get_options();
-		$safelist = bepluspb_parse_exclude_list( $opts['css_unused_safelist'] );
+		$safelist = array_merge( self::default_safelist(), bepluspb_parse_exclude_list( $opts['css_unused_safelist'] ) );
 
-		/**
-		 * Filters the maximum number of used-only CSS cache files kept on disk.
-		 *
-		 * @param int $max Default 2000.
-		 */
-		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
-		$existing  = null; // Counted lazily: only pages needing a (re)build touch the directory.
-
-		foreach ( self::$seen_styles as $handle => $path ) {
-			$cache_file = self::cache_path( $handle, $path );
-			if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
-				continue; // Already fresh.
-			}
-
-			if ( $max_files > 0 ) {
-				if ( null === $existing ) {
-					$files    = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
-					$existing = is_array( $files ) ? count( $files ) : 0;
-				}
-				if ( $existing >= $max_files ) {
-					break; // Cache is full; keep serving the original stylesheet.
-				}
-			}
+		foreach ( $todo as $handle => $path ) {
+			$cache_file = self::cache_path( $handle, $path, $plan['version'] );
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$css = @file_get_contents( $path );
@@ -460,12 +610,126 @@ class BEPLUSPB_UCSS {
 			}
 
 			$filtered = self::filter_css( $css, $used, $safelist );
+			if ( ! empty( self::$seen_urls[ $handle ] ) ) {
+				$filtered = self::absolutize_css_urls( $filtered, self::$seen_urls[ $handle ] );
+			}
 			$filtered = BEPLUSPB_Minify::minify_css( $filtered );
 
-			if ( self::write_deduplicated_cache( $cache_file, $filtered ) && null !== $existing ) {
-				++$existing;
+			self::write_deduplicated_cache( $cache_file, $filtered );
+		}
+
+		if ( $plan['grow'] ) {
+			// Switch the URL over to the enlarged token set only after its files exist.
+			self::save_state( $used, $plan['version'], $plan['count'] );
+
+			// A stored copy of this page links the previous, smaller generation.
+			if ( '' !== $plan['old_version'] ) {
+				$host = wp_parse_url( home_url(), PHP_URL_HOST );
+				$uri  = isset( $_SERVER['REQUEST_URI'] ) ? strtok( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), '?' ) : '/'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+				do_action( 'bepluspb_page_cache_purge_url', ( is_ssl() ? 'https://' : 'http://' ) . $host . $uri, false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 			}
 		}
+	}
+
+	/**
+	 * Whether this request is about to (re)build used-only files, i.e. the HTML
+	 * being sent still references the original stylesheets and must not be
+	 * stored by a page cache.
+	 *
+	 * @return bool
+	 */
+	public static function is_building() {
+		return self::$building;
+	}
+
+	/**
+	 * Which of the stylesheets seen on this request need a (re)build.
+	 *
+	 * Empty when the response is not a complete 200 HTML page, when every file
+	 * is already fresh, or when the cache is full.
+	 *
+	 * @param  string $html Buffered page output.
+	 * @return array handle => source path.
+	 */
+	private static function plan_builds( $html ) {
+		if ( empty( self::$seen_styles ) ) {
+			return array();
+		}
+
+		// Only a complete, successful HTML page may decide which rules are "used".
+		if ( ! self::is_complete_html_response( $html, function_exists( 'http_response_code' ) ? (int) http_response_code() : 0 ) ) {
+			return array();
+		}
+		if ( function_exists( 'headers_list' ) ) {
+			foreach ( headers_list() as $header ) {
+				if ( 0 === stripos( $header, 'Content-Type:' ) && false === stripos( $header, 'text/html' ) ) {
+					return array();
+				}
+			}
+		}
+
+		// Learn: the stylesheet is built from the UNION of what every visit to this URL
+		// showed, so markup that only some visits render (cookie banner, notices,
+		// logged-out popups) is covered after it has been seen once.
+		$meta  = self::load_meta();
+		$known = self::load_tokens();
+		$seen  = array();
+		foreach ( array_keys( self::extract_used_tokens( $html ) ) as $token ) {
+			if ( strlen( $token ) <= 120 ) {
+				$seen[ $token ] = true;
+			}
+		}
+		$new = array_diff_key( $seen, $known );
+
+		/**
+		 * Filters how many times the used-only CSS of one page URL may be rebuilt
+		 * because new markup appeared (bounds work for pages that print random ids).
+		 *
+		 * @param int $max Default 8.
+		 */
+		$max_rebuilds = (int) apply_filters( 'bepluspb_ucss_max_rebuilds', 8 );
+		$grow         = ! empty( $new ) && count( $known ) < self::TOKEN_CAP && ( $meta['n'] < $max_rebuilds || '' === $meta['v'] );
+
+		$tokens = $known;
+		if ( $grow ) {
+			$tokens = $known + array_slice( $new, 0, self::TOKEN_CAP - count( $known ), true );
+			ksort( $tokens, SORT_STRING );
+			$version = substr( md5( implode( "\n", array_keys( $tokens ) ) ), 0, 10 );
+		} else {
+			$tokens  = $known + $seen; // Built from everything known plus this view; not persisted.
+			$version = $meta['v'];
+		}
+
+		$todo = array();
+		foreach ( self::$seen_styles as $handle => $path ) {
+			$cache_file = self::cache_path( $handle, $path, $version );
+			if ( ! $grow && file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
+				continue; // Already fresh.
+			}
+			$todo[ $handle ] = $path;
+		}
+
+		/**
+		 * Filters the maximum number of used-only CSS cache files kept on disk.
+		 *
+		 * @param int $max Default 2000.
+		 */
+		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
+		if ( $todo && $max_files > 0 ) {
+			$files = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
+			$slots = $max_files - ( is_array( $files ) ? count( $files ) : 0 );
+			$todo  = $slots > 0 ? array_slice( $todo, 0, $slots, true ) : array(); // Cache full: keep serving the originals.
+		}
+
+		self::$plan = array(
+			'tokens'      => $tokens,
+			'version'     => $version,
+			'grow'        => $grow && ! empty( $todo ),
+			'count'       => $meta['n'] + 1,
+			'old_version' => $meta['v'],
+		);
+
+		return $todo;
 	}
 
 	/**
@@ -547,12 +811,16 @@ class BEPLUSPB_UCSS {
 			return false;
 		}
 
+		// A hard link shares the older file's mtime; freshness compares it with the source file's.
+		@touch( $cache_file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_touch
+
 		// The current generation is now safely in place. Only then remove older
 		// content-hash variants for this exact URL tag and stylesheet handle.
 		$old_files = glob( $dir . $generation . '-*.css' );
 		if ( is_array( $old_files ) ) {
 			foreach ( $old_files as $old_file ) {
-				if ( $old_file !== $cache_file && is_file( $old_file ) ) {
+				// Pages already sent to browsers/CDNs may still link the previous generation: keep it a day.
+				if ( $old_file !== $cache_file && is_file( $old_file ) && filemtime( $old_file ) < time() - 86400 ) {
 					wp_delete_file( $old_file );
 				}
 			}
@@ -570,17 +838,19 @@ class BEPLUSPB_UCSS {
 
 	/**
 	 * Build a lookup set of every class (.foo), id (#bar), and tag name used
-	 * anywhere in the given HTML.
+	 * anywhere in the given HTML. Handles double-quoted, single-quoted and
+	 * unquoted attribute values.
 	 *
 	 * @param  string $html Full rendered page HTML.
 	 * @return array Associative array used as a set (token => true).
 	 */
-	private static function extract_used_tokens( $html ) {
+	public static function extract_used_tokens( $html ) {
 		$tokens = array();
 
-		if ( preg_match_all( '/\bclass=["\']([^"\']+)["\']/i', $html, $m ) ) {
-			foreach ( $m[1] as $classes ) {
-				foreach ( preg_split( '/\s+/', trim( $classes ) ) as $c ) {
+		if ( preg_match_all( '/\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i', $html, $m, PREG_SET_ORDER ) ) {
+			foreach ( $m as $match ) {
+				$value = '' !== ( $match[1] ?? '' ) ? $match[1] : ( '' !== ( $match[2] ?? '' ) ? $match[2] : ( $match[3] ?? '' ) );
+				foreach ( preg_split( '/\s+/', trim( $value ) ) as $c ) {
 					if ( '' !== $c ) {
 						$tokens[ '.' . $c ] = true;
 					}
@@ -588,22 +858,180 @@ class BEPLUSPB_UCSS {
 			}
 		}
 
-		if ( preg_match_all( '/\bid=["\']([^"\']+)["\']/i', $html, $m ) ) {
-			foreach ( $m[1] as $id ) {
-				$id = trim( $id );
-				if ( '' !== $id ) {
-					$tokens[ '#' . $id ] = true;
+		if ( preg_match_all( '/\bid\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i', $html, $m, PREG_SET_ORDER ) ) {
+			foreach ( $m as $match ) {
+				$value = '' !== ( $match[1] ?? '' ) ? $match[1] : ( '' !== ( $match[2] ?? '' ) ? $match[2] : ( $match[3] ?? '' ) );
+				$value = trim( $value );
+				if ( '' !== $value ) {
+					$tokens[ '#' . $value ] = true;
 				}
 			}
 		}
 
-		if ( preg_match_all( '/<([a-zA-Z][a-zA-Z0-9]*)\b/', $html, $m ) ) {
+		if ( preg_match_all( '/<([a-zA-Z][a-zA-Z0-9-]*)\b/', $html, $m ) ) {
 			foreach ( $m[1] as $tag ) {
 				$tokens[ strtolower( $tag ) ] = true;
 			}
 		}
 
 		return $tokens;
+	}
+
+	/**
+	 * Selector keywords that are always kept: classes that JavaScript toggles
+	 * or generates at runtime and therefore never appear in the server-rendered
+	 * HTML this feature scans. Matched as substrings (see selector_is_used()).
+	 * The admin's own safelist is merged on top.
+	 *
+	 * @return string[]
+	 */
+	public static function default_safelist() {
+		$list = array(
+			// Generic state classes toggled by scripts.
+			'.open',
+			'.opened',
+			'.active',
+			'.show',
+			'.showing',
+			'.shown',
+			'.hide',
+			'.hidden',
+			'.visible',
+			'.collapse',
+			'.collapsed',
+			'.collapsing',
+			'.expanded',
+			'.fade',
+			'.selected',
+			'.checked',
+			'.sticky',
+			'.stuck',
+			'.fixed',
+			'.scrolled',
+			'.loading',
+			'.loaded',
+			'.lazy',
+			'.animated',
+			'.animate',
+			'.is-open',
+			'.is-active',
+			'.is-visible',
+			'.is-hidden',
+			'.is-sticky',
+			'.is-stuck',
+			'.is-fixed',
+			'.is-loading',
+			'.is-loaded',
+			'.is-expanded',
+			'.is-collapsed',
+			'.is-selected',
+			'.is-checked',
+			'.is-scrolled',
+			'.is-show',
+			'.is-shown',
+			'.is-focused',
+			'.is-opened',
+			'.is-closed',
+			'-open',
+			'-opened',
+			'-active',
+			'-visible',
+			'-expanded',
+			'-stuck',
+			'-scrolled',
+			'.js',
+			'.no-js',
+			'.error',
+			'.invalid',
+			'.success',
+			'.valid',
+			// Lazy load / animation helpers.
+			'.lazyload',
+			'.aos-',
+			'.animate__',
+			'.wow',
+			// Sliders, lightboxes, popups that build their own markup.
+			'.swiper-',
+			'.slick-',
+			'.owl-',
+			'.flickity-',
+			'.splide',
+			'.glide',
+			'.flex-',
+			'.mfp-',
+			'.pswp',
+			'.fancybox',
+			'.lightbox',
+			'.modal',
+			'.tooltip',
+			'.popover',
+			'.dropdown',
+			// WordPress / WooCommerce / forms / cookie banners (state set after load or on action).
+			'.woocommerce-message',
+			'.woocommerce-error',
+			'.woocommerce-info',
+			'.woocommerce-notice',
+			'.blockUI',
+			'.added_to_cart',
+			'.adding_to_cart',
+			'.added',
+			'.select2',
+			'.wpcf7-',
+			'cookie',
+			'gdpr',
+			'consent',
+			'cmplz',
+			// Page builders.
+			'.elementor-sticky',
+			'.elementor-popup',
+			'.elementor-invisible',
+		);
+
+		/**
+		 * Filters the built-in Remove Unused CSS safelist.
+		 *
+		 * @param string[] $list Substrings of selectors that must always be kept.
+		 */
+		$list = apply_filters( 'bepluspb_ucss_default_safelist', $list );
+
+		return is_array( $list ) ? array_values( array_filter( array_map( 'strval', $list ) ) ) : array();
+	}
+
+	/**
+	 * Whether the buffered response may be used to build used-only CSS: a
+	 * complete HTML document sent with HTTP 200. Anything else (maintenance
+	 * 503, error pages, output cut short by a fatal) would produce a stylesheet
+	 * that misses rules the real page needs, and that file is then served to
+	 * every visitor.
+	 *
+	 * @param string $html     Buffered page output.
+	 * @param int    $status   HTTP status code of the response.
+	 * @return bool
+	 */
+	public static function is_complete_html_response( $html, $status ) {
+		if ( 200 !== (int) $status ) {
+			return false;
+		}
+		if ( ! is_string( $html ) || '' === $html || false === stripos( $html, '<html' ) ) {
+			return false;
+		}
+
+		return false !== stripos( substr( $html, -2048 ), '</html>' );
+	}
+
+	// -------------------------------------------------------------------------
+	// CSS URL rewriting
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Rewrite relative url() and @import references to absolute URLs.
+	 *
+	 * @param  string $css      CSS content.
+	 * @param  string $base_url Public URL of the ORIGINAL stylesheet.
+	 * @return string
+	 */
+	public static function absolutize_css_urls( $css, $base_url ) {
+		return BEPLUSPB_Minify::absolutize_css_urls( $css, $base_url );
 	}
 
 	// -------------------------------------------------------------------------
@@ -619,13 +1047,103 @@ class BEPLUSPB_UCSS {
 	 * @return string Filtered CSS.
 	 */
 	public static function filter_css( $css, $used, $safelist ) {
-		$css = preg_replace( '/\/\*[\s\S]*?\*\//', '', $css );
-		return self::filter_block( $css, $used, $safelist );
+		self::$parse_ok = true;
+		$out            = self::filter_block( $css, $used, $safelist );
+
+		// Fail open: malformed CSS (unclosed block or parenthesis) is served untouched
+		// rather than silently losing every rule after the break.
+		return self::$parse_ok ? $out : $css;
+	}
+
+	/**
+	 * Find the end of a quoted string. $i points at the opening quote.
+	 *
+	 * @param  string $css CSS text.
+	 * @param  int    $i   Index of the opening quote.
+	 * @param  int    $len Length of $css.
+	 * @return int Index just past the closing quote (or $len when unterminated).
+	 */
+	private static function skip_string( $css, $i, $len ) {
+		$quote = $css[ $i ];
+		++$i;
+		while ( $i < $len ) {
+			if ( '\\' === $css[ $i ] ) {
+				$i += 2;
+				continue;
+			}
+			if ( $css[ $i ] === $quote ) {
+				return $i + 1;
+			}
+			++$i;
+		}
+		return $len;
+	}
+
+	/**
+	 * Find the end of a /* comment. $i points at the opening slash.
+	 *
+	 * @param  string $css CSS text.
+	 * @param  int    $i   Index of the opening slash.
+	 * @param  int    $len Length of $css.
+	 * @return int Index just past the closing delimiter.
+	 */
+	private static function skip_comment( $css, $i, $len ) {
+		$end = strpos( $css, '*/', $i + 2 );
+		return false === $end ? $len : $end + 2;
+	}
+
+	/**
+	 * Find the index just past the "}" that closes a block whose "{" is at $open.
+	 * Aware of strings, comments, escapes and parentheses (so a "}" inside
+	 * content:"}" or an unquoted data: URL does not end the block).
+	 *
+	 * @param  string $css  CSS text.
+	 * @param  int    $open Index of the opening "{".
+	 * @param  int    $len  Length of $css.
+	 * @return int|false False when the block is never closed.
+	 */
+	private static function find_block_end( $css, $open, $len ) {
+		$depth = 0;
+		$paren = 0;
+		$i     = $open;
+		while ( $i < $len ) {
+			$c = $css[ $i ];
+			if ( '\\' === $c ) {
+				$i += 2;
+				continue;
+			}
+			if ( '"' === $c || "'" === $c ) {
+				$i = self::skip_string( $css, $i, $len );
+				continue;
+			}
+			if ( '/' === $c && $i + 1 < $len && '*' === $css[ $i + 1 ] ) {
+				$i = self::skip_comment( $css, $i, $len );
+				continue;
+			}
+			if ( '(' === $c ) {
+				++$paren;
+			} elseif ( ')' === $c && $paren > 0 ) {
+				--$paren;
+			} elseif ( 0 === $paren ) {
+				if ( '{' === $c ) {
+					++$depth;
+				} elseif ( '}' === $c ) {
+					--$depth;
+					if ( 0 === $depth ) {
+						return $i + 1;
+					}
+				}
+			}
+			++$i;
+		}
+		return false;
 	}
 
 	/**
 	 * Recursively filter a block of CSS (top-level or inside an @-rule).
-	 * Brace-depth aware so nested @media/@keyframes blocks parse correctly.
+	 * Comments are dropped; statement at-rules (@import, @charset, @layer a,b;
+	 *
+	 * @namespace) are copied through untouched and never merged into the next rule.
 	 *
 	 * @param  string $css      CSS block to filter.
 	 * @param  array  $used     Used-token lookup set.
@@ -637,35 +1155,68 @@ class BEPLUSPB_UCSS {
 		$len    = strlen( $css );
 		$i      = 0;
 		$buffer = '';
+		$paren  = 0;
 
 		while ( $i < $len ) {
 			$char = $css[ $i ];
 
-			if ( '{' === $char ) {
+			if ( '\\' === $char ) {
+				$buffer .= substr( $css, $i, 2 );
+				$i      += 2;
+				continue;
+			}
+
+			if ( '"' === $char || "'" === $char ) {
+				$end     = self::skip_string( $css, $i, $len );
+				$buffer .= substr( $css, $i, $end - $i );
+				$i       = $end;
+				continue;
+			}
+
+			if ( '/' === $char && $i + 1 < $len && '*' === $css[ $i + 1 ] ) {
+				$i = self::skip_comment( $css, $i, $len );
+				continue;
+			}
+
+			if ( '(' === $char ) {
+				++$paren;
+			} elseif ( ')' === $char && $paren > 0 ) {
+				--$paren;
+			}
+
+			if ( 0 === $paren && ';' === $char ) {
+				$statement = trim( $buffer );
+				if ( '' !== $statement && '@' === $statement[0] ) {
+					$out .= $statement . ';';
+				}
+				$buffer = '';
+				++$i;
+				continue;
+			}
+
+			if ( 0 === $paren && '}' === $char ) {
+				$buffer = ''; // Stray closing brace: ignore.
+				++$i;
+				continue;
+			}
+
+			if ( 0 === $paren && '{' === $char ) {
 				$selector = trim( $buffer );
 				$buffer   = '';
-				$depth    = 1;
-				$start    = $i + 1;
-				$j        = $start;
-
-				while ( $j < $len && $depth > 0 ) {
-					if ( '{' === $css[ $j ] ) {
-						++$depth;
-					} elseif ( '}' === $css[ $j ] ) {
-						--$depth;
-					}
-					++$j;
+				$end      = self::find_block_end( $css, $i, $len );
+				if ( false === $end ) {
+					self::$parse_ok = false; // Never closed: do not guess, the caller keeps the original CSS.
+					break;
 				}
-
-				$inner = substr( $css, $start, $j - $start - 1 );
+				$inner = substr( $css, $i + 1, $end - $i - 2 );
 
 				if ( '' !== $selector && '@' === $selector[0] ) {
 					$out .= self::handle_at_rule( $selector, $inner, $used, $safelist );
-				} elseif ( self::selector_is_used( $selector, $used, $safelist ) ) {
+				} elseif ( '' !== $selector && self::selector_is_used( $selector, $used, $safelist ) ) {
 					$out .= $selector . '{' . $inner . '}';
 				}
 
-				$i = $j;
+				$i = $end;
 				continue;
 			}
 
@@ -673,13 +1224,19 @@ class BEPLUSPB_UCSS {
 			++$i;
 		}
 
+		if ( $paren > 0 ) {
+			self::$parse_ok = false; // Unbalanced "(": everything after it would be swallowed.
+		}
+
 		return $out;
 	}
 
 	/**
-	 * Handle an @-rule: keep always-safe at-rules verbatim, recurse into
-	 * conditional group rules (@media, @supports), and drop them if the
-	 * filtered contents end up empty.
+	 * Handle an @-rule: recurse into conditional group rules (@media, @supports,
+	 *
+	 * @layer, @container, ...) and drop them if the filtered contents end up
+	 * empty; keep every other block at-rule (@font-face, @keyframes, @page,
+	 * @property, unknown future rules) verbatim.
 	 *
 	 * @param  string $selector The @-rule prelude, e.g. "@media (min-width:600px)".
 	 * @param  string $inner    Raw CSS inside the @-rule's braces.
@@ -688,22 +1245,86 @@ class BEPLUSPB_UCSS {
 	 * @return string
 	 */
 	private static function handle_at_rule( $selector, $inner, $used, $safelist ) {
-		$name = strtolower( substr( $selector, 1, strcspn( $selector, " (\t\n" ) ) );
+		$name = preg_match( '/^@(?:-[a-z]+-)?([a-zA-Z-]+)/', $selector, $m ) ? strtolower( $m[1] ) : '';
 
-		$always_keep = array( 'font-face', 'keyframes', '-webkit-keyframes', '-moz-keyframes', 'page', 'import', 'charset', 'namespace' );
-		foreach ( $always_keep as $keep ) {
-			if ( 0 === strpos( $name, $keep ) ) {
-				return $selector . '{' . $inner . '}';
-			}
+		$recurse = array( 'media', 'supports', 'document', 'layer', 'container', 'scope', 'starting-style' );
+		if ( ! in_array( $name, $recurse, true ) ) {
+			return $selector . '{' . $inner . '}';
 		}
 
-		// @media, @supports, @document, etc. — recurse, drop if it ends up empty.
 		$filtered = self::filter_block( $inner, $used, $safelist );
 		if ( '' === trim( $filtered ) ) {
+			// A named empty layer still fixes the layer order: keep the declaration.
+			if ( 'layer' === $name && preg_match( '/^@layer\s+([^\s{;,]+)\s*$/i', $selector, $lm ) ) {
+				return '@layer ' . $lm[1] . ';';
+			}
 			return '';
 		}
 
 		return $selector . '{' . $filtered . '}';
+	}
+
+	/**
+	 * Split a selector list on top-level commas only (commas inside (), [] or
+	 * strings, e.g. :is(.a, .b), belong to their selector).
+	 *
+	 * @param  string $selectors Selector list.
+	 * @return string[]
+	 */
+	private static function split_selector_list( $selectors ) {
+		$parts = array();
+		$cur   = '';
+		$depth = 0;
+		$len   = strlen( $selectors );
+
+		for ( $i = 0; $i < $len; $i++ ) {
+			$c = $selectors[ $i ];
+			if ( '\\' === $c ) {
+				$cur .= substr( $selectors, $i, 2 );
+				++$i;
+				continue;
+			}
+			if ( '"' === $c || "'" === $c ) {
+				$end  = self::skip_string( $selectors, $i, $len );
+				$cur .= substr( $selectors, $i, $end - $i );
+				$i    = $end - 1;
+				continue;
+			}
+			if ( '(' === $c || '[' === $c ) {
+				++$depth;
+			} elseif ( ( ')' === $c || ']' === $c ) && $depth > 0 ) {
+				--$depth;
+			}
+			if ( ',' === $c && 0 === $depth ) {
+				$parts[] = $cur;
+				$cur     = '';
+				continue;
+			}
+			$cur .= $c;
+		}
+		$parts[] = $cur;
+
+		return $parts;
+	}
+
+	/**
+	 * Decode CSS escapes in an identifier (".md\:flex" => "md:flex", "\31 0" => "10").
+	 *
+	 * @param  string $ident Identifier as written in a stylesheet.
+	 * @return string
+	 */
+	private static function unescape_ident( $ident ) {
+		if ( false === strpos( $ident, '\\' ) ) {
+			return $ident;
+		}
+		$ident = preg_replace_callback(
+			'/\\\\([0-9a-fA-F]{1,6})\s?/',
+			static function ( $m ) {
+				return html_entity_decode( '&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8' );
+			},
+			$ident
+		);
+		return preg_replace( '/\\\\(.)/s', '$1', $ident );
 	}
 
 	/**
@@ -717,7 +1338,7 @@ class BEPLUSPB_UCSS {
 	 * @return bool
 	 */
 	private static function selector_is_used( $selector_list, $used, $safelist ) {
-		foreach ( explode( ',', $selector_list ) as $selector ) {
+		foreach ( self::split_selector_list( $selector_list ) as $selector ) {
 			$selector = trim( $selector );
 			if ( '' === $selector ) {
 				continue;
@@ -737,16 +1358,19 @@ class BEPLUSPB_UCSS {
 				}
 			}
 
-			// Strip pseudo-classes/elements and combinators, keep bare tokens.
-			$clean = preg_replace( '/::?[a-zA-Z-]+(\([^)]*\))?/', '', $selector );
-			$clean = preg_replace( '/[>+~]/', ' ', $clean );
+			// Drop attribute selectors, then pseudo-classes/elements (including
+			// balanced arguments such as :not(.a) / :is(.a, .b)), then combinators.
+			$clean = preg_replace( '/\[(?:[^\]"\']|"[^"]*"|\'[^\']*\')*\]/', '', $selector );
+			$clean = preg_replace( '/(?<!\\\\)::?[a-zA-Z-]+(\((?:[^()]++|(?1))*\))?/', '', $clean );
+			$clean = preg_replace( '/(?<!\\\\)[>+~]/', ' ', $clean );
 
-			if ( preg_match_all( '/(\.[a-zA-Z0-9_-]+|#[a-zA-Z0-9_-]+|\b[a-zA-Z][a-zA-Z0-9]*\b)/', $clean, $m ) ) {
+			$ident = '(?:[a-zA-Z0-9_-]|[^\x00-\x7F]|\\\\(?:[0-9a-fA-F]{1,6}\s?|.))+';
+			if ( preg_match_all( '/(\.' . $ident . '|#' . $ident . '|(?<![\w\\\\-])[a-zA-Z][a-zA-Z0-9-]*)/s', $clean, $m ) && ! empty( $m[1] ) ) {
 				foreach ( $m[1] as $token ) {
-					if ( '' === $token ) {
-						continue;
-					}
-					$lookup = ctype_alpha( $token[0] ) ? strtolower( $token ) : $token;
+					$first  = $token[0];
+					$lookup = ( '.' === $first || '#' === $first )
+						? $first . self::unescape_ident( substr( $token, 1 ) )
+						: strtolower( $token );
 					if ( isset( $used[ $lookup ] ) ) {
 						return true;
 					}

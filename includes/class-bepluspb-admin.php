@@ -233,6 +233,7 @@ class BEPLUSPB_Admin {
 			'css_minify',
 			'css_non_blocking',
 			'css_inline_all',
+			'css_inline_skip_elementor',
 			'css_remove_unused',
 			// Lazy load.
 			'lazy_load',

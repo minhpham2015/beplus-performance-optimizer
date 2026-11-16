@@ -128,7 +128,7 @@ class BEPLUSPB_CSS {
 
 		if ( $opts['css_inline_all'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude ), $html );
+			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude, ! empty( $opts['css_inline_skip_elementor'] ) ), $html );
 		}
 
 		if ( $opts['css_non_blocking'] ) {
@@ -152,15 +152,32 @@ class BEPLUSPB_CSS {
 	 * Replace every local <link rel="stylesheet"> with a <style> block
 	 * containing the file's (minified) content.
 	 *
-	 * @param  string   $html    Buffered wp_head output.
-	 * @param  string[] $exclude URL keywords whose stylesheets must be kept as links.
+	 * @param  string   $html            Buffered wp_head output.
+	 * @param  string[] $exclude         URL keywords whose stylesheets must be kept as links.
+	 * @param  bool     $skip_elementor  Keep Elementor's own stylesheets as links.
 	 * @return string Modified HTML.
 	 */
-	public static function inline_all_css( $html, $exclude = array() ) {
+	public static function inline_all_css( $html, $exclude = array(), $skip_elementor = false ) {
+		$elementor_fragments = $skip_elementor ? self::elementor_fragments() : array();
+		$elementor_handles   = $elementor_fragments ? self::handles_by_src_fragment( $elementor_fragments ) : array();
+
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',
-			function ( $matches ) use ( $exclude ) {
+			function ( $matches ) use ( $exclude, $elementor_fragments, $elementor_handles ) {
 				$tag = $matches[0];
+
+				// Elementor writes, caches and optimises its own CSS (per-post files, CSS print
+				// method, optimised loading): by href, or by handle once Minify/UCSS moved the file.
+				if ( $elementor_fragments ) {
+					foreach ( $elementor_fragments as $fragment ) {
+						if ( false !== strpos( $tag, $fragment ) ) {
+							return $tag;
+						}
+					}
+					if ( preg_match( '/\bid=[\'"]([^\'"]+)-css[\'"]/i', $tag, $id_m ) && isset( $elementor_handles[ $id_m[1] ] ) ) {
+						return $tag;
+					}
+				}
 
 				foreach ( $exclude as $keyword ) {
 					if ( ! empty( $keyword ) && false !== strpos( $tag, $keyword ) ) {
@@ -188,7 +205,13 @@ class BEPLUSPB_CSS {
 					$media = ' media="' . esc_attr( $media_m[1] ) . '"';
 				}
 
-				return '<style' . $media . '>' . $minified . '</style>';
+				// Keep the link's id (e.g. elementor-frontend-css): scripts look stylesheets up by it.
+				$id = '';
+				if ( preg_match( '/\sid=([\'"])([^\'"]+)\1/i', $tag, $id_m ) ) {
+					$id = ' id="' . esc_attr( $id_m[2] ) . '"';
+				}
+
+				return '<style' . $id . $media . '>' . $minified . '</style>';
 			},
 			$html
 		);
@@ -216,7 +239,7 @@ class BEPLUSPB_CSS {
 		$name       = '';
 		if ( false !== $mtime && false !== $size && $size > 0 ) {
 			$prefix     = 'bepluspb-inline-' . substr( md5( $path . '|' . strtok( $href, '?' ) ), 0, 10 ) . '-';
-			$name       = $prefix . substr( md5( $mtime . '|' . $size ), 0, 12 ) . '.css';
+			$name       = $prefix . substr( md5( $mtime . '|' . $size . '|u2' ), 0, 12 ) . '.css';
 			$cache_file = BEPLUSPB_CACHE_DIR . $name;
 
 			if ( is_file( $cache_file ) ) {
@@ -234,7 +257,7 @@ class BEPLUSPB_CSS {
 			return null;
 		}
 
-		$minified = BEPLUSPB_Minify::minify_css( self::rewrite_relative_urls( $content, $href ) );
+		$minified = BEPLUSPB_Minify::minify_css( BEPLUSPB_Minify::absolutize_css_urls( $content, $href ) );
 
 		if ( null !== $cache_file
 			&& BEPLUSPB_Minify::ensure_cache_dir()
@@ -247,64 +270,42 @@ class BEPLUSPB_CSS {
 	}
 
 	// -------------------------------------------------------------------------
-	// URL rewriting helper
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Rewrite relative url() references inside a CSS string to absolute URLs.
-	 *
-	 * @param  string $css  Raw CSS content from the stylesheet file.
-	 * @param  string $href The public URL of the stylesheet.
-	 * @return string CSS with absolute url() references.
-	 */
-	private static function rewrite_relative_urls( $css, $href ) {
-		$clean_href = strtok( $href, '?' );
-		$base_url   = trailingslashit( dirname( $clean_href ) );
-
-		return preg_replace_callback(
-			'/url\(\s*[\'"]?([^\'"\)]+)[\'"]?\s*\)/i',
-			function ( $m ) use ( $base_url ) {
-				$url = trim( $m[1] );
-
-				if (
-					0 === strpos( $url, 'http://' )
-					|| 0 === strpos( $url, 'https://' )
-					|| 0 === strpos( $url, '//' )
-					|| 0 === strpos( $url, '/' )
-					|| 0 === strpos( $url, 'data:' )
-					|| 0 === strpos( $url, '#' )
-				) {
-					return $m[0];
-				}
-
-				return 'url("' . esc_url( $base_url . $url ) . '")';
-			},
-			$css
-		);
-	}
-
-	// -------------------------------------------------------------------------
 	// Non-blocking CSS
 	// -------------------------------------------------------------------------
 
 	/**
 	 * Replace <link rel="stylesheet"> tags with the preload + onload swap pattern.
 	 *
+	 * Left untouched (still render-blocking, on purpose): the active theme's
+	 * main stylesheet(s) — matched by registered handle, so it still works once
+	 * Minify/Remove Unused CSS moved the file to the cache directory —, URL
+	 * keywords in $exclude, links that already preload or carry their own
+	 * onload, links with a conditional `media` (preload would never swap them
+	 * in), and every link when a Content-Security-Policy forbids inline event
+	 * handlers (the swap would never run and the site would stay unstyled).
+	 *
 	 * @param  string $html    Buffered wp_head output.
 	 * @param  array  $exclude URL keywords whose stylesheets must be left untouched.
 	 * @return string Modified HTML.
 	 */
 	public static function make_non_blocking( $html, $exclude ) {
-		$theme_stylesheet_url = get_bloginfo( 'stylesheet_url' );
-		if ( ! empty( $theme_stylesheet_url ) ) {
-			$parsed = wp_parse_url( $theme_stylesheet_url, PHP_URL_PATH );
-			if ( $parsed ) {
-				$exclude[] = $parsed;
+		if ( self::csp_blocks_inline_handlers( self::collect_csp_policies( $html ) ) ) {
+			return $html;
+		}
+
+		$theme_paths = array();
+		foreach ( array( get_bloginfo( 'stylesheet_url' ), trailingslashit( get_template_directory_uri() ) . 'style.css' ) as $theme_url ) {
+			$path = $theme_url ? wp_parse_url( $theme_url, PHP_URL_PATH ) : null;
+			if ( $path ) {
+				$theme_paths[ $path ] = true;
+				$exclude[]            = $path;
 			}
 		}
+		$theme_handles = self::theme_stylesheet_handles( $theme_paths );
+
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',
-			function ( $matches ) use ( $exclude ) {
+			function ( $matches ) use ( $exclude, $theme_handles ) {
 				$tag = $matches[0];
 
 				foreach ( $exclude as $keyword ) {
@@ -313,8 +314,26 @@ class BEPLUSPB_CSS {
 					}
 				}
 
+				if ( preg_match( '/\bid=[\'"]([^\'"]+)-css[\'"]/i', $tag, $id_m ) && isset( $theme_handles[ $id_m[1] ] ) ) {
+					return $tag;
+				}
+
 				if ( false !== strpos( $tag, 'rel="preload"' ) || false !== strpos( $tag, "rel='preload'" ) ) {
 					return $tag;
+				}
+
+				// Someone else already made this link async (media swap, loadCSS, ...).
+				if ( preg_match( '/\sonload\s*=/i', $tag ) ) {
+					return $tag;
+				}
+
+				// A preload only fetches when its media matches at load time, so a
+				// conditional stylesheet would never be swapped in later.
+				if ( preg_match( '/\smedia=([\'"])(.*?)\1/i', $tag, $media_m ) ) {
+					$media = strtolower( trim( $media_m[2] ) );
+					if ( '' !== $media && 'all' !== $media && 'screen' !== $media ) {
+						return $tag;
+					}
 				}
 
 				$preload = preg_replace(
@@ -327,6 +346,133 @@ class BEPLUSPB_CSS {
 			},
 			$html
 		);
+	}
+
+	/**
+	 * URL fragments identifying Elementor's stylesheets (plugin, Pro, and its uploads folder).
+	 *
+	 * @return string[]
+	 */
+	private static function elementor_fragments() {
+		/**
+		 * Filters the URL fragments treated as Elementor CSS by "Inline All CSS".
+		 *
+		 * @param string[] $fragments Default '/elementor/' and '/elementor-pro/'.
+		 */
+		$fragments = apply_filters( 'bepluspb_elementor_css_fragments', array( '/elementor/', '/elementor-pro/' ) );
+		return is_array( $fragments ) ? array_values( array_filter( array_map( 'strval', $fragments ) ) ) : array();
+	}
+
+	/**
+	 * Handles of registered styles whose source URL contains one of the fragments.
+	 *
+	 * @param  string[] $fragments URL fragments.
+	 * @return array Handle set (handle => true).
+	 */
+	private static function handles_by_src_fragment( $fragments ) {
+		$handles = array();
+		$styles  = function_exists( 'wp_styles' ) ? wp_styles() : null;
+		if ( ! $styles || empty( $styles->registered ) || ! is_array( $styles->registered ) ) {
+			return $handles;
+		}
+		foreach ( $styles->registered as $handle => $dep ) {
+			$src = is_object( $dep ) && isset( $dep->src ) && is_string( $dep->src ) ? $dep->src : '';
+			foreach ( $fragments as $fragment ) {
+				if ( '' !== $src && false !== strpos( $src, $fragment ) ) {
+					$handles[ (string) $handle ] = true;
+					break;
+				}
+			}
+		}
+		return $handles;
+	}
+
+	/**
+	 * Handles of registered styles whose source is one of the theme stylesheets.
+	 *
+	 * @param  array $theme_paths URL paths of the theme stylesheets (path => true).
+	 * @return array Handle set (handle => true).
+	 */
+	private static function theme_stylesheet_handles( $theme_paths ) {
+		$handles = array();
+		$styles  = function_exists( 'wp_styles' ) ? wp_styles() : null;
+		if ( ! $styles || empty( $styles->registered ) || ! is_array( $styles->registered ) ) {
+			return $handles;
+		}
+		foreach ( $styles->registered as $handle => $dep ) {
+			$src  = is_object( $dep ) && isset( $dep->src ) && is_string( $dep->src ) ? $dep->src : '';
+			$path = '' !== $src ? wp_parse_url( $src, PHP_URL_PATH ) : null;
+			if ( $path && isset( $theme_paths[ $path ] ) ) {
+				$handles[ (string) $handle ] = true;
+			}
+		}
+		return $handles;
+	}
+
+	/**
+	 * Every enforced Content-Security-Policy of this response: HTTP headers plus
+	 * <meta http-equiv> tags already present in the buffered head.
+	 *
+	 * @param  string $html Buffered wp_head output.
+	 * @return string[]
+	 */
+	private static function collect_csp_policies( $html ) {
+		$policies = array();
+		if ( function_exists( 'headers_list' ) ) {
+			foreach ( headers_list() as $header ) {
+				if ( 0 === stripos( $header, 'Content-Security-Policy:' ) ) {
+					$policies[] = substr( $header, strlen( 'Content-Security-Policy:' ) );
+				}
+			}
+		}
+		if ( preg_match_all( '/<meta\b[^>]*http-equiv=[\'"]Content-Security-Policy[\'"][^>]*>/i', $html, $metas ) ) {
+			foreach ( $metas[0] as $meta ) {
+				if ( preg_match( '/\scontent=([\'"])(.*?)\1/is', $meta, $content_m ) ) {
+					$policies[] = $content_m[2];
+				}
+			}
+		}
+		return $policies;
+	}
+
+	/**
+	 * Whether any of the policies would block an inline event handler such as onload="".
+	 *
+	 * Blocked unless the governing directive (script-src-attr, else script-src,
+	 * else default-src) allows 'unsafe-inline' without a nonce/hash/'strict-dynamic'
+	 * (which make browsers ignore 'unsafe-inline'). No such directive = not blocked.
+	 *
+	 * @param  string[] $policies Policy strings.
+	 * @return bool
+	 */
+	public static function csp_blocks_inline_handlers( $policies ) {
+		foreach ( (array) $policies as $policy ) {
+			$directives = array();
+			foreach ( explode( ';', (string) $policy ) as $part ) {
+				$tokens = preg_split( '/\s+/', trim( $part ) );
+				if ( $tokens && '' !== $tokens[0] ) {
+					$name = strtolower( array_shift( $tokens ) );
+					if ( ! isset( $directives[ $name ] ) ) {
+						$directives[ $name ] = array_map( 'strtolower', $tokens );
+					}
+				}
+			}
+			$governing = null;
+			foreach ( array( 'script-src-attr', 'script-src', 'default-src' ) as $name ) {
+				if ( isset( $directives[ $name ] ) ) {
+					$governing = $directives[ $name ];
+					break;
+				}
+			}
+			if ( null === $governing ) {
+				continue;
+			}
+			$value = ' ' . implode( ' ', $governing ) . ' ';
+			if ( false === strpos( $value, "'unsafe-inline'" ) || preg_match( "/'nonce-|'sha(?:256|384|512)-|'strict-dynamic'/", $value ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// -------------------------------------------------------------------------

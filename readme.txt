@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -476,6 +476,14 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 
 == Changelog ==
 
+= 1.2.2 =
+* New: Recommended Settings now recognises Elementor and recommends keeping its stylesheets render-blocking and leaving Remove Unused CSS, Inline All CSS and Delay JS off, because Elementor optimises its own CSS/JS. It is layered on top of your site profile (an Elementor shop keeps the WooCommerce plan).
+* Fix: Remove Unused CSS no longer breaks pages as easily. Classes that scripts add later (open menus, sliders, pop-ups, cookie banners, WooCommerce notices) are kept automatically, and the stylesheet is built from everything seen on a page over several visits instead of only the first one. Fonts and images referenced by relative paths keep working, and nothing is built from error, maintenance or incomplete pages.
+* Fix: Minify CSS and Inline All CSS now rewrite relative url() and @import paths, so fonts and background images no longer break after the file moves to the cache folder.
+* Fix: the Page Cache no longer stores a page that still links the full stylesheets while Remove Unused CSS is building its trimmed copy, so the lighter CSS is actually used.
+* Fix: Non-Render-Blocking CSS keeps your theme's main stylesheet blocking even with Minify or Remove Unused CSS on, leaves print/conditional-media and already-async stylesheets alone, and switches itself off when a Content-Security-Policy would block it.
+* New: Inline All CSS skips Elementor stylesheets by default ("Skip Elementor CSS" option), because Elementor caches and optimises its own CSS. Inlined stylesheets also keep their original id.
+
 = 1.2.1 =
 * Fix: a site could crash completely (including wp-admin, "Cannot redeclare wp_cache_init()") after you turned Object Cache off and saved, or when its hidden settings file was missing. The Object Cache drop-in now steps aside and WordPress uses its normal cache. If you use Object Cache, open the Object Cache tab and press "Install Drop-in" once to update it.
 * Fix: saving settings with Object Cache off now removes an outdated drop-in first, and uninstalling no longer deletes the Object Cache settings while a drop-in is still installed.
@@ -674,6 +682,9 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.2.2 =
+Makes Remove Unused CSS, Minify CSS, Inline All CSS and Non-Render-Blocking CSS much safer (fonts/images, JavaScript-toggled classes, theme stylesheet, CSP). Inline All CSS now skips Elementor stylesheets by default. Used-only CSS files are rebuilt automatically after updating.
 
 = 1.2.1 =
 Fixes a site-wide crash that could follow turning Object Cache off. If you use Object Cache, press "Install Drop-in" once on the Object Cache tab after updating.

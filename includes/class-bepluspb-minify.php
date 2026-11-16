@@ -191,7 +191,7 @@ class BEPLUSPB_Minify {
 		}
 
 		$prefix     = sanitize_file_name( $handle ) . '-';
-		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size ), 0, 12 );
+		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size . '|' . ( 'css' === $ext ? 'u2' : '' ) ), 0, 12 );
 		$cache_name = $prefix . $hash . '.' . $ext;
 		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
 
@@ -208,7 +208,13 @@ class BEPLUSPB_Minify {
 				return $src;
 			}
 
-			$minified = 'css' === $ext ? self::minify_css( $content ) : self::minify_js( $content );
+			if ( 'css' === $ext ) {
+				// The copy lives in the cache directory: keep relative url()/@import working.
+				$content  = self::absolutize_css_urls( $content, $src );
+				$minified = self::minify_css( $content );
+			} else {
+				$minified = self::minify_js( $content );
+			}
 			if ( ! self::write_cache_file_atomic( $cache_file, $minified ) ) {
 				self::debug_log( "{$label} WRITE FAILED: {$cache_file}" );
 				return $src;
@@ -224,6 +230,50 @@ class BEPLUSPB_Minify {
 		$cache_url = self::cache_url() . $cache_name;
 		$query     = wp_parse_url( $src, PHP_URL_QUERY );
 		return $query ? $cache_url . '?' . $query : $cache_url;
+	}
+
+	/**
+	 * Rewrite relative url() and @import references so they keep resolving
+	 * after the stylesheet moves from its own directory into the cache folder.
+	 *
+	 * @param  string $css      CSS content.
+	 * @param  string $base_url Public URL of the ORIGINAL stylesheet (query string ignored).
+	 * @return string
+	 */
+	public static function absolutize_css_urls( $css, $base_url ) {
+		$base = trailingslashit( dirname( strtok( (string) $base_url, '?#' ) ) );
+		if ( '/' === $base || '.' === $base || './' === $base ) {
+			return $css;
+		}
+
+		$resolve = static function ( $url ) use ( $base ) {
+			$url = trim( $url );
+			if ( '' === $url || preg_match( '#^(?:[a-z][a-z0-9+.-]*:|//|/|\#)#i', $url ) ) {
+				return null; // Absolute, protocol-relative, root-relative, data:, fragment.
+			}
+			return $base . $url;
+		};
+
+		$css = preg_replace_callback(
+			'/url\(\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s\'")]+))\s*\)/i',
+			static function ( $m ) use ( $resolve ) {
+				$raw = '' !== ( $m[1] ?? '' ) ? $m[1] : ( '' !== ( $m[2] ?? '' ) ? $m[2] : ( $m[3] ?? '' ) );
+				$new = $resolve( $raw );
+				return null === $new ? $m[0] : 'url("' . str_replace( '"', '%22', $new ) . '")';
+			},
+			$css
+		);
+
+		// @import "file.css"; (the url() form is handled above).
+		return preg_replace_callback(
+			'/@import\s+(?:"([^"]*)"|\'([^\']*)\')/i',
+			static function ( $m ) use ( $resolve ) {
+				$raw = '' !== ( $m[1] ?? '' ) ? $m[1] : ( $m[2] ?? '' );
+				$new = $resolve( $raw );
+				return null === $new ? $m[0] : '@import "' . str_replace( '"', '%22', $new ) . '"';
+			},
+			$css
+		);
 	}
 
 	/**

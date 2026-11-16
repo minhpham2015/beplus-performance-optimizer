@@ -149,8 +149,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 			$detected          = BEPLUSPB_Recommendations::infer_profile( BEPLUSPB_Recommendations::local_signals() );
 			$requested_profile = isset( $_GET['bepluspb_profile'] ) ? sanitize_key( wp_unslash( $_GET['bepluspb_profile'] ) ) : $detected['profile']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display override.
 			$profile           = BEPLUSPB_Recommendations::sanitize_profile( $requested_profile );
-			$plans             = BEPLUSPB_Recommendations::plans( get_bloginfo( 'version' ) );
-			$plan              = $plans[ $profile ];
+			$plan              = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), $detected['builders'] );
 			$diff              = BEPLUSPB_Recommendations::diff( (array) get_option( BEPLUSPB_OPTIONS_KEY, array() ), $plan );
 			$profile_labels    = array(
 				'blog_business'  => __( 'Blog / Business', 'beplus-performance-booster' ),
@@ -168,7 +167,14 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php
 						foreach ( $detected['reasons'] as $reason ) :
 							?>
-							<li><?php echo esc_html( $reason ); ?></li><?php endforeach; ?></ul></div>
+							<li><?php echo esc_html( $reason ); ?></li><?php endforeach; ?></ul>
+						<?php
+						$builder_overlays = BEPLUSPB_Recommendations::builder_overlays();
+						foreach ( $detected['builders'] as $builder ) :
+							?>
+							<p class="description"><strong><?php echo esc_html( $builder_overlays[ $builder ]['label'] ); ?>:</strong> <?php echo esc_html( $builder_overlays[ $builder ]['reason'] ); ?></p>
+						<?php endforeach; ?>
+						</div>
 						<form method="get" class="bepluspb-profile-form"><input type="hidden" name="page" value="beplus-performance-booster"><label for="bepluspb-recommendation-profile"><strong><?php esc_html_e( 'Plan override', 'beplus-performance-booster' ); ?></strong></label><select id="bepluspb-recommendation-profile" name="bepluspb_profile">
 						<?php
 						foreach ( $profile_labels as $value => $label ) :
@@ -663,7 +669,7 @@ else :
 								<?php checked( $opts['css_non_blocking'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Convert stylesheet links to preload + onload swap so they do not block rendering. A &lt;noscript&gt; fallback is included.', 'beplus-performance-booster' ); ?></span>
 						</label>
-						<p class="description"><?php esc_html_e( 'Tip: Exclude your theme\'s main stylesheet if you see a flash of unstyled content (FOUC).', 'beplus-performance-booster' ); ?></p>
+						<p class="description"><?php esc_html_e( 'The active theme\'s main stylesheet, print/conditional-media stylesheets and links that already load asynchronously are kept as normal links automatically; the feature switches itself off when a Content-Security-Policy blocks inline event handlers. If you still see a flash of unstyled content (FOUC), add that stylesheet to "Exclude CSS Files".', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -680,6 +686,22 @@ else :
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Read every local enqueued stylesheet and output its (minified) content as an inline &lt;style&gt; block. Eliminates render-blocking HTTP requests. External CDN stylesheets are kept as links.', 'beplus-performance-booster' ); ?></span>
 						</label>
 						<p class="description"><?php esc_html_e( 'Tip: Use "Exclude CSS Files" to keep large stylesheets as external links.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
+				<!-- Inline All CSS: leave Elementor alone -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_css_inline_skip_elementor"><?php esc_html_e( 'Skip Elementor CSS', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_css_inline_skip_elementor"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[css_inline_skip_elementor]" value="1"
+								<?php checked( $opts['css_inline_skip_elementor'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Do not inline Elementor stylesheets (Inline All CSS only).', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description"><?php esc_html_e( 'Elementor generates, caches and optimises its own CSS (Settings → Performance in Elementor). Inlining its large shared files would repeat them in every page\'s HTML. Other features (Minify, Remove Unused CSS, Non-Render-Blocking) are not affected.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -748,7 +770,8 @@ else :
 							rows="4" class="large-text code"><?php echo esc_textarea( $opts['css_unused_safelist'] ); ?></textarea>
 						<p class="description">
 							<?php esc_html_e( 'Rules matching these selectors are always kept, even if not detected as used. Use this for classes toggled by JavaScript (menus, modals, tabs, accordions, sliders) and page-builder/WooCommerce dynamic states.', 'beplus-performance-booster' ); ?><br>
-							<?php esc_html_e( 'Example: .active, .is-open*, .woocommerce-*', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Common JavaScript-toggled classes (.is-open, .active, .show, .slick-*, .swiper-*, cookie banners, WooCommerce notices, ...) are already kept automatically; add only what is specific to your theme or plugins.', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Example: .my-menu-open, .my-popup-*', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
