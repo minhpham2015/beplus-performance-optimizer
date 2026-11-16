@@ -10,6 +10,7 @@
 define( 'ABSPATH', __DIR__ . '/' );
 function apply_filters( $tag, $value ) { return $value; }
 function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
+require dirname( __DIR__ ) . '/includes/class-bepluspb-minify.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-ucss.php';
 
 $n = 0;

@@ -704,47 +704,14 @@ class BEPLUSPB_UCSS {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Rewrite relative url() and @import references so they keep resolving
-	 * after the stylesheet moves from its own directory into the cache folder.
+	 * Rewrite relative url() and @import references to absolute URLs.
 	 *
 	 * @param  string $css      CSS content.
-	 * @param  string $base_url Public URL of the ORIGINAL stylesheet (query string ignored).
+	 * @param  string $base_url Public URL of the ORIGINAL stylesheet.
 	 * @return string
 	 */
 	public static function absolutize_css_urls( $css, $base_url ) {
-		$base = trailingslashit( dirname( strtok( (string) $base_url, '?#' ) ) );
-		if ( '/' === $base || '.' === $base || './' === $base ) {
-			return $css;
-		}
-
-		$resolve = static function ( $url ) use ( $base ) {
-			$url = trim( $url );
-			if ( '' === $url || preg_match( '#^(?:[a-z][a-z0-9+.-]*:|//|/|\#)#i', $url ) ) {
-				return null; // Absolute, protocol-relative, root-relative, data:, fragment.
-			}
-			return $base . $url;
-		};
-
-		$css = preg_replace_callback(
-			'/url\(\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s\'")]+))\s*\)/i',
-			static function ( $m ) use ( $resolve ) {
-				$raw = '' !== ( $m[1] ?? '' ) ? $m[1] : ( '' !== ( $m[2] ?? '' ) ? $m[2] : ( $m[3] ?? '' ) );
-				$new = $resolve( $raw );
-				return null === $new ? $m[0] : 'url("' . str_replace( '"', '%22', $new ) . '")';
-			},
-			$css
-		);
-
-		// @import "file.css"; (the url() form is handled above).
-		return preg_replace_callback(
-			'/@import\s+(?:"([^"]*)"|\'([^\']*)\')/i',
-			static function ( $m ) use ( $resolve ) {
-				$raw = '' !== ( $m[1] ?? '' ) ? $m[1] : ( $m[2] ?? '' );
-				$new = $resolve( $raw );
-				return null === $new ? $m[0] : '@import "' . str_replace( '"', '%22', $new ) . '"';
-			},
-			$css
-		);
+		return BEPLUSPB_Minify::absolutize_css_urls( $css, $base_url );
 	}
 
 	// -------------------------------------------------------------------------
