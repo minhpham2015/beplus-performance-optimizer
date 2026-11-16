@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-16
+
 ### Added
 - **Inline All CSS: "Skip Elementor CSS"** (`css_inline_skip_elementor`, default ON, also for existing installs): Elementor's stylesheets (`/elementor/`, `/elementor-pro/` URLs — plugin assets and its uploads CSS — or the matching handle once Minify/Remove Unused CSS moved the file) stay as `<link>` because Elementor generates, caches and optimises its own CSS and inlining its large shared files repeats them in every page. Inline All only; Minify / Remove Unused CSS / Non-Blocking are unchanged. Filter: `bepluspb_elementor_css_fragments`. Test: `tests/test-css-inline-elementor.php`.
 
