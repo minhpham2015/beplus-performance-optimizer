@@ -22,6 +22,7 @@ has("return 'Active';",$admin,'boolean one is presented as Active');
 has("return 'Inactive';",$admin,'boolean zero is presented as Inactive');
 has('self::format_recommendation_value( $change[\'from\'] )',$admin,'current preview uses formatted value');
 has('self::format_recommendation_value( $change[\'to\'] )',$admin,'recommended preview uses formatted value');
+has('plan_for( $profile',$admin,'preview and apply share one plan builder'); has('detect_builders( BEPLUSPB_Recommendations::local_signals() )',$admin,'builder overrides detected server-side on apply'); has('builder_overlays()',$admin,'builder note displayed');
 has('Apply Recommended',$admin,'apply action exists'); has('Disable Recommended',$admin,'disable action exists'); has('Restore Previous Settings',$admin,'restore exists');
 has('does not deactivate the plugin',$admin,'disable scope explained');
 has('data-recommendation-confirm',$admin,'confirmation contract');

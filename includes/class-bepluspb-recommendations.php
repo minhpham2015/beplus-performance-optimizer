@@ -13,7 +13,7 @@ class BEPLUSPB_Recommendations {
 	const SNAPSHOT_OPTION = 'bepluspb_recommendation_snapshot';
 	/** Return managed option keys. */
 	public static function allowlist() {
-		return array( 'cache_enabled', 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'css_minify', 'remove_emoji', 'remove_embed', 'html_minify', 'cache_headers', 'predictive_navigation_enabled', 'predictive_navigation_mode', 'remove_woo_scripts', 'js_delay', 'css_remove_unused', 'css_inline_all' );
+		return array( 'cache_enabled', 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'css_minify', 'remove_emoji', 'remove_embed', 'html_minify', 'cache_headers', 'predictive_navigation_enabled', 'predictive_navigation_mode', 'remove_woo_scripts', 'js_delay', 'css_remove_unused', 'css_inline_all', 'css_non_blocking' );
 	}
 	/** Return valid profile identifiers. */
 	public static function profiles() {
@@ -67,6 +67,48 @@ class BEPLUSPB_Recommendations {
 			'high_traffic'   => $advanced,
 		);
 	}
+	/** Return the page builders that get their own safety overrides. */
+	public static function builders() {
+		return array( 'elementor' ); }
+	/** Detect page builders from the active plugin list. */
+	public static function detect_builders( $signals ) {
+		$plugins = isset( $signals['plugins'] ) ? (array) $signals['plugins'] : array();
+		$found   = array();
+		if ( in_array( 'elementor/elementor.php', $plugins, true ) ) {
+			$found[] = 'elementor'; }
+		return $found; }
+	/**
+	 * Per-builder overrides layered on top of ANY profile (an Elementor shop is still a shop).
+	 *
+	 * Only turns off features that rewrite how a builder's own CSS/JS loads; the builder
+	 * already caches and optimises those, and a flash of unstyled layout is worse than a
+	 * render-blocking stylesheet. Never switches anything on.
+	 */
+	public static function builder_overlays() {
+		return array(
+			'elementor' => array(
+				'label'  => 'Elementor',
+				'reason' => 'Elementor loads, caches and optimises its own CSS/JS: stylesheets stay render-blocking (no flash of unstyled layout), unused-CSS removal, inlining and Delay JS are not recommended.',
+				'values' => array(
+					'css_non_blocking'  => 0,
+					'css_remove_unused' => 0,
+					'css_inline_all'    => 0,
+					'js_delay'          => 0,
+				),
+			),
+		); }
+	/** Layer the overrides of the detected builders onto a profile plan. */
+	public static function apply_builders( $plan, $builders ) {
+		$overlays = self::builder_overlays();
+		foreach ( (array) $builders as $builder ) {
+			if ( isset( $overlays[ $builder ] ) ) {
+				$plan = array_merge( $plan, $overlays[ $builder ]['values'] );
+			}
+		} return $plan; }
+	/** The exact plan for a profile on this site: profile values plus builder overrides. */
+	public static function plan_for( $profile, $wp_version, $builders ) {
+		$plans = self::plans( (string) $wp_version );
+		return self::apply_builders( $plans[ self::sanitize_profile( $profile ) ], $builders ); }
 	/** Infer a plan from local signals. */
 	public static function infer_profile( $signals ) {
 		$plugins    = isset( $signals['plugins'] ) ? $signals['plugins'] : array();
@@ -86,17 +128,22 @@ class BEPLUSPB_Recommendations {
 				$reasons[]  = 'Local content or user counts indicate a large site'; } else {
 				$reasons[] = 'No commerce or membership plugin was detected';
 				$reasons[] = 'Local site scale fits a blog or business site'; }
-				$plans = self::plans( (string) ( $signals['wp_version'] ?? '0' ) );
+				$builders = self::detect_builders( $signals );
+				foreach ( $builders as $builder ) {
+					$reasons[] = self::builder_overlays()[ $builder ]['label'] . ' is active: builder-safe overrides are included'; }
 				return array(
 					'profile'    => $profile,
 					'confidence' => $confidence,
 					'reasons'    => $reasons,
-					'plan'       => $plans[ $profile ],
+					'builders'   => $builders,
+					'plan'       => self::plan_for( $profile, (string) ( $signals['wp_version'] ?? '0' ), $builders ),
 				);
 	}
 	/** Collect local site signals. */
 	public static function local_signals() {
-		$plugins     = (array) get_option( 'active_plugins', array() );
+		$plugins = (array) get_option( 'active_plugins', array() );
+		if ( is_multisite() ) {
+			$plugins = array_merge( $plugins, array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) ) ); }
 		$post_counts = wp_count_posts( 'post' );
 		$users       = count_users();
 		return array(

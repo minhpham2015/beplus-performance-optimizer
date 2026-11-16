@@ -131,8 +131,8 @@ trait BEPLUSPB_Admin_Actions {
 			$snapshot['restored_by'] = get_current_user_id();
 			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, $snapshot, false );
 		} else {
-			$plans = BEPLUSPB_Recommendations::plans( get_bloginfo( 'version' ) );
-			$plan  = $plans[ $profile ];
+			// Builder overrides are detected here again, never taken from the request.
+			$plan = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), BEPLUSPB_Recommendations::detect_builders( BEPLUSPB_Recommendations::local_signals() ) );
 			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, BEPLUSPB_Recommendations::snapshot( $saved, $profile, get_current_user_id(), time() ), false );
 			$next = 'apply' === $operation ? BEPLUSPB_Recommendations::apply_plan( $saved, $plan ) : BEPLUSPB_Recommendations::disable_plan( $saved, $plan );
 		}

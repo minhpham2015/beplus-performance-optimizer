@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Recommended Settings: Elementor overrides.** When Elementor is active (exact `elementor/elementor.php`), its overrides are layered on top of whichever profile applies (an Elementor shop keeps the WooCommerce plan): Non-Render-Blocking CSS, Remove Unused CSS, Inline All CSS and Delay JS are recommended OFF, because Elementor loads and caches its own CSS/JS and a flash of unstyled layout is worse than a blocking stylesheet. The override only ever turns features off. `css_non_blocking` is now an allowlisted (snapshot/restore-able) setting; the detected builder and the reason are shown in the "Detected signals" box. The overrides are re-detected server-side when applying (never read from the request); preview and apply share `BEPLUSPB_Recommendations::plan_for()`. Multisite network-active plugins are now part of the detection signals. Test: `tests/test-recommended-settings-elementor.php`.
+
 ## [1.2.2] - 2026-11-16
 
 ### Added

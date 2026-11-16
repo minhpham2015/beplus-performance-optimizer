@@ -149,8 +149,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 			$detected          = BEPLUSPB_Recommendations::infer_profile( BEPLUSPB_Recommendations::local_signals() );
 			$requested_profile = isset( $_GET['bepluspb_profile'] ) ? sanitize_key( wp_unslash( $_GET['bepluspb_profile'] ) ) : $detected['profile']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display override.
 			$profile           = BEPLUSPB_Recommendations::sanitize_profile( $requested_profile );
-			$plans             = BEPLUSPB_Recommendations::plans( get_bloginfo( 'version' ) );
-			$plan              = $plans[ $profile ];
+			$plan              = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), $detected['builders'] );
 			$diff              = BEPLUSPB_Recommendations::diff( (array) get_option( BEPLUSPB_OPTIONS_KEY, array() ), $plan );
 			$profile_labels    = array(
 				'blog_business'  => __( 'Blog / Business', 'beplus-performance-booster' ),
@@ -168,7 +167,14 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php
 						foreach ( $detected['reasons'] as $reason ) :
 							?>
-							<li><?php echo esc_html( $reason ); ?></li><?php endforeach; ?></ul></div>
+							<li><?php echo esc_html( $reason ); ?></li><?php endforeach; ?></ul>
+						<?php
+						$builder_overlays = BEPLUSPB_Recommendations::builder_overlays();
+						foreach ( $detected['builders'] as $builder ) :
+							?>
+							<p class="description"><strong><?php echo esc_html( $builder_overlays[ $builder ]['label'] ); ?>:</strong> <?php echo esc_html( $builder_overlays[ $builder ]['reason'] ); ?></p>
+						<?php endforeach; ?>
+						</div>
 						<form method="get" class="bepluspb-profile-form"><input type="hidden" name="page" value="beplus-performance-booster"><label for="bepluspb-recommendation-profile"><strong><?php esc_html_e( 'Plan override', 'beplus-performance-booster' ); ?></strong></label><select id="bepluspb-recommendation-profile" name="bepluspb_profile">
 						<?php
 						foreach ( $profile_labels as $value => $label ) :
