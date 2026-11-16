@@ -477,6 +477,7 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 == Changelog ==
 
 = 1.2.2 =
+* New: Recommended Settings now recognises Elementor and recommends keeping its stylesheets render-blocking and leaving Remove Unused CSS, Inline All CSS and Delay JS off, because Elementor optimises its own CSS/JS. It is layered on top of your site profile (an Elementor shop keeps the WooCommerce plan).
 * Fix: Remove Unused CSS no longer breaks pages as easily. Classes that scripts add later (open menus, sliders, pop-ups, cookie banners, WooCommerce notices) are kept automatically, and the stylesheet is built from everything seen on a page over several visits instead of only the first one. Fonts and images referenced by relative paths keep working, and nothing is built from error, maintenance or incomplete pages.
 * Fix: Minify CSS and Inline All CSS now rewrite relative url() and @import paths, so fonts and background images no longer break after the file moves to the cache folder.
 * Fix: the Page Cache no longer stores a page that still links the full stylesheets while Remove Unused CSS is building its trimmed copy, so the lighter CSS is actually used.
