@@ -216,7 +216,7 @@ class BEPLUSPB_CSS {
 		$name       = '';
 		if ( false !== $mtime && false !== $size && $size > 0 ) {
 			$prefix     = 'bepluspb-inline-' . substr( md5( $path . '|' . strtok( $href, '?' ) ), 0, 10 ) . '-';
-			$name       = $prefix . substr( md5( $mtime . '|' . $size ), 0, 12 ) . '.css';
+			$name       = $prefix . substr( md5( $mtime . '|' . $size . '|u2' ), 0, 12 ) . '.css';
 			$cache_file = BEPLUSPB_CACHE_DIR . $name;
 
 			if ( is_file( $cache_file ) ) {
@@ -234,7 +234,7 @@ class BEPLUSPB_CSS {
 			return null;
 		}
 
-		$minified = BEPLUSPB_Minify::minify_css( self::rewrite_relative_urls( $content, $href ) );
+		$minified = BEPLUSPB_Minify::minify_css( BEPLUSPB_Minify::absolutize_css_urls( $content, $href ) );
 
 		if ( null !== $cache_file
 			&& BEPLUSPB_Minify::ensure_cache_dir()
@@ -244,43 +244,6 @@ class BEPLUSPB_CSS {
 		}
 
 		return $minified;
-	}
-
-	// -------------------------------------------------------------------------
-	// URL rewriting helper
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Rewrite relative url() references inside a CSS string to absolute URLs.
-	 *
-	 * @param  string $css  Raw CSS content from the stylesheet file.
-	 * @param  string $href The public URL of the stylesheet.
-	 * @return string CSS with absolute url() references.
-	 */
-	private static function rewrite_relative_urls( $css, $href ) {
-		$clean_href = strtok( $href, '?' );
-		$base_url   = trailingslashit( dirname( $clean_href ) );
-
-		return preg_replace_callback(
-			'/url\(\s*[\'"]?([^\'"\)]+)[\'"]?\s*\)/i',
-			function ( $m ) use ( $base_url ) {
-				$url = trim( $m[1] );
-
-				if (
-					0 === strpos( $url, 'http://' )
-					|| 0 === strpos( $url, 'https://' )
-					|| 0 === strpos( $url, '//' )
-					|| 0 === strpos( $url, '/' )
-					|| 0 === strpos( $url, 'data:' )
-					|| 0 === strpos( $url, '#' )
-				) {
-					return $m[0];
-				}
-
-				return 'url("' . esc_url( $base_url . $url ) . '")';
-			},
-			$css
-		);
 	}
 
 	// -------------------------------------------------------------------------

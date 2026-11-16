@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Relative `url()` and `@import` references are rewritten to absolute URLs (the used-only file lives in the cache directory). Old cache files regenerate automatically.
   - Cache files are only built from a complete HTTP 200 `text/html` page (`</html>` present): maintenance/503/error/truncated output can no longer poison a URL's stylesheet.
   - Tests: `tests/test-ucss-filter.php`.
+- **Remove Unused CSS + Page Cache:** a page stored by the page cache on the visit that triggered a used-only build kept linking the full stylesheets until the next purge. The response of a request that rebuilds used-only files is no longer stored (`BEPLUSPB_UCSS::is_building()`); the next visit renders with the trimmed CSS and is stored. Also `touch()` a hard-linked cache file so it is not considered stale (and rebuilt on every request) when it shares an older inode.
+- **Inline CSS** now uses the shared `BEPLUSPB_Minify::absolutize_css_urls()` (adds `@import "x.css"` support, no more `esc_url()` mangling of `&`); inline cache regenerates once.
 - **Minify CSS: relative `url()` / `@import` references broke** (fonts, images, imported sheets 404) because the minified copy is served from the cache directory. They are now rewritten to absolute URLs before minifying (`BEPLUSPB_Minify::absolutize_css_urls()`, shared with Remove Unused CSS); existing CSS cache files regenerate automatically.
 
 ## [1.2.1] - 2026-11-13

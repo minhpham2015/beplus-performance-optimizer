@@ -61,6 +61,13 @@ class BEPLUSPB_UCSS {
 	private static $buffering = false;
 
 	/**
+	 * Whether this request is rebuilding used-only files (see is_building()).
+	 *
+	 * @var bool
+	 */
+	private static $building = false;
+
+	/**
 	 * The ob_get_level() value recorded immediately before buffer_start()'s
 	 * ob_start() call. Used by buffer_end() to verify it is closing exactly
 	 * the buffer it opened, not an inner buffer opened by another feature
@@ -424,6 +431,12 @@ class BEPLUSPB_UCSS {
 			return;
 		}
 
+		// Decide BEFORE the page is sent whether files will be (re)built: a page
+		// cache must not store this response, because it still links the full
+		// stylesheets. The next visit renders with the used-only links and is stored.
+		$todo           = self::plan_builds( $html );
+		self::$building = ! empty( $todo );
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo $html;
 
@@ -432,49 +445,16 @@ class BEPLUSPB_UCSS {
 			fastcgi_finish_request();
 		}
 
-		if ( empty( self::$seen_styles ) ) {
+		if ( empty( $todo ) ) {
 			return;
-		}
-
-		// Only a complete, successful HTML page may decide which rules are "used".
-		if ( ! self::is_complete_html_response( $html, function_exists( 'http_response_code' ) ? (int) http_response_code() : 0 ) ) {
-			return;
-		}
-		if ( function_exists( 'headers_list' ) ) {
-			foreach ( headers_list() as $header ) {
-				if ( 0 === stripos( $header, 'Content-Type:' ) && false === stripos( $header, 'text/html' ) ) {
-					return;
-				}
-			}
 		}
 
 		$used     = self::extract_used_tokens( $html );
 		$opts     = bepluspb_get_options();
 		$safelist = array_merge( self::default_safelist(), bepluspb_parse_exclude_list( $opts['css_unused_safelist'] ) );
 
-		/**
-		 * Filters the maximum number of used-only CSS cache files kept on disk.
-		 *
-		 * @param int $max Default 2000.
-		 */
-		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
-		$existing  = null; // Counted lazily: only pages needing a (re)build touch the directory.
-
-		foreach ( self::$seen_styles as $handle => $path ) {
+		foreach ( $todo as $handle => $path ) {
 			$cache_file = self::cache_path( $handle, $path );
-			if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
-				continue; // Already fresh.
-			}
-
-			if ( $max_files > 0 ) {
-				if ( null === $existing ) {
-					$files    = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
-					$existing = is_array( $files ) ? count( $files ) : 0;
-				}
-				if ( $existing >= $max_files ) {
-					break; // Cache is full; keep serving the original stylesheet.
-				}
-			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			$css = @file_get_contents( $path );
@@ -488,10 +468,69 @@ class BEPLUSPB_UCSS {
 			}
 			$filtered = BEPLUSPB_Minify::minify_css( $filtered );
 
-			if ( self::write_deduplicated_cache( $cache_file, $filtered ) && null !== $existing ) {
-				++$existing;
+			self::write_deduplicated_cache( $cache_file, $filtered );
+		}
+	}
+
+	/**
+	 * Whether this request is about to (re)build used-only files, i.e. the HTML
+	 * being sent still references the original stylesheets and must not be
+	 * stored by a page cache.
+	 *
+	 * @return bool
+	 */
+	public static function is_building() {
+		return self::$building;
+	}
+
+	/**
+	 * Which of the stylesheets seen on this request need a (re)build.
+	 *
+	 * Empty when the response is not a complete 200 HTML page, when every file
+	 * is already fresh, or when the cache is full.
+	 *
+	 * @param  string $html Buffered page output.
+	 * @return array handle => source path.
+	 */
+	private static function plan_builds( $html ) {
+		if ( empty( self::$seen_styles ) ) {
+			return array();
+		}
+
+		// Only a complete, successful HTML page may decide which rules are "used".
+		if ( ! self::is_complete_html_response( $html, function_exists( 'http_response_code' ) ? (int) http_response_code() : 0 ) ) {
+			return array();
+		}
+		if ( function_exists( 'headers_list' ) ) {
+			foreach ( headers_list() as $header ) {
+				if ( 0 === stripos( $header, 'Content-Type:' ) && false === stripos( $header, 'text/html' ) ) {
+					return array();
+				}
 			}
 		}
+
+		$todo = array();
+		foreach ( self::$seen_styles as $handle => $path ) {
+			$cache_file = self::cache_path( $handle, $path );
+			if ( file_exists( $cache_file ) && filemtime( $cache_file ) >= filemtime( $path ) ) {
+				continue; // Already fresh.
+			}
+			$todo[ $handle ] = $path;
+		}
+
+		/**
+		 * Filters the maximum number of used-only CSS cache files kept on disk.
+		 *
+		 * @param int $max Default 2000.
+		 */
+		$max_files = (int) apply_filters( 'bepluspb_ucss_max_files', 2000 );
+		if ( $todo && $max_files > 0 ) {
+			$files = glob( BEPLUSPB_CACHE_DIR . 'ucss-*.css' );
+			$slots = $max_files - ( is_array( $files ) ? count( $files ) : 0 );
+			$todo  = $slots > 0 ? array_slice( $todo, 0, $slots, true ) : array(); // Cache full: keep serving the originals.
+		}
+
+		return $todo;
 	}
 
 	/**
@@ -572,6 +611,9 @@ class BEPLUSPB_UCSS {
 			fclose( $lock_handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 			return false;
 		}
+
+		// A hard link shares the older file's mtime; freshness compares it with the source file's.
+		@touch( $cache_file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_touch
 
 		// The current generation is now safely in place. Only then remove older
 		// content-hash variants for this exact URL tag and stylesheet handle.

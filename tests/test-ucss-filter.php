@@ -88,4 +88,9 @@ t_ok( ! BEPLUSPB_UCSS::is_complete_html_response( substr( $page, 0, 40 ), 200 ),
 t_ok( ! BEPLUSPB_UCSS::is_complete_html_response( '', 200 ), 'empty output rejected' );
 t_ok( ! BEPLUSPB_UCSS::is_complete_html_response( '{"a":1}', 200 ), 'non-HTML rejected' );
 
+// --- page cache must not store a page that still links the full stylesheets ---
+t_ok( false === BEPLUSPB_UCSS::is_building(), 'not building by default' );
+t_ok( false !== strpos( file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-page-cache.php' ), 'BEPLUSPB_UCSS::is_building()' ), 'page cache consults UCSS::is_building()' );
+t_ok( false === strpos( file_get_contents( dirname( __DIR__ ) . '/includes/class-bepluspb-css.php' ), 'function rewrite_relative_urls' ), 'CSS class reuses the shared url rewriter' );
+
 echo "OK ($n assertions)\n";

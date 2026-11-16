@@ -1243,6 +1243,10 @@ class BEPLUSPB_Page_Cache {
 		if ( ( defined( 'DONOTCACHEPAGE' ) && DONOTCACHEPAGE ) || is_user_logged_in() ) {
 			return false;
 		}
+		// Remove Unused CSS is rebuilding its files for this URL: this HTML still links the full stylesheets.
+		if ( class_exists( 'BEPLUSPB_UCSS', false ) && BEPLUSPB_UCSS::is_building() ) {
+			return false;
+		}
 		$code = http_response_code();
 		if ( $code && 200 !== $code ) {
 			return false;
