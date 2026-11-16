@@ -205,7 +205,13 @@ class BEPLUSPB_CSS {
 					$media = ' media="' . esc_attr( $media_m[1] ) . '"';
 				}
 
-				return '<style' . $media . '>' . $minified . '</style>';
+				// Keep the link's id (e.g. elementor-frontend-css): scripts look stylesheets up by it.
+				$id = '';
+				if ( preg_match( '/\sid=([\'"])([^\'"]+)\1/i', $tag, $id_m ) ) {
+					$id = ' id="' . esc_attr( $id_m[2] ) . '"';
+				}
+
+				return '<style' . $id . $media . '>' . $minified . '</style>';
 			},
 			$html
 		);

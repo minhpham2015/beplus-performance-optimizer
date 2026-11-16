@@ -54,6 +54,14 @@ t_ok( inlined( BEPLUSPB_CSS::inline_all_css( $other ) ), 'default argument keeps
 $mixed = BEPLUSPB_CSS::inline_all_css( $plugin . $other, array(), true );
 t_ok( 0 === strpos( $mixed, $plugin ) && false !== strpos( $mixed, '<style' ), 'mixed head: Elementor link kept, the rest inlined' );
 
+// The link's id survives inlining (scripts look stylesheets up by it).
+$o = BEPLUSPB_CSS::inline_all_css( $other, array(), true );
+t_ok( 0 === strpos( $o, '<style id="theme-css-css" media="all">' ), 'inlined <style> keeps the link id: ' . $o );
+$o = BEPLUSPB_CSS::inline_all_css( "<link rel='stylesheet' data-id='no' href='https://ex.com/wp-content/themes/t/a.css'>" );
+t_ok( 0 === strpos( $o, '<style>' ), 'data-id is not mistaken for id' );
+$o = BEPLUSPB_CSS::inline_all_css( "<link rel='stylesheet' id='x\"y' href='https://ex.com/wp-content/themes/t/a.css'>" );
+t_ok( false === strpos( $o, 'x"y' ), 'id value is escaped' );
+
 // Option wiring.
 $main = file_get_contents( dirname( __DIR__ ) . '/beplus-performance-booster.php' );
 t_ok( preg_match( "/'css_inline_skip_elementor'\s*=>\s*1,/", $main ), 'option defaults to enabled' );
