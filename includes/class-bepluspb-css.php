@@ -128,7 +128,7 @@ class BEPLUSPB_CSS {
 
 		if ( $opts['css_inline_all'] ) {
 			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude ), $html );
+			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude, ! empty( $opts['css_inline_skip_elementor'] ) ), $html );
 		}
 
 		if ( $opts['css_non_blocking'] ) {
@@ -152,15 +152,32 @@ class BEPLUSPB_CSS {
 	 * Replace every local <link rel="stylesheet"> with a <style> block
 	 * containing the file's (minified) content.
 	 *
-	 * @param  string   $html    Buffered wp_head output.
-	 * @param  string[] $exclude URL keywords whose stylesheets must be kept as links.
+	 * @param  string   $html            Buffered wp_head output.
+	 * @param  string[] $exclude         URL keywords whose stylesheets must be kept as links.
+	 * @param  bool     $skip_elementor  Keep Elementor's own stylesheets as links.
 	 * @return string Modified HTML.
 	 */
-	public static function inline_all_css( $html, $exclude = array() ) {
+	public static function inline_all_css( $html, $exclude = array(), $skip_elementor = false ) {
+		$elementor_fragments = $skip_elementor ? self::elementor_fragments() : array();
+		$elementor_handles   = $elementor_fragments ? self::handles_by_src_fragment( $elementor_fragments ) : array();
+
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',
-			function ( $matches ) use ( $exclude ) {
+			function ( $matches ) use ( $exclude, $elementor_fragments, $elementor_handles ) {
 				$tag = $matches[0];
+
+				// Elementor writes, caches and optimises its own CSS (per-post files, CSS print
+				// method, optimised loading): by href, or by handle once Minify/UCSS moved the file.
+				if ( $elementor_fragments ) {
+					foreach ( $elementor_fragments as $fragment ) {
+						if ( false !== strpos( $tag, $fragment ) ) {
+							return $tag;
+						}
+					}
+					if ( preg_match( '/\bid=[\'"]([^\'"]+)-css[\'"]/i', $tag, $id_m ) && isset( $elementor_handles[ $id_m[1] ] ) ) {
+						return $tag;
+					}
+				}
 
 				foreach ( $exclude as $keyword ) {
 					if ( ! empty( $keyword ) && false !== strpos( $tag, $keyword ) ) {
@@ -323,6 +340,45 @@ class BEPLUSPB_CSS {
 			},
 			$html
 		);
+	}
+
+	/**
+	 * URL fragments identifying Elementor's stylesheets (plugin, Pro, and its uploads folder).
+	 *
+	 * @return string[]
+	 */
+	private static function elementor_fragments() {
+		/**
+		 * Filters the URL fragments treated as Elementor CSS by "Inline All CSS".
+		 *
+		 * @param string[] $fragments Default '/elementor/' and '/elementor-pro/'.
+		 */
+		$fragments = apply_filters( 'bepluspb_elementor_css_fragments', array( '/elementor/', '/elementor-pro/' ) );
+		return is_array( $fragments ) ? array_values( array_filter( array_map( 'strval', $fragments ) ) ) : array();
+	}
+
+	/**
+	 * Handles of registered styles whose source URL contains one of the fragments.
+	 *
+	 * @param  string[] $fragments URL fragments.
+	 * @return array Handle set (handle => true).
+	 */
+	private static function handles_by_src_fragment( $fragments ) {
+		$handles = array();
+		$styles  = function_exists( 'wp_styles' ) ? wp_styles() : null;
+		if ( ! $styles || empty( $styles->registered ) || ! is_array( $styles->registered ) ) {
+			return $handles;
+		}
+		foreach ( $styles->registered as $handle => $dep ) {
+			$src = is_object( $dep ) && isset( $dep->src ) && is_string( $dep->src ) ? $dep->src : '';
+			foreach ( $fragments as $fragment ) {
+				if ( '' !== $src && false !== strpos( $src, $fragment ) ) {
+					$handles[ (string) $handle ] = true;
+					break;
+				}
+			}
+		}
+		return $handles;
 	}
 
 	/**

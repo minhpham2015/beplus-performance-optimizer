@@ -683,6 +683,22 @@ else :
 					</div>
 				</div>
 
+				<!-- Inline All CSS: leave Elementor alone -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_css_inline_skip_elementor"><?php esc_html_e( 'Skip Elementor CSS', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_css_inline_skip_elementor"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[css_inline_skip_elementor]" value="1"
+								<?php checked( $opts['css_inline_skip_elementor'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Do not inline Elementor stylesheets (Inline All CSS only).', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description"><?php esc_html_e( 'Elementor generates, caches and optimises its own CSS (Settings → Performance in Elementor). Inlining its large shared files would repeat them in every page\'s HTML. Other features (Minify, Remove Unused CSS, Non-Render-Blocking) are not affected.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
 				<!-- Exclude CSS Files -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">

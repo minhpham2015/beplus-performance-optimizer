@@ -111,6 +111,7 @@ function bepluspb_default_options() {
 
 		// --- Advanced CSS ---
 		'css_inline_all'                     => 0,   // Inline all local CSS files into <head>.
+		'css_inline_skip_elementor'          => 1,   // Inline All CSS leaves Elementor's own stylesheets as links (Elementor has its own CSS cache/optimisation).
 		'css_remove_handles'                 => '',  // CSS handles to dequeue (newline-separated).
 
 		// --- Advanced JS ---
