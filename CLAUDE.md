@@ -66,7 +66,10 @@ checking whether it would break the SVN slug binding).
   visitor) — it makes no login decision of its own; don't re-add a per-user option.
   `-ucss.php` (`BEPLUSPB_UCSS`) implements "Remove Unused CSS": a pure-PHP
   static-text match against rendered HTML (not a real browser render), cached
-  per page URL + per stylesheet in `wp-content/uploads/bepluspb-cache/`. See
+  per page URL + per stylesheet in `wp-content/uploads/bepluspb-cache/`. The token set
+  is the UNION over visits (`ucss-tokens-<tag>.txt`; its version is part of the cache
+  file name — never serve a rebuilt file under an unchanged name), and a request
+  that rebuilds is flagged `BEPLUSPB_UCSS::is_building()` so the page cache skips it. See
   Hard Rule #7 for its cache-invalidation requirements.
 - `includes/class-bepluspb-page-cache.php` + `lib/class-bepluspb-page-cache-engine.php`
   — static-HTML page cache for anonymous visitors (v1.2.0, opt-in). The
