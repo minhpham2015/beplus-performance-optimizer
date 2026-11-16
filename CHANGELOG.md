@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Selector matching: top-level comma splitting (`:is(.a,.b)`), balanced pseudo arguments, attribute selectors ignored, escaped classes (`.md\:flex`, `.w-1\/2`) matched, unquoted `class=`/`id=` and custom elements counted.
   - Relative `url()` and `@import` references are rewritten to absolute URLs (the used-only file lives in the cache directory). Old cache files regenerate automatically.
   - Cache files are only built from a complete HTTP 200 `text/html` page (`</html>` present): maintenance/503/error/truncated output can no longer poison a URL's stylesheet.
+  - Malformed CSS (unclosed block or parenthesis) is served untouched instead of silently losing every rule after the break.
   - Tests: `tests/test-ucss-filter.php`.
 - **Non-Render-Blocking CSS** (`BEPLUSPB_CSS::make_non_blocking()`):
   - the theme's (and parent theme's) main stylesheet is now recognised by registered handle, so it stays blocking even after Minify / Remove Unused CSS moved it to the cache directory (the old path match silently stopped working → FOUC/CLS);

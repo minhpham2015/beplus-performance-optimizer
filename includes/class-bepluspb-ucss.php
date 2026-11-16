@@ -87,6 +87,13 @@ class BEPLUSPB_UCSS {
 	const TOKEN_CAP = 20000;
 
 	/**
+	 * Whether the last filter_css() call parsed the stylesheet cleanly.
+	 *
+	 * @var bool
+	 */
+	private static $parse_ok = true;
+
+	/**
 	 * The ob_get_level() value recorded immediately before buffer_start()'s
 	 * ob_start() call. Used by buffer_end() to verify it is closing exactly
 	 * the buffer it opened, not an inner buffer opened by another feature
@@ -962,7 +969,12 @@ class BEPLUSPB_UCSS {
 	 * @return string Filtered CSS.
 	 */
 	public static function filter_css( $css, $used, $safelist ) {
-		return self::filter_block( $css, $used, $safelist );
+		self::$parse_ok = true;
+		$out            = self::filter_block( $css, $used, $safelist );
+
+		// Fail open: malformed CSS (unclosed block or parenthesis) is served untouched
+		// rather than silently losing every rule after the break.
+		return self::$parse_ok ? $out : $css;
 	}
 
 	/**
@@ -1010,7 +1022,7 @@ class BEPLUSPB_UCSS {
 	 * @param  string $css  CSS text.
 	 * @param  int    $open Index of the opening "{".
 	 * @param  int    $len  Length of $css.
-	 * @return int
+	 * @return int|false False when the block is never closed.
 	 */
 	private static function find_block_end( $css, $open, $len ) {
 		$depth = 0;
@@ -1046,7 +1058,7 @@ class BEPLUSPB_UCSS {
 			}
 			++$i;
 		}
-		return $len;
+		return false;
 	}
 
 	/**
@@ -1113,8 +1125,11 @@ class BEPLUSPB_UCSS {
 				$selector = trim( $buffer );
 				$buffer   = '';
 				$end      = self::find_block_end( $css, $i, $len );
-				$closed   = $end <= $len && '}' === ( $css[ $end - 1 ] ?? '' ) && $end - 1 > $i;
-				$inner    = substr( $css, $i + 1, $end - $i - ( $closed ? 2 : 1 ) );
+				if ( false === $end ) {
+					self::$parse_ok = false; // Never closed: do not guess, the caller keeps the original CSS.
+					break;
+				}
+				$inner = substr( $css, $i + 1, $end - $i - 2 );
 
 				if ( '' !== $selector && '@' === $selector[0] ) {
 					$out .= self::handle_at_rule( $selector, $inner, $used, $safelist );
@@ -1128,6 +1143,10 @@ class BEPLUSPB_UCSS {
 
 			$buffer .= $char;
 			++$i;
+		}
+
+		if ( $paren > 0 ) {
+			self::$parse_ok = false; // Unbalanced "(": everything after it would be swallowed.
 		}
 
 		return $out;

@@ -53,6 +53,12 @@ t_ok( has( $o, 'content:"}"' ) && ! has( $o, '.drop' ) && has( $o, '.keep2' ), '
 $o = f( '/* .drop{a:b} */.keep{content:"/* not a comment */"}', '<i class="keep">' );
 t_ok( ! has( $o, '.drop' ) && has( $o, '/* not a comment */' ), 'comments dropped but comment-like strings preserved' );
 
+// --- malformed CSS fails open (original served, nothing silently lost) -------
+foreach ( array( '.x(a{b:c}.keep{d:e}', '.keep{a:b', '.keep{a:b{c:d}' ) as $bad ) {
+	t_ok( $bad === f( $bad, '<i class="keep">' ), "malformed CSS returned untouched: $bad" );
+}
+t_ok( ! has( f( '.drop{a:b}.keep{c:d}', '<i class="keep">' ), '.drop' ), 'well-formed CSS still filtered after a malformed one' );
+
 // --- selector lists, :is(), :not(), attributes ------------------------------
 $o = f( ':is(.a,.b){c:d}', '<i class="zzz">' );
 t_ok( has( $o, ':is(.a,.b)' ), ':is() list is not split into broken pieces (kept safely)' );
