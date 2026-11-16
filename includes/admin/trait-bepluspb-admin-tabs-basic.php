@@ -663,7 +663,7 @@ else :
 								<?php checked( $opts['css_non_blocking'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Convert stylesheet links to preload + onload swap so they do not block rendering. A &lt;noscript&gt; fallback is included.', 'beplus-performance-booster' ); ?></span>
 						</label>
-						<p class="description"><?php esc_html_e( 'Tip: Exclude your theme\'s main stylesheet if you see a flash of unstyled content (FOUC).', 'beplus-performance-booster' ); ?></p>
+						<p class="description"><?php esc_html_e( 'The active theme\'s main stylesheet, print/conditional-media stylesheets and links that already load asynchronously are kept as normal links automatically; the feature switches itself off when a Content-Security-Policy blocks inline event handlers. If you still see a flash of unstyled content (FOUC), add that stylesheet to "Exclude CSS Files".', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 

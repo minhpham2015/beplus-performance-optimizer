@@ -253,21 +253,36 @@ class BEPLUSPB_CSS {
 	/**
 	 * Replace <link rel="stylesheet"> tags with the preload + onload swap pattern.
 	 *
+	 * Left untouched (still render-blocking, on purpose): the active theme's
+	 * main stylesheet(s) — matched by registered handle, so it still works once
+	 * Minify/Remove Unused CSS moved the file to the cache directory —, URL
+	 * keywords in $exclude, links that already preload or carry their own
+	 * onload, links with a conditional `media` (preload would never swap them
+	 * in), and every link when a Content-Security-Policy forbids inline event
+	 * handlers (the swap would never run and the site would stay unstyled).
+	 *
 	 * @param  string $html    Buffered wp_head output.
 	 * @param  array  $exclude URL keywords whose stylesheets must be left untouched.
 	 * @return string Modified HTML.
 	 */
 	public static function make_non_blocking( $html, $exclude ) {
-		$theme_stylesheet_url = get_bloginfo( 'stylesheet_url' );
-		if ( ! empty( $theme_stylesheet_url ) ) {
-			$parsed = wp_parse_url( $theme_stylesheet_url, PHP_URL_PATH );
-			if ( $parsed ) {
-				$exclude[] = $parsed;
+		if ( self::csp_blocks_inline_handlers( self::collect_csp_policies( $html ) ) ) {
+			return $html;
+		}
+
+		$theme_paths = array();
+		foreach ( array( get_bloginfo( 'stylesheet_url' ), trailingslashit( get_template_directory_uri() ) . 'style.css' ) as $theme_url ) {
+			$path = $theme_url ? wp_parse_url( $theme_url, PHP_URL_PATH ) : null;
+			if ( $path ) {
+				$theme_paths[ $path ] = true;
+				$exclude[]            = $path;
 			}
 		}
+		$theme_handles = self::theme_stylesheet_handles( $theme_paths );
+
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',
-			function ( $matches ) use ( $exclude ) {
+			function ( $matches ) use ( $exclude, $theme_handles ) {
 				$tag = $matches[0];
 
 				foreach ( $exclude as $keyword ) {
@@ -276,8 +291,26 @@ class BEPLUSPB_CSS {
 					}
 				}
 
+				if ( preg_match( '/\bid=[\'"]([^\'"]+)-css[\'"]/i', $tag, $id_m ) && isset( $theme_handles[ $id_m[1] ] ) ) {
+					return $tag;
+				}
+
 				if ( false !== strpos( $tag, 'rel="preload"' ) || false !== strpos( $tag, "rel='preload'" ) ) {
 					return $tag;
+				}
+
+				// Someone else already made this link async (media swap, loadCSS, ...).
+				if ( preg_match( '/\sonload\s*=/i', $tag ) ) {
+					return $tag;
+				}
+
+				// A preload only fetches when its media matches at load time, so a
+				// conditional stylesheet would never be swapped in later.
+				if ( preg_match( '/\smedia=([\'"])(.*?)\1/i', $tag, $media_m ) ) {
+					$media = strtolower( trim( $media_m[2] ) );
+					if ( '' !== $media && 'all' !== $media && 'screen' !== $media ) {
+						return $tag;
+					}
 				}
 
 				$preload = preg_replace(
@@ -290,6 +323,94 @@ class BEPLUSPB_CSS {
 			},
 			$html
 		);
+	}
+
+	/**
+	 * Handles of registered styles whose source is one of the theme stylesheets.
+	 *
+	 * @param  array $theme_paths URL paths of the theme stylesheets (path => true).
+	 * @return array Handle set (handle => true).
+	 */
+	private static function theme_stylesheet_handles( $theme_paths ) {
+		$handles = array();
+		$styles  = function_exists( 'wp_styles' ) ? wp_styles() : null;
+		if ( ! $styles || empty( $styles->registered ) || ! is_array( $styles->registered ) ) {
+			return $handles;
+		}
+		foreach ( $styles->registered as $handle => $dep ) {
+			$src  = is_object( $dep ) && isset( $dep->src ) && is_string( $dep->src ) ? $dep->src : '';
+			$path = '' !== $src ? wp_parse_url( $src, PHP_URL_PATH ) : null;
+			if ( $path && isset( $theme_paths[ $path ] ) ) {
+				$handles[ (string) $handle ] = true;
+			}
+		}
+		return $handles;
+	}
+
+	/**
+	 * Every enforced Content-Security-Policy of this response: HTTP headers plus
+	 * <meta http-equiv> tags already present in the buffered head.
+	 *
+	 * @param  string $html Buffered wp_head output.
+	 * @return string[]
+	 */
+	private static function collect_csp_policies( $html ) {
+		$policies = array();
+		if ( function_exists( 'headers_list' ) ) {
+			foreach ( headers_list() as $header ) {
+				if ( 0 === stripos( $header, 'Content-Security-Policy:' ) ) {
+					$policies[] = substr( $header, strlen( 'Content-Security-Policy:' ) );
+				}
+			}
+		}
+		if ( preg_match_all( '/<meta\b[^>]*http-equiv=[\'"]Content-Security-Policy[\'"][^>]*>/i', $html, $metas ) ) {
+			foreach ( $metas[0] as $meta ) {
+				if ( preg_match( '/\scontent=([\'"])(.*?)\1/is', $meta, $content_m ) ) {
+					$policies[] = $content_m[2];
+				}
+			}
+		}
+		return $policies;
+	}
+
+	/**
+	 * Whether any of the policies would block an inline event handler such as onload="".
+	 *
+	 * Blocked unless the governing directive (script-src-attr, else script-src,
+	 * else default-src) allows 'unsafe-inline' without a nonce/hash/'strict-dynamic'
+	 * (which make browsers ignore 'unsafe-inline'). No such directive = not blocked.
+	 *
+	 * @param  string[] $policies Policy strings.
+	 * @return bool
+	 */
+	public static function csp_blocks_inline_handlers( $policies ) {
+		foreach ( (array) $policies as $policy ) {
+			$directives = array();
+			foreach ( explode( ';', (string) $policy ) as $part ) {
+				$tokens = preg_split( '/\s+/', trim( $part ) );
+				if ( $tokens && '' !== $tokens[0] ) {
+					$name = strtolower( array_shift( $tokens ) );
+					if ( ! isset( $directives[ $name ] ) ) {
+						$directives[ $name ] = array_map( 'strtolower', $tokens );
+					}
+				}
+			}
+			$governing = null;
+			foreach ( array( 'script-src-attr', 'script-src', 'default-src' ) as $name ) {
+				if ( isset( $directives[ $name ] ) ) {
+					$governing = $directives[ $name ];
+					break;
+				}
+			}
+			if ( null === $governing ) {
+				continue;
+			}
+			$value = ' ' . implode( ' ', $governing ) . ' ';
+			if ( false === strpos( $value, "'unsafe-inline'" ) || preg_match( "/'nonce-|'sha(?:256|384|512)-|'strict-dynamic'/", $value ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// -------------------------------------------------------------------------
