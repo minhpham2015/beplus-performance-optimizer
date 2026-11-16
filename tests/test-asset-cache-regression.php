@@ -106,7 +106,7 @@ $old = BEPLUSPB_CACHE_DIR . 'ucss-page-d-style-oldhash000.css';
 file_put_contents( $old, '.old{}' );
 $recent = BEPLUSPB_CACHE_DIR . 'ucss-page-d-style-recent0000.css';
 file_put_contents( $recent, '.recent{}' );
-touch( $old, time() - 2 * 86400 );
+touch( $old, time() - 2 * 86400 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_touch -- test fixture: age the file.
 assert_true( BEPLUSPB_UCSS::write_deduplicated_cache( $d, '.new{}' ), 'new generation write must succeed' );
 assert_true( ! file_exists( $old ), 'obsolete generation (older than a day) for the same URL and handle must be removed' );
 assert_true( file_exists( $recent ), 'a generation younger than a day is kept: pages already sent may still link it' );

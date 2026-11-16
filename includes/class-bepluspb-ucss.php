@@ -248,7 +248,7 @@ class BEPLUSPB_UCSS {
 	/**
 	 * Build the cache filename for one stylesheet on the current page.
 	 *
-	 * @param  string $handle Style handle.
+	 * @param  string      $handle Style handle.
 	 * @param  string      $path    Absolute filesystem path of the source file.
 	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
@@ -265,7 +265,7 @@ class BEPLUSPB_UCSS {
 	/**
 	 * Absolute filesystem path of the cache file for a stylesheet.
 	 *
-	 * @param  string $handle Style handle.
+	 * @param  string      $handle Style handle.
 	 * @param  string      $path    Absolute filesystem path of the source file.
 	 * @param  string|null $version Token-set version (null = the page URL's current one).
 	 * @return string
@@ -314,7 +314,7 @@ class BEPLUSPB_UCSS {
 			'v' => '',
 			'n' => 0,
 		);
-		$file = self::state_path();
+		$file       = self::state_path();
 		if ( is_file( $file ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 			$h = @fopen( $file, 'r' );
@@ -350,7 +350,7 @@ class BEPLUSPB_UCSS {
 	private static function load_tokens() {
 		$set  = array();
 		$file = self::state_path();
-		if ( ! is_file( $file ) || self::load_meta()['v'] === '' ) {
+		if ( ! is_file( $file ) || '' === self::load_meta()['v'] ) {
 			return $set;
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
@@ -376,7 +376,7 @@ class BEPLUSPB_UCSS {
 	 * @return bool
 	 */
 	private static function save_state( $tokens, $version, $count ) {
-		$body = wp_json_encode(
+		$body       = wp_json_encode(
 			array(
 				'v' => $version,
 				'n' => $count,
@@ -888,25 +888,103 @@ class BEPLUSPB_UCSS {
 	public static function default_safelist() {
 		$list = array(
 			// Generic state classes toggled by scripts.
-			'.open', '.opened', '.active', '.show', '.showing', '.shown', '.hide', '.hidden', '.visible',
-			'.collapse', '.collapsed', '.collapsing', '.expanded', '.fade', '.selected', '.checked',
-			'.sticky', '.stuck', '.fixed', '.scrolled', '.loading', '.loaded', '.lazy', '.animated', '.animate',
-			'.is-open', '.is-active', '.is-visible', '.is-hidden', '.is-sticky', '.is-stuck', '.is-fixed',
-			'.is-loading', '.is-loaded', '.is-expanded', '.is-collapsed', '.is-selected', '.is-checked',
-			'.is-scrolled', '.is-show', '.is-shown', '.is-focused', '.is-opened', '.is-closed',
-			'-open', '-opened', '-active', '-visible', '-expanded', '-stuck', '-scrolled',
-			'.js', '.no-js', '.error', '.invalid', '.success', '.valid',
+			'.open',
+			'.opened',
+			'.active',
+			'.show',
+			'.showing',
+			'.shown',
+			'.hide',
+			'.hidden',
+			'.visible',
+			'.collapse',
+			'.collapsed',
+			'.collapsing',
+			'.expanded',
+			'.fade',
+			'.selected',
+			'.checked',
+			'.sticky',
+			'.stuck',
+			'.fixed',
+			'.scrolled',
+			'.loading',
+			'.loaded',
+			'.lazy',
+			'.animated',
+			'.animate',
+			'.is-open',
+			'.is-active',
+			'.is-visible',
+			'.is-hidden',
+			'.is-sticky',
+			'.is-stuck',
+			'.is-fixed',
+			'.is-loading',
+			'.is-loaded',
+			'.is-expanded',
+			'.is-collapsed',
+			'.is-selected',
+			'.is-checked',
+			'.is-scrolled',
+			'.is-show',
+			'.is-shown',
+			'.is-focused',
+			'.is-opened',
+			'.is-closed',
+			'-open',
+			'-opened',
+			'-active',
+			'-visible',
+			'-expanded',
+			'-stuck',
+			'-scrolled',
+			'.js',
+			'.no-js',
+			'.error',
+			'.invalid',
+			'.success',
+			'.valid',
 			// Lazy load / animation helpers.
-			'.lazyload', '.aos-', '.animate__', '.wow',
+			'.lazyload',
+			'.aos-',
+			'.animate__',
+			'.wow',
 			// Sliders, lightboxes, popups that build their own markup.
-			'.swiper-', '.slick-', '.owl-', '.flickity-', '.splide', '.glide', '.flex-', '.mfp-', '.pswp',
-			'.fancybox', '.lightbox', '.modal', '.tooltip', '.popover', '.dropdown',
+			'.swiper-',
+			'.slick-',
+			'.owl-',
+			'.flickity-',
+			'.splide',
+			'.glide',
+			'.flex-',
+			'.mfp-',
+			'.pswp',
+			'.fancybox',
+			'.lightbox',
+			'.modal',
+			'.tooltip',
+			'.popover',
+			'.dropdown',
 			// WordPress / WooCommerce / forms / cookie banners (state set after load or on action).
-			'.woocommerce-message', '.woocommerce-error', '.woocommerce-info', '.woocommerce-notice',
-			'.blockUI', '.added_to_cart', '.adding_to_cart', '.added', '.select2', '.wpcf7-',
-			'cookie', 'gdpr', 'consent', 'cmplz',
+			'.woocommerce-message',
+			'.woocommerce-error',
+			'.woocommerce-info',
+			'.woocommerce-notice',
+			'.blockUI',
+			'.added_to_cart',
+			'.adding_to_cart',
+			'.added',
+			'.select2',
+			'.wpcf7-',
+			'cookie',
+			'gdpr',
+			'consent',
+			'cmplz',
 			// Page builders.
-			'.elementor-sticky', '.elementor-popup', '.elementor-invisible',
+			'.elementor-sticky',
+			'.elementor-popup',
+			'.elementor-invisible',
 		);
 
 		/**
@@ -1064,6 +1142,7 @@ class BEPLUSPB_UCSS {
 	/**
 	 * Recursively filter a block of CSS (top-level or inside an @-rule).
 	 * Comments are dropped; statement at-rules (@import, @charset, @layer a,b;
+	 *
 	 * @namespace) are copied through untouched and never merged into the next rule.
 	 *
 	 * @param  string $css      CSS block to filter.
@@ -1154,6 +1233,7 @@ class BEPLUSPB_UCSS {
 
 	/**
 	 * Handle an @-rule: recurse into conditional group rules (@media, @supports,
+	 *
 	 * @layer, @container, ...) and drop them if the filtered contents end up
 	 * empty; keep every other block at-rule (@font-face, @keyframes, @page,
 	 * @property, unknown future rules) verbatim.
@@ -1188,25 +1268,25 @@ class BEPLUSPB_UCSS {
 	 * Split a selector list on top-level commas only (commas inside (), [] or
 	 * strings, e.g. :is(.a, .b), belong to their selector).
 	 *
-	 * @param  string $list Selector list.
+	 * @param  string $selectors Selector list.
 	 * @return string[]
 	 */
-	private static function split_selector_list( $list ) {
+	private static function split_selector_list( $selectors ) {
 		$parts = array();
 		$cur   = '';
 		$depth = 0;
-		$len   = strlen( $list );
+		$len   = strlen( $selectors );
 
 		for ( $i = 0; $i < $len; $i++ ) {
-			$c = $list[ $i ];
+			$c = $selectors[ $i ];
 			if ( '\\' === $c ) {
-				$cur .= substr( $list, $i, 2 );
+				$cur .= substr( $selectors, $i, 2 );
 				++$i;
 				continue;
 			}
 			if ( '"' === $c || "'" === $c ) {
-				$end  = self::skip_string( $list, $i, $len );
-				$cur .= substr( $list, $i, $end - $i );
+				$end  = self::skip_string( $selectors, $i, $len );
+				$cur .= substr( $selectors, $i, $end - $i );
 				$i    = $end - 1;
 				continue;
 			}
