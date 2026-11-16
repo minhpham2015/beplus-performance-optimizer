@@ -748,7 +748,8 @@ else :
 							rows="4" class="large-text code"><?php echo esc_textarea( $opts['css_unused_safelist'] ); ?></textarea>
 						<p class="description">
 							<?php esc_html_e( 'Rules matching these selectors are always kept, even if not detected as used. Use this for classes toggled by JavaScript (menus, modals, tabs, accordions, sliders) and page-builder/WooCommerce dynamic states.', 'beplus-performance-booster' ); ?><br>
-							<?php esc_html_e( 'Example: .active, .is-open*, .woocommerce-*', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Common JavaScript-toggled classes (.is-open, .active, .show, .slick-*, .swiper-*, cookie banners, WooCommerce notices, ...) are already kept automatically; add only what is specific to your theme or plugins.', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Example: .my-menu-open, .my-popup-*', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
