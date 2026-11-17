@@ -122,6 +122,21 @@ checking whether it would break the SVN slug binding).
   stale/mismatched zone can never be hand-typed. Never logs the token or
   raw request/response (same sensitivity class as the Object Cache Redis
   password — see Hard Rule #1 — just DB-stored instead of file-stored).
+- `includes/class-bepluspb-priority-images.php` — "Priority Images" (LCP): per-page
+  `<link rel="preload" as="image" fetchpriority="high">` (+ `imagesrcset`/`imagesizes` hints saved by the
+  analyzer) and `fetchpriority`/no-lazy on matching core-rendered `<img>`. Output only: it never fetches the
+  URL. Lines are validated like user input everywhere they enter (`parse()`/`apply_entries()`).
+- `includes/class-bepluspb-critical-css.php` + `assets/js/critical-css-generator.js` — Critical CSS per **page
+  type** (not URL), RTL sets separate, in its own non-autoloaded option. Stored data is cleaned on save and
+  ignored on read if it contains `<`; printed only when something was actually deferred and no CSP forbids
+  inline `<style>`. It is independent of the Non-Render-Blocking switch (a page with an entry defers all CSS itself). The generator and `assets/js/lcp-analyzer.js` run in the administrator's browser and save
+  through nonce → capability checked AJAX; they never run for visitors.
+- `includes/class-bepluspb-google-fonts.php` — head buffer (priority 0 … 10000) that adds `font-display` +
+  preconnect to Google Fonts URLs, and in "selfhost" mode swaps downloaded stylesheets for local copies.
+- `includes/class-bepluspb-google-fonts-local.php` — **the only code that downloads content from a third-party
+  server for the site to store and serve** (see Hard Rule #9; the other outbound code is the admin-triggered
+  Cloudflare API client and the page-cache preload, which only requests the site's own pages). Everything it
+  stores or links comes from a strict parse of Google's stylesheet.
 - `includes/class-bepluspb-cleanup.php` — despite the name, this only
   dequeues default WP scripts/styles (emoji, embed, block CSS, WooCommerce
   on non-shop pages). It does NOT touch the database. If you add real DB
@@ -264,6 +279,19 @@ checking whether it would break the SVN slug binding).
    - The capture buffer must stay the OUTERMOST buffer so it stores the final
      HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
 
+9. **Third-party downloads — `BEPLUSPB_Google_Fonts_Local` is the only code that fetches content from another
+   server for the site to store and serve; keep it narrow.** (The Cloudflare class makes admin-triggered API calls
+   with a token, the page-cache preload requests only the site's own pages — each has its own rules above.)
+   Exactly two hosts compared for equality (`fonts.googleapis.com`, `fonts.gstatic.com`), HTTPS, `redirection => 0`,
+   `reject_unsafe_urls`, no cookies, size/count limits, one `wp_remote_get()` call site, never during a visitor's
+   request (front end only queues; WP-Cron or the admin's button downloads). No URL may come from the browser or a
+   setting: queue entries are re-validated on every read. The stylesheet is parsed with a strict allowlist and the
+   local one is rebuilt from it, never copied; font files need the woff2 signature; files are hash-named and
+   written atomically (stylesheet last). Never widen the host check to a suffix/regex match, never follow
+   redirects, never add a "custom font URL" feature. `tests/test-google-fonts-local.php` pins all of this (it
+   also greps the source for the host list); run `docs/google-fonts-live-test.php` after touching the parser,
+   Google changes its stylesheets (the font URLs have no extension, icon fonts add a helper rule).
+
 ## Testing before every PR
 
 No PHPUnit suite yet. Minimum bar:
@@ -293,8 +321,8 @@ See `docs/RELEASE.md`. Note this repo's default branch is `master`, not
 before pushing).
 
 **Dev-only files never ship to WordPress.org:** `.github/`, `CLAUDE.md`,
-`CHANGELOG.md`, `docs/`, `composer.json`/`composer.lock`, `phpcs.xml.dist`,
-`.gitignore` are repo infrastructure only. The `rsync` command in
+`CHANGELOG.md`, `docs/`, `tests/`, `composer.json`/`composer.lock`, `phpcs.xml.dist`,
+`phpstan.neon.dist`, `phpstan-baseline.neon`, `.gitignore` are repo infrastructure only. The `rsync` command in
 `docs/RELEASE.md` explicitly excludes all of them — if you add a new
 dev-only file/folder at the repo root, add it to that exclude list too, or
 it will accidentally get published to every WordPress site running this

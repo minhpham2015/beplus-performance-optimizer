@@ -20,6 +20,9 @@ require_once __DIR__ . '/admin/trait-bepluspb-admin-actions.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-meta-box.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-object-cache.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-cloudflare.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-lcp.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-critical-css.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-google-fonts.php';
 
 /**
  * Class BEPLUSPB_Admin
@@ -45,6 +48,9 @@ class BEPLUSPB_Admin {
 	use BEPLUSPB_Admin_Meta_Box;
 	use BEPLUSPB_Admin_Ajax_Object_Cache;
 	use BEPLUSPB_Admin_Ajax_Cloudflare;
+	use BEPLUSPB_Admin_Ajax_Lcp;
+	use BEPLUSPB_Admin_Ajax_Critical_Css;
+	use BEPLUSPB_Admin_Ajax_Google_Fonts;
 
 	// =========================================================================
 	// Bootstrap
@@ -94,6 +100,19 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_ajax_bepluspb_cf_test_connection', array( __CLASS__, 'handle_ajax_cf_test_connection' ) );
 		add_action( 'wp_ajax_bepluspb_cf_purge', array( __CLASS__, 'handle_ajax_cf_purge' ) );
 		add_action( 'wp_ajax_bepluspb_cf_devmode', array( __CLASS__, 'handle_ajax_cf_devmode' ) );
+
+		// LCP Analyzer: script for administrators on the front end + the AJAX that saves its result.
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_lcp_analyzer' ) );
+		add_action( 'wp_ajax_bepluspb_lcp_apply', array( __CLASS__, 'handle_ajax_lcp_apply' ) );
+
+		// Critical CSS: generator for administrators on the front end + the AJAX behind it and the settings card.
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_ccss_generator' ) );
+		add_action( 'wp_ajax_bepluspb_ccss_save', array( __CLASS__, 'handle_ajax_ccss_save' ) );
+		add_action( 'wp_ajax_bepluspb_ccss_delete', array( __CLASS__, 'handle_ajax_ccss_delete' ) );
+
+		// Self-hosted Google Fonts: "Download now" and "Delete local fonts" in the Fonts tab.
+		add_action( 'wp_ajax_bepluspb_gf_download', array( __CLASS__, 'handle_ajax_gf_download' ) );
+		add_action( 'wp_ajax_bepluspb_gf_clear', array( __CLASS__, 'handle_ajax_gf_clear' ) );
 
 		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
@@ -232,6 +251,7 @@ class BEPLUSPB_Admin {
 			// CSS.
 			'css_minify',
 			'css_non_blocking',
+			'critical_css_enabled',
 			'css_inline_all',
 			'css_inline_skip_elementor',
 			'css_remove_unused',
@@ -311,6 +331,30 @@ class BEPLUSPB_Admin {
 		$sanitized['remove_js_handles'] = isset( $input['remove_js_handles'] )
 			? sanitize_textarea_field( $input['remove_js_handles'] )
 			: '';
+
+		$sanitized['google_fonts_mode']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_mode'] ?? '', array( 'off', 'optimize', 'selfhost' ), 'off' );
+		$sanitized['google_fonts_display'] = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_display'] ?? '', BEPLUSPB_Google_Fonts::DISPLAY_VALUES, 'swap' );
+
+		// Priority Images: keep only valid lines and say which ones were dropped.
+		$priority_raw                 = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
+		$priority_parsed              = BEPLUSPB_Priority_Images::parse( $priority_raw );
+		$sanitized['priority_images'] = BEPLUSPB_Priority_Images::sanitize( $priority_raw );
+		// srcset/sizes hints are not part of the settings form: keep the stored ones (pruned to the lines that remain).
+		if ( isset( $input['priority_images_hints'] ) ) {
+			$priority_hints = $input['priority_images_hints'];
+		} else {
+			$priority_saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+			$priority_hints = is_array( $priority_saved ) && isset( $priority_saved['priority_images_hints'] ) ? $priority_saved['priority_images_hints'] : array();
+		}
+		$sanitized['priority_images_hints'] = BEPLUSPB_Priority_Images::sanitize_hints( $priority_hints, $sanitized['priority_images'] );
+		if ( $priority_parsed['errors'] ) {
+			add_settings_error(
+				BEPLUSPB_OPTIONS_KEY,
+				'bepluspb_priority_images',
+				esc_html( __( 'Priority Images: some lines were not saved.', 'beplus-performance-booster' ) . ' ' . implode( ' ', $priority_parsed['errors'] ) ),
+				'warning'
+			);
+		}
 
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )

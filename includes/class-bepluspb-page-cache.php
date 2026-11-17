@@ -31,6 +31,9 @@ class BEPLUSPB_Page_Cache {
 	/** WP-Cron hook that removes expired cache files. */
 	const CRON_HOOK = 'bepluspb_page_cache_gc';
 
+	/** Option holding the Critical CSS entries (same name as BEPLUSPB_Critical_CSS::OPTION; kept literal so this class loads on its own). */
+	const CRITICAL_CSS_OPTION = 'bepluspb_critical_css';
+
 	/** Transient holding the last sync problem for the admin UI. */
 	const ERROR_TRANSIENT = 'bepluspb_page_cache_error';
 
@@ -603,20 +606,98 @@ class BEPLUSPB_Page_Cache {
 	}
 
 	/**
-	 * Hosts the cache may serve (home and site URL, with non-default ports).
+	 * Hosts the cache may serve: the site address (with non-default ports) plus every
+	 * per-language domain of a multilingual plugin.
+	 *
+	 * The site address is read from the stored `home` / `siteurl` options, NOT from
+	 * home_url() / site_url(): WPML and Polylang filter those by the language of the
+	 * current request (or of the admin screen), so the list would differ between a
+	 * request on `example.com` and one on `en.example.com`, the config would flip
+	 * to whichever language synced last, and the other languages would never be cached.
 	 *
 	 * @return string[]
 	 */
 	private static function allowed_hosts() {
-		$hosts = array();
-		foreach ( array( home_url(), site_url() ) as $url ) {
-			$host = wp_parse_url( $url, PHP_URL_HOST );
-			$port = wp_parse_url( $url, PHP_URL_PORT );
-			if ( $host ) {
-				$hosts[] = strtolower( $host ) . ( $port ? ':' . $port : '' );
+		$home  = get_option( 'home' );
+		$site  = get_option( 'siteurl' );
+		$urls  = array(
+			is_string( $home ) && '' !== $home ? $home : home_url(),
+			is_string( $site ) && '' !== $site ? $site : site_url(),
+		);
+		$hosts = self::normalize_hosts( array_merge( $urls, self::language_domains() ) );
+
+		/**
+		 * Filters the hosts the page cache may serve (e.g. extra domains of a multi-domain setup).
+		 *
+		 * Entries are re-validated: bare host names (optionally with a port) or URLs; anything
+		 * else is dropped. At most 50 hosts are kept.
+		 *
+		 * @param string[] $hosts Lower-case hosts, `host` or `host:port`.
+		 */
+		$filtered = apply_filters( 'bepluspb_page_cache_allowed_hosts', $hosts );
+		return self::normalize_hosts( is_array( $filtered ) ? $filtered : $hosts );
+	}
+
+	/**
+	 * Domains configured for individual languages (WPML "different domain per language"
+	 * and Polylang "one domain per language"), as stored in their settings.
+	 *
+	 * @return string[] Raw domains or URLs (validated by normalize_hosts()).
+	 */
+	private static function language_domains() {
+		$domains = array();
+
+		// WPML: negotiation type 2 = a different domain (or subdomain) per language.
+		if ( 2 === (int) apply_filters( 'wpml_setting', 0, 'language_negotiation_type' ) ) {
+			$wpml = apply_filters( 'wpml_setting', array(), 'language_domains' );
+			if ( is_array( $wpml ) ) {
+				$domains = array_merge( $domains, array_values( $wpml ) );
 			}
 		}
-		return array_values( array_unique( $hosts ) );
+
+		// Polylang: force_lang 3 = one domain per language.
+		$polylang = get_option( 'polylang' );
+		if ( is_array( $polylang ) && 3 === (int) ( $polylang['force_lang'] ?? 0 ) && ! empty( $polylang['domains'] ) && is_array( $polylang['domains'] ) ) {
+			$domains = array_merge( $domains, array_values( $polylang['domains'] ) );
+		}
+
+		return $domains;
+	}
+
+	/**
+	 * Reduce URLs / bare domains to unique, strictly validated `host[:port]` entries.
+	 *
+	 * The charset is the one the engine requires of the request Host header, so nothing that
+	 * could never match (or could reach a filesystem path) is stored.
+	 *
+	 * @param array $values URLs or domains.
+	 * @return string[]
+	 */
+	private static function normalize_hosts( $values ) {
+		$hosts = array();
+		foreach ( $values as $value ) {
+			if ( ! is_string( $value ) ) {
+				continue;
+			}
+			$value = trim( $value );
+			if ( '' === $value ) {
+				continue;
+			}
+			if ( false === strpos( $value, '//' ) ) {
+				$value = '//' . $value;
+			}
+			$host = wp_parse_url( $value, PHP_URL_HOST );
+			$port = wp_parse_url( $value, PHP_URL_PORT );
+			if ( ! $host ) {
+				continue;
+			}
+			$entry = strtolower( $host ) . ( $port ? ':' . $port : '' );
+			// Labels start/end alphanumeric and never empty ("..", ".x", "x." are rejected).
+			if ( preg_match( '/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?$/D', $entry ) && false === strpos( $entry, '..' ) ) {
+				$hosts[] = $entry;
+			}
+		}
+		return array_slice( array_values( array_unique( $hosts ) ), 0, 50 );
 	}
 
 	/**
@@ -1428,7 +1509,7 @@ class BEPLUSPB_Page_Cache {
 		}
 
 		// Site-wide look and structure.
-		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'bepluspb_assets_cache_cleared', 'bepluspb_page_cache_purge_all' ) as $hook ) {
+		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'bepluspb_assets_cache_cleared', 'bepluspb_google_fonts_localized', 'bepluspb_page_cache_purge_all' ) as $hook ) {
 			add_action( $hook, array( __CLASS__, 'purge_all' ), 20, 0 );
 		}
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'purge_all' ), 20, 0 );
@@ -1459,8 +1540,20 @@ class BEPLUSPB_Page_Cache {
 	public static function register_core_hooks() {
 		add_action( 'update_option_' . BEPLUSPB_OPTIONS_KEY, array( __CLASS__, 'on_settings_updated' ), 10, 2 );
 		add_action( 'add_option_' . BEPLUSPB_OPTIONS_KEY, array( __CLASS__, 'on_settings_added' ), 10, 2 );
+		// Critical CSS is printed into every stored page: any change of it must drop them (Rule 7/8).
+		add_action( 'update_option_' . self::CRITICAL_CSS_OPTION, array( __CLASS__, 'on_critical_css_changed' ) );
+		add_action( 'add_option_' . self::CRITICAL_CSS_OPTION, array( __CLASS__, 'on_critical_css_changed' ) );
 		add_action( self::CRON_HOOK, array( 'BEPLUSPB_Page_Cache_Engine', 'gc' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_repair' ) );
+	}
+
+	/**
+	 * The stored Critical CSS changed: stored pages still carry the old one.
+	 */
+	public static function on_critical_css_changed() {
+		if ( self::is_enabled() ) {
+			self::purge_all();
+		}
 	}
 
 	/**

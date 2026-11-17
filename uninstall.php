@@ -3,9 +3,9 @@
  * Fired when the plugin is deleted (not just deactivated).
  *
  * Cleans up ALL data created by Beplus Performance Booster:
- *  - The `bepluspb_settings` option from the database.
+ *  - The `bepluspb_settings` and `bepluspb_critical_css` options from the database.
  *  - Browser-caching rules from .htaccess.
- *  - All minified/cached CSS and JS files from the cache directory.
+ *  - All minified/cached CSS and JS files from the cache directory, and the self-hosted Google Fonts.
  *  - The `_bepluspb_disable_cache` post meta from every post/page.
  *
  * @package Beplus_Performance_Booster
@@ -23,6 +23,9 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 // ---------------------------------------------------------------------------
 
 delete_option( 'bepluspb_settings' );
+delete_option( 'bepluspb_critical_css' ); // Saved Critical CSS entries (user data, see BEPLUSPB_Critical_CSS).
+delete_option( 'bepluspb_gf_queue' ); // Self-hosted Google Fonts: stylesheets waiting for download.
+wp_clear_scheduled_hook( 'bepluspb_gf_fetch' );
 
 // Remove the cache-stats transient (60 s TTL, but clean up explicitly on uninstall).
 delete_transient( 'bepluspb_cache_stats' );
@@ -101,6 +104,17 @@ if ( file_exists( $bepluspb_cache_dir ) && is_dir( $bepluspb_cache_dir ) ) {
 				wp_delete_file( $bepluspb_file );
 			}
 		}
+	}
+
+	// Self-hosted Google Fonts (fonts/ sub-folder: hash-named .css/.woff2 only; no glob on the path).
+	$bepluspb_fonts_dir = $bepluspb_cache_dir . 'fonts/';
+	if ( is_dir( $bepluspb_fonts_dir ) ) {
+		foreach ( (array) scandir( $bepluspb_fonts_dir ) as $bepluspb_font_file ) {
+			if ( preg_match( '/^[a-f0-9]{16,20}\.(?:css|woff2)$/D', $bepluspb_font_file ) && is_file( $bepluspb_fonts_dir . $bepluspb_font_file ) ) {
+				wp_delete_file( $bepluspb_fonts_dir . $bepluspb_font_file );
+			}
+		}
+		@rmdir( $bepluspb_fonts_dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- only succeeds when empty.
 	}
 
 	// Remove plugin-created support files.

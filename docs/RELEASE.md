@@ -51,6 +51,8 @@ rsync -av \
   --exclude='docs' \
   --exclude='composer.json' --exclude='composer.lock' \
   --exclude='phpcs.xml.dist' \
+  --exclude='phpstan.neon.dist' --exclude='phpstan-baseline.neon' \
+  --exclude='tests' \
   --exclude='.gitignore' \
   /tmp/release-src/ trunk/ --delete-excluded
 svn status

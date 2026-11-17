@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.2.2
+Stable tag: 1.3.2
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -35,6 +35,9 @@ accidentally break the admin panel or your own editing experience.
 * Automatic WebP/AVIF image serving when a matching file already exists
 * Cloudflare integration: one-click cache purge, zone auto-detection via API
   Token, and Development Mode toggle from wp-admin
+* Critical CSS per page type, generated in your own browser, so stylesheets can load after the first paint without a flash of unstyled content
+* Priority Images (LCP): preload and top priority for the hero image, plus an "Analyze LCP" tool in the admin bar that finds it for you
+* Google Fonts: font-display and preconnect, or download the fonts once and serve them from your own site
 
 == Settings Reference ==
 
@@ -149,6 +152,73 @@ Default: empty
 
 One URL keyword per line. Matching pages never have unused CSS removed.
 Recommended for checkout/cart and other heavily dynamic pages.
+
+---
+
+= 🧩 Critical CSS =
+
+**Use Critical CSS**
+Default: off
+Works on its own: it does not need Non-Render-Blocking CSS
+
+Prints the CSS the first screen needs in the page head and loads every
+stylesheet (your theme's included) after the first paint, so the page is drawn at
+once without a flash of unstyled content. The CSS is stored per page type (front
+page, blog index, each post type, archives, search, other pages, and a default for
+anything else; right-to-left pages have their own set), not per URL, so one entry
+serves every page of that type and every language.
+
+**Generate Critical CSS**
+Open a page of your site while logged in as an administrator and choose
+Beplus Performance Booster → "Generate Critical CSS (this page type)" in the admin
+bar. The page is analysed on phone, tablet, desktop and large-screen sized copies (and a little below the first screen) and the
+result is saved for that page type. Everything runs in your browser; nothing is
+sent anywhere except to your own site when you press Save. You can also paste CSS
+by hand in the Critical CSS card, and delete saved entries there.
+
+Not used while "Inline All CSS" is on, or when a Content-Security-Policy forbids
+inline styles. Administrators always see the original page, so check the result in
+a private window.
+
+---
+
+= 🏁 Priority Images (LCP) =
+
+**Priority Images**
+Default: empty (Media card)
+
+The image that is the Largest Contentful Paint of a page (usually the hero banner),
+one per line: `image URL | home, all or /page-path/ | mobile, desktop or all`. The
+browser is told to download it first (preload with high priority) and WordPress stops
+lazy-loading it. At most 4 lines. Use the exact URL the browser downloads for that
+page.
+
+**Analyze LCP (admin bar)**
+Open a page while logged in as an administrator and choose
+Beplus Performance Booster → "Analyze LCP (this page)". The plugin finds the LCP
+element for mobile and desktop in your browser, tells you what is wrong with it
+(lazy-loaded, no priority, found late through CSS, or text instead of an image) and
+can add the image to Priority Images for you.
+
+---
+
+= 🔤 Google Fonts (Advanced tab) =
+
+**Optimize Google Fonts**
+Default: off
+
+* *Optimize*: adds `font-display` (swap, fallback or optional) to Google Fonts links
+  and `@import` rules in the page head that do not set one, and adds preconnect hints.
+  Icon fonts (Material Icons, Font Awesome) and a `font-display` you already set
+  are left alone. Nothing is downloaded.
+* *Self-host*: downloads the stylesheets and font files your pages use once to
+  `wp-content/uploads/bepluspb-cache/fonts/` and links those copies, so your visitors'
+  browsers no longer contact Google (privacy / GDPR) and there is one origin less to
+  connect to. Until a stylesheet is downloaded, the page keeps the Google link, so
+  nothing breaks. "Download now" and "Delete local fonts" are in the same card.
+  See "External services" below for exactly what is requested.
+
+Not covered: fonts loaded by JavaScript (such as WebFont Loader) or printed after the head.
 
 ---
 
@@ -434,8 +504,13 @@ No. Every optimisation hook is guarded by `is_admin()` and an additional check t
 skips users with the `manage_options` capability on the front-end.
 
 = I see a flash of unstyled content (FOUC) after enabling Non-Render-Blocking CSS. =
-Add a URL keyword for your theme's main stylesheet to the **Exclude CSS Files**
-textarea. That file will be loaded normally while the rest are deferred.
+Your theme's own stylesheets (including those in sub-folders such as `assets/css/`) are kept render-blocking automatically, but plugin and page-builder stylesheets are deferred. To remove the flash without giving up the speed, turn on **Critical CSS** (Cache Files tab → Critical CSS): it prints the CSS the first screen needs and defers the rest. Otherwise add a URL keyword for the stylesheet that causes the flash to the **Exclude CSS Files** textarea; that file will be loaded normally while the rest are deferred.
+
+= Does self-hosting Google Fonts make my server contact Google? =
+Yes, but only when you choose "Self-host", and only your server (never your visitors' browsers): a few requests to fonts.googleapis.com and fonts.gstatic.com download the fonts your pages already use, once. See "External services" below.
+
+= Why does my font still load from Google after I chose Self-host? =
+The first time a logged-out visitor opens a page, the plugin only notes which Google Fonts it uses; a background WP-Cron job downloads them a few seconds later. Open one page in a private window and press "Download now" in the Google Fonts card to do it at once. If a download fails, the page keeps the Google link and the card shows the reason.
 
 = The Browser Cache option says my .htaccess is not writable. =
 Your server's file permissions do not allow PHP to write to `.htaccess`. Set the
@@ -463,6 +538,18 @@ injected `.htaccess` rules, every file in `uploads/bepluspb-cache/`, and the
 = Who develops this plugin? =
 This plugin is developed and maintained by BePlus, a WordPress and Shopify development studio. You can learn more about our work at beplusthemes.com.
 
+== External services ==
+
+This plugin connects to outside services only in the two cases below. Both are optional and off by default, and neither runs on a visitor's page load.
+
+**Google Fonts (only when "Google Fonts → Self-host" is selected)**
+Your server downloads the Google Fonts stylesheets your own pages already use from fonts.googleapis.com and the font files they name from fonts.gstatic.com, once, in the background (WP-Cron) or when you press "Download now". The requests are made over HTTPS by your server with a generic browser User-Agent; they contain only the font stylesheet or font file being requested, no visitor data and no information about your site. After that your pages link the local copies. Google Fonts terms and privacy information: https://developers.google.com/fonts/terms and https://developers.google.com/fonts/faq/privacy
+
+**Cloudflare (only when you enter an API token under "Cloudflare")**
+When you press Test Connection, purge the cache or toggle Development Mode (or clear the plugin's cache with Cloudflare purging enabled), your server calls the Cloudflare API (api.cloudflare.com) with your API token to look up your zone and perform that action. Nothing about your visitors is sent. Cloudflare terms and privacy policy: https://www.cloudflare.com/website-terms/ and https://www.cloudflare.com/privacypolicy/
+
+The optional Page Cache Preload only requests your own site's pages.
+
 == Screenshots ==
 
 1. **Dashboard tab** — Cache stats, master cache toggle, and the one-click recommended-settings panel.
@@ -475,6 +562,25 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 8. **Object Cache tab** — Redis/Memcached connection settings, persistent connections, and global cache groups.
 
 == Changelog ==
+
+= 1.3.2 =
+* Fix: the Critical CSS Generator no longer saves the admin toolbar's page offset (an empty 32px band above the page for visitors). If you generated Critical CSS with 1.3.0 or 1.3.1, generate it again and save.
+
+= 1.3.1 =
+* Change: Critical CSS now works on its own. A page with saved Critical CSS prints it and loads every stylesheet after the first paint whether or not "Non-Render-Blocking CSS" is on; pages without an entry behave as before.
+* New: the Critical CSS Generator analyses four screen sizes (phone, tablet, desktop, large screen) and, by default, also the area just below the first screen, so big monitors, tablets and a small scroll no longer show unstyled elements. After updating, generate your Critical CSS again.
+* Fix: the Critical CSS Generator now says why an analysis failed (slow page, blocked frame, redirect, script error), works on slow connections and on pages where the footer script is delayed, and offers "Analyse this window only" as a fallback and a copyable technical report.
+* Fix: the Critical CSS Generator and LCP Analyzer panels no longer scramble text on right-to-left sites.
+* Fix: Google Fonts settings: the note about Self-host is no longer red and the font-display labels are no longer cut off.
+
+= 1.3.0 =
+* New: Critical CSS. Print the CSS the first screen needs in the page head and load every stylesheet after the first paint, with no flash of unstyled content. Generate it from the admin bar ("Generate Critical CSS"): the page is analysed in your browser on a phone-sized and a desktop-sized copy and saved per page type (front page, posts, pages, archives…; right-to-left pages separately). Or paste CSS by hand. Off by default; needs Non-Render-Blocking CSS.
+* New: Priority Images (LCP). Tell the browser which image is the Largest Contentful Paint of a page: it is preloaded with high priority and no longer lazy-loaded. The new "Analyze LCP" tool in the admin bar finds the LCP element for mobile and desktop, explains what is wrong with it and fills Priority Images for you.
+* New: Google Fonts. "Optimize" adds font-display and preconnect to Google Fonts links. "Self-host" downloads the fonts once to your own site (background download, or "Download now") so visitors' browsers no longer contact Google; until a font is downloaded the page keeps the Google link. Off by default. See "External services".
+* New: with a CDN, the plugin now opens the connection to the CDN host early (preconnect).
+* Fix: Non-Render-Blocking CSS no longer makes themes flash unstyled. All stylesheets inside your theme and parent theme folders (not only style.css) stay render-blocking unless Critical CSS covers the first paint.
+* Fix: the Page Cache stayed off on multilingual sites that use one domain or subdomain per language (WPML, Polylang): it kept saying the site address had changed and cached nothing. After updating, press Save once on the Page Cache settings.
+* Change: the readme now lists the external services (Google Fonts self-hosting, Cloudflare).
 
 = 1.2.2 =
 * New: Recommended Settings now recognises Elementor and recommends keeping its stylesheets render-blocking and leaving Remove Unused CSS, Inline All CSS and Delay JS off, because Elementor optimises its own CSS/JS. It is layered on top of your site profile (an Elementor shop keeps the WooCommerce plan).
@@ -682,6 +788,15 @@ This plugin is developed and maintained by BePlus, a WordPress and Shopify devel
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.3.2 =
+Fixes an empty band above the page caused by Critical CSS generated while logged in. If you use Critical CSS, generate it again and save after updating.
+
+= 1.3.1 =
+Critical CSS no longer needs Non-Render-Blocking CSS, and its generator covers more screen sizes. If you use Critical CSS, generate it again after updating.
+
+= 1.3.0 =
+Adds Critical CSS, Priority Images with an LCP Analyzer, and Google Fonts optimisation/self-hosting (all off by default). Non-Render-Blocking CSS now keeps your whole theme folder's CSS render-blocking (fixes the flash of unstyled content). Multilingual sites with one domain per language (WPML/Polylang): press Save once on the Page Cache settings after updating.
 
 = 1.2.2 =
 Makes Remove Unused CSS, Minify CSS, Inline All CSS and Non-Render-Blocking CSS much safer (fonts/images, JavaScript-toggled classes, theme stylesheet, CSP). Inline All CSS now skips Elementor stylesheets by default. Used-only CSS files are rebuilt automatically after updating.
