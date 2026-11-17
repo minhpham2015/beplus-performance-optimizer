@@ -54,15 +54,21 @@ t_ok( 1 === substr_count( $out, 'bepluspb-critical-css' ), 'printed once' );
 $out = run_head( $head, array( 'critical_css_enabled' => 0 ) );
 t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && ! deferred( $out, 'theme-main-css' ) && deferred( $out, 'plug-css' ), 'feature off: no critical CSS, theme CSS stays blocking (as before)' );
 $out = run_head( $head, array( 'css_non_blocking' => 0 ) );
-t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && $out === $head, 'without Non-Render-Blocking CSS nothing is printed or changed' );
+t_ok( 1 === substr_count( $out, 'bepluspb-critical-css' ) && deferred( $out, 'theme-main-css' ) && deferred( $out, 'plug-css' ), 'independent of Non-Render-Blocking: entry + switch off -> critical printed, all CSS (theme too) deferred' );
 $out = run_head( $head, array( 'css_non_blocking' => 0, 'css_minify' => 1 ) );
-t_ok( false === strpos( $out, 'bepluspb-critical-css' ), 'Minify Inline CSS alone does not print it either' );
+t_ok( 1 === substr_count( $out, 'bepluspb-critical-css' ) && deferred( $out, 'theme-main-css' ), 'also with Minify Inline CSS alone on' );
 $out = run_head( $head, array( 'css_inline_all' => 1 ) );
 t_ok( false === strpos( $out, 'bepluspb-critical-css' ), 'with Inline All CSS it is pointless and not printed' );
 
 $GLOBALS['q'] = array( 'front' => false );
 $out = run_head( $head );
 t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && ! deferred( $out, 'theme-main-css' ), 'page type without an entry (and no default): nothing printed, theme CSS blocking' );
+$out = run_head( $head, array( 'css_non_blocking' => 0 ) );
+t_ok( $out === $head, 'no entry + Non-Render-Blocking off: head byte-for-byte unchanged' );
+$base = ob_get_level(); BEPLUSPB_CSS::buffer_start(); $opened = ob_get_level() > $base; while ( ob_get_level() > $base ) { ob_end_clean(); }
+t_ok( ! $opened, 'no entry + only Critical CSS on: no buffer opened' );
+$out = run_head( $head, array( 'css_non_blocking' => 1 ) );
+t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && ! deferred( $out, 'theme-main-css' ) && deferred( $out, 'plug-css' ), 'no entry + switch on: partial deferral as before' );
 BEPLUSPB_Critical_CSS::save( 'default', '.d{color:red}' );
 $out = run_head( $head );
 t_ok( 0 === strpos( $out, '<style id="bepluspb-critical-css">.d{color:red}</style>' ) && deferred( $out, 'theme-main-css' ), 'default entry used for other page types' );

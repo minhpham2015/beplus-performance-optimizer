@@ -46,12 +46,12 @@ function call_h( $name ) { try { BEPLUSPB_Admin::$name(); } catch ( Done $e ) { 
 reset_ctx(); BEPLUSPB_Admin::enqueue_ccss_generator();
 t_ok( 'bepluspb-ccss-generator' === $GLOBALS['enqueued'][0] && 'https://ex.com/wp-content/plugins/beplus/assets/js/critical-css-generator.js' === $GLOBALS['enqueued'][1] && true === $GLOBALS['enqueued'][4], 'administrator on the front end: generator enqueued in the footer' );
 $c = $GLOBALS['localized'][2];
-t_ok( 'bepluspbCcss' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_ccss_save' === $c['nonce'] && 'front' === $c['key'] && 'Front page' === $c['label'] && 0 === $c['storedBytes'] && true === $c['enabled'] && true === $c['nonBlocking'] && false === $c['inlineAll'] && 150000 === $c['maxBytes'], 'config: nonce, current page type, flags, limit' );
-t_ok( ! empty( $c['i18n']['save'] ) && ! empty( $c['i18n']['needDefer'] ), 'texts provided' );
+t_ok( 'bepluspbCcss' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_ccss_save' === $c['nonce'] && 'front' === $c['key'] && 'Front page' === $c['label'] && 0 === $c['storedBytes'] && true === $c['enabled'] && false === $c['inlineAll'] && 150000 === $c['maxBytes'], 'config: nonce, current page type, flags, limit' );
+t_ok( ! empty( $c['i18n']['save'] ), 'texts provided' );
 BEPLUSPB_Critical_CSS::save( 'front', 'a{b:c}' ); BEPLUSPB_Admin::enqueue_ccss_generator();
 t_ok( 6 === $GLOBALS['localized'][2]['storedBytes'], 'existing entry size reported' );
 $GLOBALS['opts']['critical_css_enabled'] = 0; $GLOBALS['opts']['css_non_blocking'] = 0; $GLOBALS['opts']['css_inline_all'] = 1; BEPLUSPB_Admin::enqueue_ccss_generator();
-t_ok( false === $GLOBALS['localized'][2]['enabled'] && false === $GLOBALS['localized'][2]['nonBlocking'] && true === $GLOBALS['localized'][2]['inlineAll'], 'switch states reported so the panel can warn' );
+t_ok( false === $GLOBALS['localized'][2]['enabled'] && true === $GLOBALS['localized'][2]['inlineAll'], 'switch states reported so the panel can warn' );
 $GLOBALS['opts'] = array( 'critical_css_enabled' => 1, 'css_non_blocking' => 1, 'css_inline_all' => 0 );
 foreach ( array( array( 'admin' => true ), array( 'bar' => false ), array( 'can' => false ) ) as $over ) {
 	reset_ctx( $over ); BEPLUSPB_Admin::enqueue_ccss_generator();
@@ -109,7 +109,11 @@ $js = file_get_contents( dirname( __DIR__ ) . '/assets/js/critical-css-generator
 foreach ( array( 'innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function', 'localStorage', 'sendBeacon', 'XMLHttpRequest' ) as $bad_api ) {
 	t_ok( false === strpos( $js, $bad_api ), "script never uses $bad_api" );
 }
-t_ok( 1 === substr_count( $js, 'fetch(' ) && 1 === preg_match( '/fetch\(cfg\.ajaxUrl/', $js ) && 1 === preg_match( '/credentials: \'same-origin\'/', $js ), 'one network call: this site\'s admin-ajax.php' );
+t_ok( 2 === substr_count( $js, 'fetch(' ) && 1 === preg_match( '/fetch\(cfg\.ajaxUrl/', $js ) && 1 === preg_match( '/fetch\(window\.location\.href\.split\(\'#\'\)\[0\]/', $js ), 'exactly two network calls, both to this site: admin-ajax.php (save) and a diagnostic GET of this very page after a failure' );
+t_ok( 2 === substr_count( $js, "credentials: 'same-origin'" ), 'both requests carry only this site\'s cookies' );
+t_ok( 1 === preg_match( "/redirect: 'manual'/", $js ) && 1 === preg_match( '/controller\.abort\(\); \} \/\/ headers are enough/', $js ), 'the diagnostic GET follows no redirect and is aborted once the headers are in' );
+$diag_src = substr( $js, strpos( $js, 'function diagnose(' ), strpos( $js, '// Merge the two analyses' ) - strpos( $js, 'function diagnose(' ) );
+t_ok( '' !== $diag_src && 0 === preg_match( '/\.(?:text|json|blob|arrayBuffer|formData)\(/', $diag_src ), 'the diagnostic request never reads the response body, only its status and headers' );
 t_ok( 1 === preg_match( '/event\.origin !== window\.location\.origin/', $js ) && 1 === preg_match( '/event\.source !== frame\.contentWindow/', $js ), 'frame messages accepted only from the same origin and from the frame it created' );
 t_ok( 1 === preg_match( '/postMessage\([^)]*window\.location\.origin\)/', $js ) && 0 === preg_match( '/postMessage\([^)]*[\'"]\*[\'"]\s*\)/', $js ), 'the frame posts to its own origin only (never "*")' );
 

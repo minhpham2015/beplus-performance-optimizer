@@ -105,9 +105,9 @@ t_ok( false !== strpos( $out, 'fonts.googleapis.com' ) && false === strpos( $out
 $out = render( $head, array( 'critical_css_enabled' => 0 ) );
 t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && ! deferred( $out, 'theme-main-css' ) && deferred( $out, 'plug-css' ) && 1 <= preg_match_all( '#/wp-content/uploads/bepluspb-cache/fonts/' . $id . '\.css#', $out ), 'critical CSS off: theme CSS blocking as before, fonts still localized' );
 
-// ---- Non-Render-Blocking off: fonts still handled, critical never printed -----------------------------------------------
+// ---- Non-Render-Blocking off: fonts still handled, critical independent -----------------------------------------------
 $out = render( $head, array( 'css_non_blocking' => 0 ) );
-t_ok( false === strpos( $out, 'bepluspb-critical-css' ) && 0 === substr_count( $out, 'rel="preload"' ) && false === strpos( $out, 'googleapis' ), 'Non-Render-Blocking off: nothing deferred, no critical CSS, fonts localized by the outer buffer alone' );
+t_ok( 1 === substr_count( $out, 'bepluspb-critical-css' ) && deferred( $out, 'theme-main-css' ) && false === strpos( $out, 'googleapis' ), 'Non-Render-Blocking off but an entry exists: critical printed, everything deferred, fonts localized' );
 
 // ---- Minify Inline CSS on: the critical style is printed as stored (not re-minified into something else) -----------------------
 $out = render( $head, array( 'css_minify' => 1 ) );

@@ -85,10 +85,13 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 					</div>
 					<div class="bepluspb-form-row-field">
 						<select id="bepluspb_google_fonts_display" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[google_fonts_display]">
-							<option value="swap" <?php selected( $opts['google_fonts_display'], 'swap' ); ?>><?php esc_html_e( 'swap (recommended): fallback font first, swapped when the font arrives', 'beplus-performance-booster' ); ?></option>
-							<option value="fallback" <?php selected( $opts['google_fonts_display'], 'fallback' ); ?>><?php esc_html_e( 'fallback: short invisible period, swap only if the font arrives quickly', 'beplus-performance-booster' ); ?></option>
-							<option value="optional" <?php selected( $opts['google_fonts_display'], 'optional' ); ?>><?php esc_html_e( 'optional: use the font only if it is already available (least layout shift)', 'beplus-performance-booster' ); ?></option>
+							<option value="swap" <?php selected( $opts['google_fonts_display'], 'swap' ); ?>><?php esc_html_e( 'swap (recommended)', 'beplus-performance-booster' ); ?></option>
+							<option value="fallback" <?php selected( $opts['google_fonts_display'], 'fallback' ); ?>><?php esc_html_e( 'fallback', 'beplus-performance-booster' ); ?></option>
+							<option value="optional" <?php selected( $opts['google_fonts_display'], 'optional' ); ?>><?php esc_html_e( 'optional', 'beplus-performance-booster' ); ?></option>
 						</select>
+						<p class="description">
+							<?php esc_html_e( 'swap: show a fallback font at once and swap when the font arrives (recommended). fallback: a very short invisible period, then swap only if the font arrives quickly. optional: use the font only if it is already available (least layout shift).', 'beplus-performance-booster' ); ?>
+						</p>
 					</div>
 				</div>
 
@@ -642,7 +645,7 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 					<?php esc_html_e( 'the first time a logged-out visitor opens a page that uses Google Fonts the stylesheet is queued, and a background (WP-Cron) job downloads it a few seconds later. Or open one page in a private window and press "Download now".', 'beplus-performance-booster' ); ?>
 				</p>
 				<?php if ( 'selfhost' !== $opts['google_fonts_mode'] ) : ?>
-					<p class="bepluspb-warn"><?php esc_html_e( 'Self-host mode is not selected: stored files are not used and nothing is queued or downloaded automatically.', 'beplus-performance-booster' ); ?></p>
+					<p class="description"><em><?php esc_html_e( 'You are not in Self-host mode, so the files below are not used and nothing is queued or downloaded automatically. Choose "Self-host" above and save to switch it on.', 'beplus-performance-booster' ); ?></em></p>
 				<?php endif; ?>
 				<p id="bepluspb-gf-status" aria-live="polite">
 					<?php

@@ -159,7 +159,7 @@ Recommended for checkout/cart and other heavily dynamic pages.
 
 **Use Critical CSS**
 Default: off
-Requires: Non-Render-Blocking CSS
+Works on its own: it does not need Non-Render-Blocking CSS
 
 Prints the CSS the first screen needs in the page head and loads every
 stylesheet (your theme's included) after the first paint, so the page is drawn at
@@ -171,7 +171,7 @@ serves every page of that type and every language.
 **Generate Critical CSS**
 Open a page of your site while logged in as an administrator and choose
 Beplus Performance Booster → "Generate Critical CSS (this page type)" in the admin
-bar. The page is analysed on a phone-sized and a desktop-sized copy and the
+bar. The page is analysed on phone, tablet, desktop and large-screen sized copies (and a little below the first screen) and the
 result is saved for that page type. Everything runs in your browser; nothing is
 sent anywhere except to your own site when you press Save. You can also paste CSS
 by hand in the Critical CSS card, and delete saved entries there.
