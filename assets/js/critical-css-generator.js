@@ -65,8 +65,13 @@
 	// Analysis (runs inside each measuring frame)
 	// ---------------------------------------------------------------------------------
 
-	var SKIP_SHEET_IDS = { 'admin-bar-css': 1, 'dashicons-css': 1, 'bepluspb-critical-css': 1 };
-	var EXCLUDED_SELECTOR = /#wpadminbar|\.admin-bar\b|\.logged-in\b|\.customize-support\b|\.wp-admin\b|#bepluspb/;
+	/** The toolbar's own stylesheets (the file AND its inline additions, e.g. admin-bar-inline-css), dashicons and our own output. */
+	function skipSheet(sheet) {
+		var owner = sheet.ownerNode;
+		if (owner && owner.id && /^(?:admin-bar|dashicons|bepluspb-critical)/.test(owner.id)) { return true; }
+		return !!(sheet.href && /\/wp-includes\/css\/(?:admin-bar|dashicons)/.test(sheet.href));
+	}
+	var EXCLUDED_SELECTOR = /#wpadminbar|\.admin-bar\b|\.logged-in\b|\.customize-support\b|\.wp-admin\b|\.wp-toolbar\b|#bepluspb/;
 	var NON_VISUAL = { SCRIPT: 1, STYLE: 1, LINK: 1, META: 1, NOSCRIPT: 1, TEMPLATE: 1, TITLE: 1, HEAD: 1, BASE: 1, IFRAME: 1 };
 
 	function mediaMatches(text, win) {
@@ -166,6 +171,7 @@
 		var fontFaces = [];
 		var keyframes = [];
 		var skippedSheets = 0;
+		var hasToolbar = !!doc.getElementById('wpadminbar');
 		var hasLayerRules = typeof win.CSSLayerBlockRule !== 'undefined';
 		var hasContainerRules = typeof win.CSSContainerRule !== 'undefined';
 
@@ -202,6 +208,9 @@
 		function styleRule(rule, path, wrappers, base) {
 			var selectorText = rule.selectorText || '';
 			if (!selectorText) { return; }
+			// The toolbar pushes the page down with html { margin-top: 32px (46px on small screens) !important }.
+			// Visitors have no toolbar, so that gap must never reach the critical CSS, whichever stylesheet holds it.
+			if (hasToolbar && /^(?:\* html|html)$/.test(selectorText.trim()) && /^(?:32|46)px$/.test(rule.style.getPropertyValue('margin-top')) && rule.style.getPropertyPriority('margin-top') === 'important') { return; }
 			var parts = splitSelectors(selectorText).filter(function (p) { return !EXCLUDED_SELECTOR.test(p); });
 			var kept = parts.filter(selectorOnFirstScreen);
 			if (!kept.length) { return; }
@@ -255,8 +264,7 @@
 		var sheets = doc.styleSheets;
 		for (var s = 0; s < sheets.length; s++) {
 			var sheet = sheets[s];
-			var owner = sheet.ownerNode;
-			if (sheet.disabled || (owner && owner.id && SKIP_SHEET_IDS[owner.id])) { continue; }
+			if (sheet.disabled || skipSheet(sheet)) { continue; }
 			if (sheet.media && sheet.media.mediaText && !mm(sheet.media.mediaText)) { continue; }
 			var rules;
 			try { rules = sheet.cssRules; } catch (e) { skippedSheets++; continue; } // Another domain: not readable.
