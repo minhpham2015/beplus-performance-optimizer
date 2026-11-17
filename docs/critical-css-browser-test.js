@@ -60,7 +60,7 @@ const cfg = (extra) => ({ ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'n0nce', k
     failError: 'The analysis failed inside the page:', failAnalysisSlow: 'The page loaded but the analysis did not finish within %d s',
     details: 'Technical details (copy them if you ask for help)', copy: 'Copy', copied: 'Copied',
     diagFramingRefused: 'Your site tells browsers not to show its pages in a frame', diagRedirect: 'Opening this page address answers with a redirect',
-    here: 'Analyse this window only (no frames)', hereDone: 'Analysed this window only (%s size).' }, ...extra });
+    here: 'Analyse this window only (no frames)', recovered: 'The script inside the measuring frame did not report (or the page had not finished loading), so this window analysed the frame itself', hereDone: 'Analysed this window only (%s size).' }, ...extra });
 const adminBar = '<div id="wpadminbar" style="position:fixed;top:0;left:0;right:0;height:32px;z-index:99999;background:#222"><ul><li id="wp-admin-bar-bepluspb-ccss"><a href="#bepluspb-ccss" style="color:#fff">Generate</a></li></ul></div>';
 function body() {
   return `${adminBar}
@@ -85,10 +85,15 @@ const VARIANTS = {
   '/slow':   { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.addEventListener('DOMContentLoaded',function(){var i=new Image();i.src='/hang.png?'+Date.now();document.body.appendChild(i);});}" },
   '/err':    { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){Object.defineProperty(document,'styleSheets',{get:function(){throw new Error('boom from the page');}});}" },
   '/noname': { headScript: "window.name='';" },
+  // the HTML parser of the FRAME is stuck behind a script that never arrives, at the end of the body / in the head
+  '/stuck':      { beforeCfgScript: "<script>if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.write('<script src=\"/hang.js\"><\\/script>');}</script>" },
+  '/stuck-head': { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.write('<script src=\"/hang.js\"><\\/script>');}" },
+  '/pendingcss': { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.write('<link rel=\"stylesheet\" href=\"/hang.css\">');}" },
 };
 function variantHtml(base, v) {
   let h = base.replace('"maxBytes":150000', '"maxBytes":150000,"timing":{"hello":2500,"result":4000}');
   if (v.headScript) h = h.replace('<title>t</title>', '<title>t</title><script>' + v.headScript + '</script>');
+  if (v.beforeCfgScript) h = h.replace('<script>window.bepluspbCcss=', v.beforeCfgScript + '<script>window.bepluspbCcss=');
   return h;
 }
 const posts = [];
@@ -102,7 +107,7 @@ function makeServer(label) {
     if (u === '/css/adminbar.css') return send('text/css', '#wpadminbar{background:#23282d}.admin-bar-only-rule{color:red}');
     if (u === '/css/other.css') return send('text/css', OTHER_ORIGIN_CSS);
     if (u === '/wp-admin/admin-ajax.php' && req.method === 'POST') { let b = ''; req.on('data', d => b += d); req.on('end', () => { posts.push(b); send('application/json', JSON.stringify({ success: true, data: { message: 'Critical CSS saved.' } })); }); return; }
-    if (u === '/hang.png') return; // never answered: keeps the page's load event pending
+    if (u === '/hang.png' || u === '/hang.js' || u === '/hang.css') return; // never answered
     if (VARIANTS[u]) {
       const v = VARIANTS[u]; const frame = req.headers['sec-fetch-dest'] === 'iframe';
       if (frame && v.stallFrames) return; // the frame request hangs for ever
@@ -240,8 +245,10 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(f.text.includes('did not finish loading') && /frame load event: never/.test(f.details) && /script in the frame reported in: never/.test(f.details), 'a frame that never loads: "did not finish loading", load event and script both "never"');
   await f.ctx.close();
 
+  // a page that never finishes loading (a hung image) but whose CSS and content are ready: analysed from this window
   f = await failing('/slow');
-  ok(f.text.includes('had not finished after') && !/script in the frame reported in: never/.test(f.details) && /page finished loading \(said by the script\): no/.test(f.details), 'a page that never finishes loading: the script did report in, but "had not finished after N s"');
+  ok(f.text.includes('Save Critical CSS') && f.text.includes('analysed the frame itself'), 'a page that never finishes loading: the script reported in, but the page is analysed from this window and the result is usable');
+  ok(!f.text.includes('Nothing could be analysed'), 'and it is not reported as a failure');
   await f.ctx.close();
 
   f = await failing('/err');
@@ -249,8 +256,28 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(!f.text.includes('did not answer in time'), 'and no longer described as "did not answer in time"');
   await f.ctx.close();
 
+  // window.name reset by the page: the script in the frame never runs, but the page loaded completely: recovered
   f = await failing('/noname');
-  ok(f.text.includes('the generator did not run there') && /frame readable: yes/.test(f.details), 'window.name reset by the page: loaded and readable, but the generator did not run');
+  ok(f.text.includes('Save Critical CSS') && f.text.includes('analysed the frame itself'), 'window.name reset by the page: the script stays silent, the frame is analysed from here (no 25 s wait for nothing)');
+  await clickBtn(f.pg, 'Save Critical CSS'); await f.pg.waitForTimeout(500);
+  const rec = lastPost().css || '';
+  ok(rec.includes('height: 500px') && rec.includes('@media (min-width: 768px)') && rec.includes('@media (max-width: 767px)') && !rec.includes('wpadminbar'), 'the recovered result is the same kind of critical CSS (both sizes, no admin bar)');
+  await f.ctx.close();
+
+  // the parser of the frame is stuck behind a script at the END of the body: content and CSS are ready -> recovered
+  f = await failing('/stuck');
+  ok(f.text.includes('Save Critical CSS') && f.text.includes('analysed the frame itself'), 'parser stuck at the end of the page: the CSS and first screen are ready, so it is analysed from this window');
+  await f.ctx.close();
+
+  // stuck in the HEAD: nothing to analyse -> a failure that names the script that blocks the page
+  f = await failing('/stuck-head');
+  ok(f.text.includes('Nothing could be analysed'), 'parser stuck in the head: nothing can be analysed, and the panel says so');
+  ok(/frame document: readyState loading/.test(f.details) && /scripts still loading: [^\n]*\/hang\.js/.test(f.details) && /last script the page parser reached: [^\n]*\/hang\.js/.test(f.details), 'the details name the script the page is stuck on (/hang.js)');
+  await f.ctx.close();
+
+  // a stylesheet that never arrives: the CSS is incomplete, so no analysis, and the details name the stylesheet
+  f = await failing('/pendingcss');
+  ok(f.text.includes('Nothing could be analysed') && /stylesheets still loading: [^\n]*\/hang\.css/.test(f.details), 'a stylesheet that never arrives: no (incomplete) analysis, and the details name /hang.css');
   await f.ctx.close();
 
   await browser.close(); if (server.closeAllConnections) server.closeAllConnections(); server.close(); other.close();

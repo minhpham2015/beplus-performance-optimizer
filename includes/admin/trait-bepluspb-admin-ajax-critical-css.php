@@ -173,6 +173,7 @@ trait BEPLUSPB_Admin_Ajax_Critical_Css {
 			'saved'              => __( 'Saved. Reload the page (logged out, or with "bepluspb_optimize_for_admins") to see it work.', 'beplus-performance-booster' ),
 			'error'              => __( 'Could not save:', 'beplus-performance-booster' ),
 			'preview'            => __( 'Show the CSS', 'beplus-performance-booster' ),
+			'recovered'          => __( 'The script inside the measuring frame did not report (or the page had not finished loading), so this window analysed the frame itself: the page\'s CSS and first screen were ready, so the result is usable.', 'beplus-performance-booster' ),
 			'again'              => __( 'Analyse again', 'beplus-performance-booster' ),
 			'here'               => __( 'Analyse this window only (no frames)', 'beplus-performance-booster' ),
 			/* translators: %s: Mobile or Desktop. */
