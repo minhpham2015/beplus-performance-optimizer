@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Page Cache stayed off on multilingual sites with one domain per language** (WPML "A different
+  domain per language", incl. subdomains such as `en.example.com`; Polylang "one domain per
+  language"): the settings screen kept saying "The site address changed since these settings were
+  saved, so no page is being cached". `allowed_hosts()` read `home_url()` / `site_url()`, which
+  those plugins filter by the language of the current request, so the stored host list differed
+  from request to request, was rewritten for whichever language synced last (the 12 h repair
+  throttle is per host set) and every other language was never cached. The list is now built from
+  the stored `home` / `siteurl` options plus the plugin's language domains (WPML negotiation type 2,
+  Polylang `force_lang` 3; leftovers from other URL formats are ignored), is identical on every
+  request, and is validated strictly (alphanumeric labels, no `..`, optional port, max 50). New
+  filter `bepluspb_page_cache_allowed_hosts` for other multi-domain setups. Test:
+  `tests/test-page-cache-class.php` ("multilingual sites"). **After updating, press Save on the
+  Page Cache settings once** (or visit any page) so the config is rebuilt with all domains.
+
 ## [1.2.2] - 2026-11-16
 
 ### Added
