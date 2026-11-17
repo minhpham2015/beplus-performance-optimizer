@@ -321,8 +321,8 @@ See `docs/RELEASE.md`. Note this repo's default branch is `master`, not
 before pushing).
 
 **Dev-only files never ship to WordPress.org:** `.github/`, `CLAUDE.md`,
-`CHANGELOG.md`, `docs/`, `composer.json`/`composer.lock`, `phpcs.xml.dist`,
-`.gitignore` are repo infrastructure only. The `rsync` command in
+`CHANGELOG.md`, `docs/`, `tests/`, `composer.json`/`composer.lock`, `phpcs.xml.dist`,
+`phpstan.neon.dist`, `phpstan-baseline.neon`, `.gitignore` are repo infrastructure only. The `rsync` command in
 `docs/RELEASE.md` explicitly excludes all of them — if you add a new
 dev-only file/folder at the repo root, add it to that exclude list too, or
 it will accidentally get published to every WordPress site running this
