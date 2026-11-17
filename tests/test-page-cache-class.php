@@ -47,7 +47,7 @@ function post_type_exists( $t ) { return in_array( $t, array( 'post', 'page', 'a
 function current_user_can( $cap ) { return ! empty( $GLOBALS['can_edit'] ); }
 function get_queried_object_id() { return $GLOBALS['queried'] ?? 0; }
 class WP_Query { public $main = false; public $vars = array(); public function is_main_query() { return $this->main; } public function get( $k ) { return $this->vars[ $k ] ?? ''; } }
-function apply_filters( $tag, $v ) { return $v; }
+function apply_filters( $tag, $v, $arg = null ) { return isset( $GLOBALS['filters'][ $tag ] ) ? ( $GLOBALS['filters'][ $tag ] )( $v, $arg ) : $v; }
 function do_action( $tag, ...$a ) { $GLOBALS['did'][] = $tag; }
 function get_transient( $k ) { $GLOBALS['transient_reads'] = ( $GLOBALS['transient_reads'] ?? 0 ) + 1; return $GLOBALS['transients'][ $k ] ?? false; }
 function set_transient( $k, $v ) { $GLOBALS['transients'][ $k ] = $v; return true; }
@@ -215,6 +215,9 @@ $GLOBALS['hooks'] = array();
 $PC::register_invalidation_hooks( array( 'cache_enabled' => 0, 'page_cache_enabled' => 1 ) );
 t_ok( array() === $GLOBALS['hooks'], 'no invalidation hooks while disabled' );
 $PC::register_invalidation_hooks( $GLOBALS['opts'] );
+foreach ( array( 'bepluspb_google_fonts_localized', 'bepluspb_assets_cache_cleared' ) as $hook ) {
+	t_ok( ! empty( $GLOBALS['hooks'][ $hook ] ), "stored pages are dropped on $hook (they link fonts that were just downloaded / removed)" );
+}
 foreach ( array( 'save_post', 'transition_post_status', 'deleted_post', 'comment_post', 'edit_comment', 'delete_comment', 'wp_set_comment_status', 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'edited_term', 'created_term', 'delete_term', 'activated_plugin', 'deactivated_plugin', 'upgrader_process_complete', 'updated_option', 'added_option', 'bepluspb_assets_cache_cleared', 'woocommerce_product_set_stock' ) as $hook ) {
 	t_ok( ! empty( $GLOBALS['hooks'][ $hook ] ), "invalidation registered for $hook" );
 }
@@ -234,6 +237,13 @@ $f = $fill();
 $PC::on_save_post( 7, $p );
 t_ok( ! is_file( $f['post'] ) && ! is_file( $f['home'] ) && ! is_file( $f['p2'] ) && ! is_file( $f['author'] ) && ! is_file( $f['month'] ), 'editing a published post purges it, home (+pagination), author and date archives' );
 t_ok( is_file( $f['other'] ), 'an unrelated page stays cached' );
+
+// Critical CSS is printed into stored pages: changing it drops them (only while the page cache is on).
+$GLOBALS['hooks'] = array(); $PC::register_core_hooks();
+t_ok( ! empty( $GLOBALS['hooks']['update_option_bepluspb_critical_css'] ) && ! empty( $GLOBALS['hooks']['add_option_bepluspb_critical_css'] ), 'critical CSS option changes are hooked (update and first add)' );
+$f = $fill(); $E::reset();
+$PC::on_critical_css_changed();
+t_ok( ! is_file( $f['post'] ) && ! is_file( $f['home'] ) && ! is_file( $f['other'] ), 'a Critical CSS change purges every stored page' );
 
 $f = $fill(); $E::reset();
 $d = new WP_Post(); $d->ID = 9; $d->post_status = 'draft'; $GLOBALS['posts'][9] = $d;
@@ -687,6 +697,60 @@ t_ok( is_file( $E::config_file() ) && array( 'fifth.test' ) === $E::load_config(
 $GLOBALS['site_host'] = 'example.com';
 $PC::on_option_changed( 'home' );
 t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'back to the original address' );
+
+// ---- multilingual sites: one host list for every language ---------------------------------
+// WPML "different domain per language" filters home_url() by the current language; the stored
+// option and the plugin's language domains must give ONE stable list (regression: the config
+// flipped between languages and only the last-synced one was ever cached).
+$saved_wpopts = $GLOBALS['wpopts'];
+$GLOBALS['wpopts']['home']    = 'https://example.com';
+$GLOBALS['wpopts']['siteurl'] = 'https://example.com';
+$GLOBALS['filters']['wpml_setting'] = static function ( $default, $key ) {
+	$s = array( 'language_negotiation_type' => 2, 'language_domains' => array( 'en' => 'en.example.com', 'fr' => 'https://fr.example.org/' ) );
+	return $s[ $key ] ?? $default;
+};
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) );
+$E::reset();
+$expected = array( 'en.example.com', 'example.com', 'fr.example.org' );
+$got      = $E::load_config()['hosts']; sort( $got );
+t_ok( $expected === $got, 'WPML domain mode: every language domain is allowed, plus the site address' );
+foreach ( array( 'example.com', 'en.example.com', 'fr.example.org' ) as $lang_host ) {
+	$GLOBALS['site_host'] = $lang_host; // what the filtered home_url() returns on that language's domain
+	t_ok( true === $PC::hosts_in_sync(), "WPML: in sync on a request for $lang_host (home_url() follows the language, the list does not)" );
+}
+$GLOBALS['site_host'] = 'example.com';
+$GLOBALS['filters']['wpml_setting'] = static function ( $default, $key ) {
+	$s = array( 'language_negotiation_type' => 1, 'language_domains' => array( 'en' => 'stale.example.com' ) );
+	return $s[ $key ] ?? $default;
+};
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'WPML directory mode: leftover language domains are ignored' );
+unset( $GLOBALS['filters']['wpml_setting'] );
+
+$GLOBALS['wpopts']['polylang'] = array( 'force_lang' => 3, 'domains' => array( 'en' => 'https://en.example.com', 'de' => 'de.example.com:8443' ) );
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+$got = $E::load_config()['hosts']; sort( $got );
+t_ok( array( 'de.example.com:8443', 'en.example.com', 'example.com' ) === $got, 'Polylang domain mode: language domains (with port) are allowed' );
+$GLOBALS['wpopts']['polylang'] = array( 'force_lang' => 1, 'domains' => array( 'en' => 'stale.example.com' ) );
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'Polylang directory mode: stored domains are ignored' );
+
+$GLOBALS['filters']['bepluspb_page_cache_allowed_hosts'] = static function ( $hosts ) {
+	return array_merge( $hosts, array( 'Extra.Example.com', 'bad host.com', '../etc', '.hidden.com', 'trailing-dot.', 'a..b.com', 'x.com:99999x', 'x@y.com:abc', 42, '', 'extra.example.com' ) );
+};
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+$got = $E::load_config()['hosts']; sort( $got );
+t_ok( array( 'example.com', 'extra.example.com' ) === $got, 'filter: extra hosts are lower-cased and de-duplicated, invalid entries dropped' );
+$GLOBALS['filters']['bepluspb_page_cache_allowed_hosts'] = static function () { return 'not-an-array'; };
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+t_ok( array( 'example.com' ) === $E::load_config()['hosts'], 'filter returning a non-array keeps the computed list' );
+$GLOBALS['filters']['bepluspb_page_cache_allowed_hosts'] = static function () { $h = array(); for ( $i = 0; $i < 80; $i++ ) { $h[] = "h$i.example.com"; } return $h; };
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
+t_ok( 50 === count( $E::load_config()['hosts'] ), 'filter: the list is capped at 50 hosts' );
+unset( $GLOBALS['filters'] );
+$GLOBALS['wpopts'] = $saved_wpopts;
+$GLOBALS['site_host'] = 'example.com';
+$PC::write_config( $PC::build_config( $GLOBALS['opts'] ) ); $E::reset();
 $src_ui = file_get_contents( BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache.php' );
 t_ok( false !== strpos( $src_ui, "'hosts_ok'" ), 'status exposes hosts_ok for the settings screen' );
 $E::purge_all();

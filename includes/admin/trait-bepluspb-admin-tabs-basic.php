@@ -796,6 +796,7 @@ else :
 		</div>
 
 		<?php
+		self::render_critical_css_card( $opts );
 		// ---- Media card -----------------------------------------------------
 		?>
 		<div class="bepluspb-card">
@@ -881,8 +882,198 @@ else :
 					</div>
 				</div>
 
+
+				<!-- Priority Images (LCP) -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_priority_images"><?php esc_html_e( 'Priority Images (LCP)', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_priority_images"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[priority_images]"
+							rows="4" class="large-text code"
+							placeholder="<?php echo esc_attr( "/wp-content/uploads/hero.jpg | home\n/wp-content/uploads/hero-mobile.jpg | home | mobile\n/wp-content/uploads/hero-wide.jpg | home | desktop" ); ?>"><?php echo esc_textarea( $opts['priority_images'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, or a page path such as /about/ (end with * to include everything below it). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. At most 4 lines.', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>
+							<?php esc_html_e( 'open the page on your site while logged in as an administrator and choose Beplus Performance Booster → "Analyze LCP (this page)" in the admin bar. It finds the LCP element for mobile and desktop, tells you what is wrong with it and adds the image to this list for you (with the srcset the browser used, so the preload matches on every screen density).', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<?php esc_html_e( 'Use the exact URL the browser downloads for that page (DevTools → Network → Img, or the PageSpeed Insights "LCP element" row): a different size or format is downloaded twice. Prefer a specific page over "all"; preloading an image a page does not show wastes bandwidth. Find the LCP element first (PageSpeed Insights → Diagnostics).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Critical CSS" card: switch, saved entries (with delete) and the manual form.
+	 *
+	 * The entries are managed through AJAX (they live in their own option, not in the settings form).
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_critical_css_card( $opts ) {
+		$entries = BEPLUSPB_Critical_CSS::all();
+		$config  = array(
+			'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
+			'nonceSave'   => wp_create_nonce( 'bepluspb_ccss_save' ),
+			'nonceDelete' => wp_create_nonce( 'bepluspb_ccss_delete' ),
+			'maxBytes'    => BEPLUSPB_Critical_CSS::MAX_BYTES,
+			'i18n'        => array(
+				'saving'  => __( 'Saving…', 'beplus-performance-booster' ),
+				'error'   => __( 'Error:', 'beplus-performance-booster' ),
+				'empty'   => __( 'Paste the CSS first.', 'beplus-performance-booster' ),
+				'confirm' => __( 'Delete this Critical CSS?', 'beplus-performance-booster' ),
+				'manual'  => __( 'manual', 'beplus-performance-booster' ),
+				'gen'     => __( 'generated', 'beplus-performance-booster' ),
+				'now'     => __( 'just now', 'beplus-performance-booster' ),
+				'delete'  => __( 'Delete', 'beplus-performance-booster' ),
+				'none'    => __( 'Nothing saved yet.', 'beplus-performance-booster' ),
+			),
+		);
+		?>
+		<div class="bepluspb-card" id="bepluspb-ccss-card" data-config="<?php echo esc_attr( wp_json_encode( $config ) ); ?>">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Critical CSS', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'The CSS the first screen needs, printed in the page head so it can be drawn at once while the full stylesheets load afterwards. Removes the render-blocking CSS warning without a flash of unstyled content.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_critical_css_enabled"><?php esc_html_e( 'Use Critical CSS', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_critical_css_enabled"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[critical_css_enabled]" value="1"
+								<?php checked( $opts['critical_css_enabled'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'On pages that have saved Critical CSS, print it in the head and defer every stylesheet, the theme\'s included.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Needs "Non-Render-Blocking CSS" (above). Pages of a type without an entry (and no Default entry) are untouched. It is not used with "Inline All CSS", nor when a Content-Security-Policy forbids inline styles. Right-to-left pages use their own entries.', 'beplus-performance-booster' ); ?>
+						</p>
+						<?php if ( ! empty( $opts['critical_css_enabled'] ) && empty( $opts['css_non_blocking'] ) ) : ?>
+							<p class="bepluspb-warn"><?php esc_html_e( 'Non-Render-Blocking CSS is off, so Critical CSS is not used.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label><?php esc_html_e( 'Saved Critical CSS', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<table class="widefat striped" id="bepluspb-ccss-table" style="max-width:720px">
+							<thead><tr>
+								<th><?php esc_html_e( 'Page type', 'beplus-performance-booster' ); ?></th>
+								<th><?php esc_html_e( 'Size', 'beplus-performance-booster' ); ?></th>
+								<th><?php esc_html_e( 'Source', 'beplus-performance-booster' ); ?></th>
+								<th><?php esc_html_e( 'Updated', 'beplus-performance-booster' ); ?></th>
+								<th></th>
+							</tr></thead>
+							<tbody>
+							<?php foreach ( $entries as $key => $entry ) : ?>
+								<tr data-key="<?php echo esc_attr( $key ); ?>">
+									<td><?php echo esc_html( BEPLUSPB_Critical_CSS::key_label( $key ) ); ?></td>
+									<td><?php echo esc_html( size_format( $entry['bytes'] ) ); ?></td>
+									<td><?php echo esc_html( 'generated' === $entry['source'] ? __( 'generated', 'beplus-performance-booster' ) : __( 'manual', 'beplus-performance-booster' ) ); ?></td>
+									<td><?php echo $entry['updated'] ? esc_html( sprintf( /* translators: %s: time span. */ __( '%s ago', 'beplus-performance-booster' ), human_time_diff( $entry['updated'] ) ) ) : ''; ?></td>
+									<td><button type="button" class="button-link-delete bepluspb-ccss-delete"><?php esc_html_e( 'Delete', 'beplus-performance-booster' ); ?></button></td>
+								</tr>
+							<?php endforeach; ?>
+							<?php if ( ! $entries ) : ?>
+								<tr class="bepluspb-ccss-none"><td colspan="5"><?php esc_html_e( 'Nothing saved yet.', 'beplus-performance-booster' ); ?></td></tr>
+							<?php endif; ?>
+							</tbody>
+						</table>
+						<p class="description">
+							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>
+							<?php esc_html_e( 'open a page of that type on your site while logged in as an administrator and choose Beplus Performance Booster → "Generate Critical CSS (this page type)" in the admin bar. The page is analysed on a phone-sized and a desktop-sized copy and the result is saved for the page type (front page, posts, pages, archives…).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_ccss_key"><?php esc_html_e( 'Add or replace manually', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_ccss_key">
+							<?php foreach ( self::ccss_page_type_options() as $key => $label ) : ?>
+								<option value="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<textarea id="bepluspb_ccss_css" rows="6" class="large-text code" style="margin-top:6px" placeholder="body{margin:0}.site-header{display:flex}"></textarea>
+						<p>
+							<button type="button" class="button" id="bepluspb-ccss-save"><?php esc_html_e( 'Save Critical CSS', 'beplus-performance-booster' ); ?></button>
+							<span id="bepluspb-ccss-status" aria-live="polite" style="margin-inline-start:8px"></span>
+						</p>
+						<p class="description"><?php esc_html_e( 'Cleaned on save: @import, script-like constructs and any "<" are removed and the CSS is minified. Saved separately from the settings form (no need to press Save Changes).', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
+			</div>
+		</div>
+		<script>
+		(function () {
+			var card = document.getElementById('bepluspb-ccss-card');
+			if (!card) { return; }
+			var cfg = JSON.parse(card.getAttribute('data-config'));
+			var table = card.querySelector('#bepluspb-ccss-table tbody');
+			var status = card.querySelector('#bepluspb-ccss-status');
+			function say(text, bad) { status.textContent = text; status.style.color = bad ? '#b32d2e' : '#007017'; }
+			function post(action, nonce, fields) {
+				var body = new FormData();
+				body.append('action', action); body.append('nonce', nonce);
+				Object.keys(fields).forEach(function (k) { body.append(k, fields[k]); });
+				return fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+					.then(function (r) { return r.json().catch(function () { return { success: false, data: { message: String(r.status) } }; }); });
+			}
+			function size(bytes) { return bytes >= 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' B'; }
+			function cell(text) { var td = document.createElement('td'); td.textContent = text; return td; }
+			function bindDelete(row) {
+				row.querySelector('.bepluspb-ccss-delete').addEventListener('click', function () {
+					if (!window.confirm(cfg.i18n.confirm)) { return; }
+					post('bepluspb_ccss_delete', cfg.nonceDelete, { key: row.getAttribute('data-key') }).then(function (json) {
+						if (json && json.success) {
+							row.parentNode.removeChild(row);
+							if (!table.querySelector('tr[data-key]')) {
+								var none = document.createElement('tr'); none.className = 'bepluspb-ccss-none';
+								var td = cell(cfg.i18n.none); td.colSpan = 5; none.appendChild(td); table.appendChild(none);
+							}
+							say(json.data.message, false);
+						} else { say(cfg.i18n.error + ' ' + (json && json.data && json.data.message || ''), true); }
+					});
+				});
+			}
+			table.querySelectorAll('tr[data-key]').forEach(bindDelete);
+			card.querySelector('#bepluspb-ccss-save').addEventListener('click', function () {
+				var key = card.querySelector('#bepluspb_ccss_key').value;
+				var css = card.querySelector('#bepluspb_ccss_css').value;
+				if (!css.trim()) { say(cfg.i18n.empty, true); return; }
+				say(cfg.i18n.saving, false);
+				post('bepluspb_ccss_save', cfg.nonceSave, { key: key, css: css, source: 'manual' }).then(function (json) {
+					if (!json || !json.success) { say(cfg.i18n.error + ' ' + (json && json.data && json.data.message || ''), true); return; }
+					var d = json.data;
+					var old = table.querySelector('tr[data-key="' + d.key + '"]'); if (old) { old.parentNode.removeChild(old); }
+					var none = table.querySelector('.bepluspb-ccss-none'); if (none) { none.parentNode.removeChild(none); }
+					var row = document.createElement('tr'); row.setAttribute('data-key', d.key);
+					row.appendChild(cell(d.label)); row.appendChild(cell(size(d.bytes))); row.appendChild(cell(cfg.i18n.manual)); row.appendChild(cell(cfg.i18n.now));
+					var td = document.createElement('td'); var b = document.createElement('button'); b.type = 'button'; b.className = 'button-link-delete bepluspb-ccss-delete'; b.textContent = cfg.i18n['delete']; td.appendChild(b); row.appendChild(td);
+					table.appendChild(row); bindDelete(row);
+					card.querySelector('#bepluspb_ccss_css').value = '';
+					say(d.message, false);
+				});
+			});
+		})();
+		</script>
 		<?php
 	}
 }

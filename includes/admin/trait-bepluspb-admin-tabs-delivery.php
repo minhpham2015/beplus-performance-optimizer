@@ -52,6 +52,50 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 
 			</div>
 		</div>
+
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Google Fonts', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Show text immediately with a fallback font instead of keeping it invisible until a Google Font arrives, and open the connection to Google early. Helps First Contentful Paint and Largest Contentful Paint when the LCP element is text.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_google_fonts_mode"><?php esc_html_e( 'Optimize Google Fonts', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_google_fonts_mode" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[google_fonts_mode]">
+							<option value="off" <?php selected( $opts['google_fonts_mode'], 'off' ); ?>><?php esc_html_e( 'Off', 'beplus-performance-booster' ); ?></option>
+							<option value="optimize" <?php selected( $opts['google_fonts_mode'], 'optimize' ); ?>><?php esc_html_e( 'Optimize (font-display + preconnect)', 'beplus-performance-booster' ); ?></option>
+							<option value="selfhost" <?php selected( $opts['google_fonts_mode'], 'selfhost' ); ?>><?php esc_html_e( 'Self-host (download the fonts to this site)', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Adds font-display to Google Fonts links and @import rules found in the page head that do not set one, and adds preconnect hints for fonts.googleapis.com and fonts.gstatic.com. Nothing is downloaded or stored by the plugin. A font-display the site already sets is kept, and icon fonts (Material Icons/Symbols, Font Awesome) are skipped because a swap would flash their icon names as text.', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<?php esc_html_e( 'Not covered: fonts loaded by JavaScript (WebFont Loader), added after the head (footer), or by a page builder that already has its own font-display setting (e.g. Elementor).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_google_fonts_display"><?php esc_html_e( 'font-display value', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_google_fonts_display" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[google_fonts_display]">
+							<option value="swap" <?php selected( $opts['google_fonts_display'], 'swap' ); ?>><?php esc_html_e( 'swap (recommended): fallback font first, swapped when the font arrives', 'beplus-performance-booster' ); ?></option>
+							<option value="fallback" <?php selected( $opts['google_fonts_display'], 'fallback' ); ?>><?php esc_html_e( 'fallback: short invisible period, swap only if the font arrives quickly', 'beplus-performance-booster' ); ?></option>
+							<option value="optional" <?php selected( $opts['google_fonts_display'], 'optional' ); ?>><?php esc_html_e( 'optional: use the font only if it is already available (least layout shift)', 'beplus-performance-booster' ); ?></option>
+						</select>
+					</div>
+				</div>
+
+				<?php self::render_google_fonts_local_status( $opts ); ?>
+
+			</div>
+		</div>
 		<?php
 	}
 
@@ -557,6 +601,116 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "self-hosting" part of the Google Fonts card: what it does, what is stored, the queue
+	 * and the two buttons (AJAX, independent of "Save Changes").
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_google_fonts_local_status( $opts ) {
+		$status = BEPLUSPB_Google_Fonts_Local::status();
+		$config = array(
+			'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+			'nonceDownload' => wp_create_nonce( 'bepluspb_gf_download' ),
+			'nonceClear'    => wp_create_nonce( 'bepluspb_gf_clear' ),
+			'i18n'          => array(
+				'working' => __( 'Working…', 'beplus-performance-booster' ),
+				'error'   => __( 'Error:', 'beplus-performance-booster' ),
+				'confirm' => __( 'Delete all local Google Fonts files? Pages go back to loading the fonts from Google until they are downloaded again.', 'beplus-performance-booster' ),
+				'tries'   => __( 'attempts', 'beplus-performance-booster' ),
+				'none'    => __( 'Nothing is waiting for download.', 'beplus-performance-booster' ),
+			),
+		);
+		?>
+		<div class="bepluspb-form-row" id="bepluspb-gf-local" data-config="<?php echo esc_attr( wp_json_encode( $config ) ); ?>">
+			<div class="bepluspb-form-row-label">
+				<label><?php esc_html_e( 'Self-hosted fonts', 'beplus-performance-booster' ); ?></label>
+			</div>
+			<div class="bepluspb-form-row-field">
+				<p class="description">
+					<?php esc_html_e( 'In "Self-host" mode the fonts are downloaded once to this site (uploads/bepluspb-cache/fonts/) and the pages link those copies: no request to Google for your visitors (privacy / GDPR), one origin less to connect to. Until a stylesheet is downloaded the page keeps the Google link, so nothing breaks.', 'beplus-performance-booster' ); ?>
+				</p>
+				<p class="description">
+					<strong><?php esc_html_e( 'What the plugin requests, from your server:', 'beplus-performance-booster' ); ?></strong>
+					<?php esc_html_e( 'only the Google Fonts stylesheets your own pages already use (fonts.googleapis.com) and the font files those stylesheets name (fonts.gstatic.com), over HTTPS, without redirects or cookies, with size limits. No address is ever typed in. Visitors are not involved: the request comes from the server.', 'beplus-performance-booster' ); ?>
+				</p>
+				<p class="description">
+					<strong><?php esc_html_e( 'How it starts:', 'beplus-performance-booster' ); ?></strong>
+					<?php esc_html_e( 'the first time a logged-out visitor opens a page that uses Google Fonts the stylesheet is queued, and a background (WP-Cron) job downloads it a few seconds later. Or open one page in a private window and press "Download now".', 'beplus-performance-booster' ); ?>
+				</p>
+				<?php if ( 'selfhost' !== $opts['google_fonts_mode'] ) : ?>
+					<p class="bepluspb-warn"><?php esc_html_e( 'Self-host mode is not selected: stored files are not used and nothing is queued or downloaded automatically.', 'beplus-performance-booster' ); ?></p>
+				<?php endif; ?>
+				<p id="bepluspb-gf-status" aria-live="polite">
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: 1: number of local stylesheets, 2: number of font files, 3: size. */
+							__( '%1$d stylesheets and %2$d font files stored here (%3$s).', 'beplus-performance-booster' ),
+							$status['sheets'],
+							$status['fonts'],
+							size_format( $status['bytes'] )
+						)
+					);
+					?>
+				</p>
+				<ul id="bepluspb-gf-queue" style="margin:6px 0 10px;padding-inline-start:18px;list-style:disc">
+					<?php foreach ( $status['queue'] as $item ) : ?>
+						<li><code><?php echo esc_html( $item['url'] ); ?></code> — <?php echo esc_html( $item['fails'] ); ?> <?php esc_html_e( 'attempts', 'beplus-performance-booster' ); ?><?php echo $item['error'] ? ' — ' . esc_html( $item['error'] ) : ''; ?></li>
+					<?php endforeach; ?>
+					<?php if ( ! $status['queue'] ) : ?>
+						<li style="list-style:none;margin-inline-start:-18px"><?php esc_html_e( 'Nothing is waiting for download.', 'beplus-performance-booster' ); ?></li>
+					<?php endif; ?>
+				</ul>
+				<p>
+					<button type="button" class="button" id="bepluspb-gf-download"><?php esc_html_e( 'Download now', 'beplus-performance-booster' ); ?></button>
+					<button type="button" class="button" id="bepluspb-gf-clear"><?php esc_html_e( 'Delete local fonts', 'beplus-performance-booster' ); ?></button>
+					<span id="bepluspb-gf-message" aria-live="polite" style="margin-inline-start:8px"></span>
+				</p>
+			</div>
+		</div>
+		<script>
+		(function () {
+			var box = document.getElementById('bepluspb-gf-local');
+			if (!box) { return; }
+			var cfg = JSON.parse(box.getAttribute('data-config'));
+			var message = box.querySelector('#bepluspb-gf-message');
+			var statusEl = box.querySelector('#bepluspb-gf-status');
+			var list = box.querySelector('#bepluspb-gf-queue');
+			var buttons = box.querySelectorAll('button');
+			function say(text, bad) { message.textContent = text; message.style.color = bad ? '#b32d2e' : '#007017'; }
+			function render(data) {
+				statusEl.textContent = data.text;
+				while (list.firstChild) { list.removeChild(list.firstChild); }
+				(data.queue || []).forEach(function (item) {
+					var li = document.createElement('li');
+					var code = document.createElement('code'); code.textContent = item.url;
+					li.appendChild(code);
+					li.appendChild(document.createTextNode(' — ' + item.fails + ' ' + cfg.i18n.tries + (item.error ? ' — ' + item.error : '')));
+					list.appendChild(li);
+				});
+				if (!(data.queue || []).length) { var none = document.createElement('li'); none.style.listStyle = 'none'; none.style.marginInlineStart = '-18px'; none.textContent = cfg.i18n.none; list.appendChild(none); }
+			}
+			function run(action, nonce, confirmText) {
+				if (confirmText && !window.confirm(confirmText)) { return; }
+				buttons.forEach(function (b) { b.disabled = true; });
+				say(cfg.i18n.working, false);
+				var body = new FormData(); body.append('action', action); body.append('nonce', nonce);
+				fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+					.then(function (r) { return r.json().catch(function () { return { success: false, data: { message: String(r.status) } }; }); })
+					.then(function (json) {
+						if (json && json.success) { render(json.data); say(json.data.message, false); } else { say(cfg.i18n.error + ' ' + (json && json.data && json.data.message || ''), true); }
+					})
+					.catch(function (e) { say(cfg.i18n.error + ' ' + (e && e.message || ''), true); })
+					.then(function () { buttons.forEach(function (b) { b.disabled = false; }); });
+			}
+			box.querySelector('#bepluspb-gf-download').addEventListener('click', function () { run('bepluspb_gf_download', cfg.nonceDownload, ''); });
+			box.querySelector('#bepluspb-gf-clear').addEventListener('click', function () { run('bepluspb_gf_clear', cfg.nonceClear, cfg.i18n.confirm); });
+		})();
+		</script>
 		<?php
 	}
 }
