@@ -73,7 +73,7 @@ const INLINE_CSS = '.inline-rule{padding:4px;color:#333}.hidden-menu{display:non
 const FIXTURES = (otherOrigin) => ({
   '/page': `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>t</title>
 <link rel="stylesheet" id="site-css" href="/css/site.css"><link rel="stylesheet" media="print" href="/css/print.css"><link rel="stylesheet" id="admin-bar-css" href="/css/adminbar.css">
-<link rel="stylesheet" id="other-css" href="${otherOrigin}/css/other.css"><style id="inline-css">${INLINE_CSS}</style></head><body class="admin-bar logged-in">${body()}
+<link rel="stylesheet" id="other-css" href="${otherOrigin}/css/other.css"><style id="inline-css">${INLINE_CSS}</style><style id="admin-bar-inline-css" media="screen">html{margin-top:32px!important}@media screen and (max-width:782px){html{margin-top:46px!important}}</style><style media="screen">html { margin-top: 32px !important; }</style></head><body class="admin-bar logged-in">${body()}
 <script>window.bepluspbCcss=${JSON.stringify(cfg({}))};</script><script src="/gen.js"></script></body></html>`,
   '/disabled': null,
 });
@@ -186,7 +186,7 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(hasRe(/\.hidden-menu\s*\{[^}]*display: none/), 'the rule that HIDES a first-screen element is kept (without it the element would flash)');
   ok(!has('.menu {') && !has('.is-open') && !has('.hidden-menu .'), 'but rules for the contents of a hidden subtree are not');
   ok(hasRe(/\.card[^}]*\.title|\.title/) && has('font-weight: 700'), 'natively nested rule kept whole');
-  ok(!has('admin-bar') && !has('wpadminbar') && !has('logged-in') && !has('admin-bar-only-rule'), 'admin bar and logged-in rules never included');
+  ok(!has('admin-bar') && !has('wpadminbar') && !has('logged-in') && !has('admin-bar-only-rule') && !has('margin-top: 32px') && !has('margin-top: 46px'), 'admin bar and logged-in rules never included');
   ok(!has('cross-origin-rule'), 'unreadable cross-origin stylesheet contributes nothing');
   ok(!has('@charset') && !has('@import'), 'no @charset / @import');
   ok(css.length > 300 && css.length < 4000, 'result is small (' + css.length + ' bytes)');
