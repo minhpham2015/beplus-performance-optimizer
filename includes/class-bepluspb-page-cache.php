@@ -1509,7 +1509,7 @@ class BEPLUSPB_Page_Cache {
 		}
 
 		// Site-wide look and structure.
-		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'bepluspb_assets_cache_cleared', 'bepluspb_page_cache_purge_all' ) as $hook ) {
+		foreach ( array( 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'wp_delete_nav_menu', 'wp_update_nav_menu_item', 'edited_term', 'created_term', 'delete_term', 'bepluspb_assets_cache_cleared', 'bepluspb_google_fonts_localized', 'bepluspb_page_cache_purge_all' ) as $hook ) {
 			add_action( $hook, array( __CLASS__, 'purge_all' ), 20, 0 );
 		}
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'purge_all' ), 20, 0 );

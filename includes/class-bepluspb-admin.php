@@ -22,6 +22,7 @@ require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-object-cache.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-cloudflare.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-lcp.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-critical-css.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-google-fonts.php';
 
 /**
  * Class BEPLUSPB_Admin
@@ -49,6 +50,7 @@ class BEPLUSPB_Admin {
 	use BEPLUSPB_Admin_Ajax_Cloudflare;
 	use BEPLUSPB_Admin_Ajax_Lcp;
 	use BEPLUSPB_Admin_Ajax_Critical_Css;
+	use BEPLUSPB_Admin_Ajax_Google_Fonts;
 
 	// =========================================================================
 	// Bootstrap
@@ -107,6 +109,10 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_ccss_generator' ) );
 		add_action( 'wp_ajax_bepluspb_ccss_save', array( __CLASS__, 'handle_ajax_ccss_save' ) );
 		add_action( 'wp_ajax_bepluspb_ccss_delete', array( __CLASS__, 'handle_ajax_ccss_delete' ) );
+
+		// Self-hosted Google Fonts: "Download now" and "Delete local fonts" in the Fonts tab.
+		add_action( 'wp_ajax_bepluspb_gf_download', array( __CLASS__, 'handle_ajax_gf_download' ) );
+		add_action( 'wp_ajax_bepluspb_gf_clear', array( __CLASS__, 'handle_ajax_gf_clear' ) );
 
 		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
@@ -326,7 +332,7 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( $input['remove_js_handles'] )
 			: '';
 
-		$sanitized['google_fonts_mode']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_mode'] ?? '', array( 'off', 'optimize' ), 'off' );
+		$sanitized['google_fonts_mode']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_mode'] ?? '', array( 'off', 'optimize', 'selfhost' ), 'off' );
 		$sanitized['google_fonts_display'] = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_display'] ?? '', BEPLUSPB_Google_Fonts::DISPLAY_VALUES, 'swap' );
 
 		// Priority Images: keep only valid lines and say which ones were dropped.

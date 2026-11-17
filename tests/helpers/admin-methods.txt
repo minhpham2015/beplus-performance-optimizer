@@ -59,3 +59,7 @@ handle_ajax_ccss_delete
 ccss_page_type_options
 ccss_generator_strings
 render_critical_css_card
+handle_ajax_gf_download
+handle_ajax_gf_clear
+gf_status_payload
+render_google_fonts_local_status

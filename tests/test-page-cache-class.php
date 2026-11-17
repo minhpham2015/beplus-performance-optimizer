@@ -215,6 +215,9 @@ $GLOBALS['hooks'] = array();
 $PC::register_invalidation_hooks( array( 'cache_enabled' => 0, 'page_cache_enabled' => 1 ) );
 t_ok( array() === $GLOBALS['hooks'], 'no invalidation hooks while disabled' );
 $PC::register_invalidation_hooks( $GLOBALS['opts'] );
+foreach ( array( 'bepluspb_google_fonts_localized', 'bepluspb_assets_cache_cleared' ) as $hook ) {
+	t_ok( ! empty( $GLOBALS['hooks'][ $hook ] ), "stored pages are dropped on $hook (they link fonts that were just downloaded / removed)" );
+}
 foreach ( array( 'save_post', 'transition_post_status', 'deleted_post', 'comment_post', 'edit_comment', 'delete_comment', 'wp_set_comment_status', 'switch_theme', 'after_switch_theme', 'customize_save_after', 'wp_update_nav_menu', 'edited_term', 'created_term', 'delete_term', 'activated_plugin', 'deactivated_plugin', 'upgrader_process_complete', 'updated_option', 'added_option', 'bepluspb_assets_cache_cleared', 'woocommerce_product_set_stock' ) as $hook ) {
 	t_ok( ! empty( $GLOBALS['hooks'][ $hook ] ), "invalidation registered for $hook" );
 }

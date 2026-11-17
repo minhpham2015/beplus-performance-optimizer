@@ -252,6 +252,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-critical-css.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts-local.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
@@ -265,6 +266,8 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-page-cache-preload.p
 // Settings-change sync, GC cron and self-repair must exist whether or not the cache is on.
 BEPLUSPB_Page_Cache::register_core_hooks();
 BEPLUSPB_Page_Cache_Preload::register_core_hooks();
+// Self-hosted Google Fonts: the download run is a WP-Cron event that may be pending whatever the setting says.
+BEPLUSPB_Google_Fonts_Local::register_core_hooks();
 
 // Fallback path: when advanced-cache.php is not active (WP_CACHE off, or another
 // plugin owns the drop-in) serve a stored page right now — before the theme and
@@ -300,6 +303,7 @@ register_deactivation_hook(
 	function () {
 		BEPLUSPB_Htaccess::remove_rules();
 		BEPLUSPB_Page_Cache::shutdown();
+		wp_clear_scheduled_hook( BEPLUSPB_Google_Fonts_Local::CRON_HOOK );
 	}
 );
 

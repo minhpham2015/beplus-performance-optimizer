@@ -12,8 +12,9 @@
  *  - adds `preconnect` hints for fonts.googleapis.com and fonts.gstatic.com when the page
  *    uses Google Fonts and does not already have them.
  *
- * Nothing is downloaded or stored by the plugin and no request is made: only URLs already in
- * the page are rewritten. Scripts and comments are never touched. A `display` the site
+ * In "optimize" mode nothing is downloaded or stored and no request is made: only URLs already in
+ * the page are rewritten. In "selfhost" mode (see BEPLUSPB_Google_Fonts_Local) a stylesheet that was
+ * already downloaded is linked from this site instead, and then needs no preconnect. Scripts and comments are never touched. A `display` the site
  * already sets is respected, and icon fonts (Material Icons/Symbols, Font Awesome...) are left
  * alone because a swap would flash their ligature names as text.
  *
@@ -43,7 +44,7 @@ class BEPLUSPB_Google_Fonts {
 	private static $buffer_level = null;
 
 	/**
-	 * Register the head buffer when the mode is "optimize".
+	 * Register the head buffer when the mode is "optimize" or "selfhost".
 	 *
 	 * Starts before everything else in wp_head (priority 0) and ends after everything
 	 * (10000), so it wraps the CSS module's buffer (priority 1 .. 9999) like a bracket.
@@ -51,7 +52,7 @@ class BEPLUSPB_Google_Fonts {
 	 * @param array $opts Result of bepluspb_get_options().
 	 */
 	public static function init( $opts ) {
-		if ( ! isset( $opts['google_fonts_mode'] ) || 'optimize' !== $opts['google_fonts_mode'] ) {
+		if ( ! isset( $opts['google_fonts_mode'] ) || ! in_array( $opts['google_fonts_mode'], array( 'optimize', 'selfhost' ), true ) ) {
 			return;
 		}
 		add_action( 'wp_head', array( __CLASS__, 'buffer_start' ), 0 );
@@ -86,18 +87,27 @@ class BEPLUSPB_Google_Fonts {
 		$opts    = bepluspb_get_options();
 		$display = isset( $opts['google_fonts_display'] ) ? $opts['google_fonts_display'] : 'swap';
 
+		// Self-host: a stylesheet already downloaded is linked from this site; one that is not stays on
+		// Google (and is queued for the next download run), so a failed download never breaks the page.
+		$localize = null;
+		if ( isset( $opts['google_fonts_mode'] ) && 'selfhost' === $opts['google_fonts_mode'] && class_exists( 'BEPLUSPB_Google_Fonts_Local' ) ) {
+			$localize = array( 'BEPLUSPB_Google_Fonts_Local', 'frontend_localize' );
+		}
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the buffered head, only font URLs/preconnect links changed.
-		echo BEPLUSPB_Utils::guard_transform( self::process( $html, $display ), $html );
+		echo BEPLUSPB_Utils::guard_transform( self::process( $html, $display, $localize ), $html );
 	}
 
 	/**
-	 * Apply font-display and preconnect to a chunk of head HTML.
+	 * Apply font-display, self-hosting and preconnect to a chunk of head HTML.
 	 *
-	 * @param  string $html    Buffered HTML.
-	 * @param  string $display swap, fallback or optional (anything else = swap).
+	 * @param  string        $html     Buffered HTML.
+	 * @param  string        $display  swap, fallback or optional (anything else = swap).
+	 * @param  callable|null $localize Receives a Google Fonts stylesheet URL (display already added) and
+	 *                                 returns a URL on this site, or null to keep the Google URL.
 	 * @return string
 	 */
-	public static function process( $html, $display = 'swap' ) {
+	public static function process( $html, $display = 'swap', $localize = null ) {
 		if ( ! is_string( $html ) || false === stripos( $html, 'fonts.googleapis.com' ) ) {
 			return $html;
 		}
@@ -110,7 +120,7 @@ class BEPLUSPB_Google_Fonts {
 			return $html; // PCRE limit hit on a huge page: leave it alone.
 		}
 
-		$seen = false;
+		$seen = false; // True while a Google Fonts stylesheet stays on Google (preconnect is then useful).
 		foreach ( $parts as $i => $part ) {
 			if ( '' === $part ) {
 				continue;
@@ -119,9 +129,9 @@ class BEPLUSPB_Google_Fonts {
 				continue;
 			}
 			if ( 0 === stripos( $part, '<style' ) ) {
-				$parts[ $i ] = self::process_style( $part, $display, $seen );
+				$parts[ $i ] = self::process_style( $part, $display, $seen, $localize );
 			} else {
-				$parts[ $i ] = self::process_markup( $part, $display, $seen );
+				$parts[ $i ] = self::process_markup( $part, $display, $seen, $localize );
 			}
 		}
 		$out = implode( '', $parts );
@@ -132,16 +142,17 @@ class BEPLUSPB_Google_Fonts {
 	/**
 	 * Rewrite Google Fonts URLs inside a <style> block (CSS context: plain "&").
 	 *
-	 * @param  string $block   The whole <style>…</style>.
-	 * @param  string $display font-display value.
-	 * @param  bool   $seen    Set to true when a Google Fonts CSS URL is found.
+	 * @param  string        $block    The whole <style>…</style>.
+	 * @param  string        $display  font-display value.
+	 * @param  bool          $seen     Set to true when a Google Fonts CSS URL stays on Google.
+	 * @param  callable|null $localize See process().
 	 * @return string
 	 */
-	private static function process_style( $block, $display, &$seen ) {
+	private static function process_style( $block, $display, &$seen, $localize = null ) {
 		$result = preg_replace_callback(
 			'#(?:https?:)?//fonts\.googleapis\.com/(?:css2?|icon)\?[^\s"\'<>)]*#i',
-			static function ( $m ) use ( $display, &$seen ) {
-				return self::rewrite_url( $m[0], '&', $display, $seen );
+			static function ( $m ) use ( $display, &$seen, $localize ) {
+				return self::rewrite_or_localize( $m[0], '&', $display, $seen, $localize );
 			},
 			$block
 		);
@@ -151,21 +162,22 @@ class BEPLUSPB_Google_Fonts {
 	/**
 	 * Rewrite Google Fonts URLs in the href of <link> tags (HTML attribute context).
 	 *
-	 * @param  string $markup  Markup between scripts/styles/comments.
-	 * @param  string $display font-display value.
-	 * @param  bool   $seen    Set to true when a Google Fonts CSS URL is found.
+	 * @param  string        $markup   Markup between scripts/styles/comments.
+	 * @param  string        $display  font-display value.
+	 * @param  bool          $seen     Set to true when a Google Fonts CSS URL stays on Google.
+	 * @param  callable|null $localize See process().
 	 * @return string
 	 */
-	private static function process_markup( $markup, $display, &$seen ) {
+	private static function process_markup( $markup, $display, &$seen, $localize = null ) {
 		$result = preg_replace_callback(
 			'#<link\b[^>]*>#i',
-			static function ( $tag ) use ( $display, &$seen ) {
+			static function ( $tag ) use ( $display, &$seen, $localize ) {
 				return preg_replace_callback(
 					'#(\shref\s*=\s*)(["\'])(.*?)\2#is',
-					static function ( $m ) use ( $display, &$seen ) {
+					static function ( $m ) use ( $display, &$seen, $localize ) {
 						// HTML attributes: the separator must be an entity; mimic what the tag already uses.
 						$sep = false !== strpos( $m[3], '&#038;' ) ? '&#038;' : '&amp;';
-						return $m[1] . $m[2] . self::rewrite_url( $m[3], $sep, $display, $seen ) . $m[2];
+						return $m[1] . $m[2] . self::rewrite_or_localize( $m[3], $sep, $display, $seen, $localize ) . $m[2];
 					},
 					$tag[0]
 				);
@@ -173,6 +185,32 @@ class BEPLUSPB_Google_Fonts {
 			$markup
 		);
 		return is_string( $result ) ? $result : $markup;
+	}
+
+	/**
+	 * Add `display=`, then swap the URL for the local copy when there is one.
+	 *
+	 * @param  string        $url      URL as written in the page.
+	 * @param  string        $sep      Separator for display= ("&" in CSS, an entity in HTML).
+	 * @param  string        $display  font-display value.
+	 * @param  bool          $remote   Set to true when a Google Fonts URL stays on Google.
+	 * @param  callable|null $localize See process().
+	 * @return string
+	 */
+	private static function rewrite_or_localize( $url, $sep, $display, &$remote, $localize ) {
+		$found = false;
+		$new   = self::rewrite_url( $url, $sep, $display, $found );
+		if ( ! $found ) {
+			return $new;
+		}
+		if ( is_callable( $localize ) ) {
+			$local = call_user_func( $localize, $new );
+			if ( is_string( $local ) && '' !== $local ) {
+				return $local;
+			}
+		}
+		$remote = true;
+		return $new;
 	}
 
 	/**

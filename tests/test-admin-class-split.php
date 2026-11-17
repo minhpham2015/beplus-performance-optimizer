@@ -16,7 +16,7 @@ $n = 0;
 function t_ok( $c, $m ) { global $n; ++$n; if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }
 
 BEPLUSPB_Admin::init();
-t_ok( 30 === count( $GLOBALS['hooks'] ), 'init() registers hooks (' . count( $GLOBALS['hooks'] ) . ')' );
+t_ok( 32 === count( $GLOBALS['hooks'] ), 'init() registers hooks (' . count( $GLOBALS['hooks'] ) . ')' );
 foreach ( $GLOBALS['hooks'] as list( $type, $tag, $cb, $priority, $accepted_args ) ) {
 	t_ok( is_array( $cb ) && 'BEPLUSPB_Admin' === $cb[0] && method_exists( 'BEPLUSPB_Admin', $cb[1] ), "$tag callback {$cb[1]} exists" );
 	t_ok( ( new ReflectionMethod( 'BEPLUSPB_Admin', $cb[1] ) )->isPublic(), "$tag callback {$cb[1]} is public" );
@@ -29,12 +29,12 @@ t_ok( array( 'action', 'admin_bar_menu', array( 'BEPLUSPB_Admin', 'add_admin_bar
 
 // Every AJAX/admin-post handler still present, and nonce-before-capability order preserved in AJAX handlers.
 $ref = new ReflectionClass( 'BEPLUSPB_Admin' );
-$expected_traits = 12;
+$expected_traits = 13;
 t_ok( $expected_traits === count( $ref->getTraitNames() ), 'class uses all ' . $expected_traits . ' traits' );
 $src = '';
 foreach ( glob( dirname( __DIR__ ) . '/includes/admin/*.php' ) as $f ) { $src .= file_get_contents( $f ); }
 t_ok( count( glob( dirname( __DIR__ ) . '/includes/admin/*.php' ) ) === $expected_traits, 'one file per trait' );
-foreach ( array( 'handle_ajax_cf_test_connection', 'handle_ajax_cf_purge', 'handle_ajax_cf_devmode', 'handle_ajax_test_oc', 'handle_ajax_install_oc', 'handle_ajax_remove_oc', 'handle_ajax_toggle_cache', 'handle_ajax_lcp_apply', 'handle_ajax_ccss_save', 'handle_ajax_ccss_delete' ) as $m ) {
+foreach ( array( 'handle_ajax_cf_test_connection', 'handle_ajax_cf_purge', 'handle_ajax_cf_devmode', 'handle_ajax_test_oc', 'handle_ajax_install_oc', 'handle_ajax_remove_oc', 'handle_ajax_toggle_cache', 'handle_ajax_lcp_apply', 'handle_ajax_ccss_save', 'handle_ajax_ccss_delete', 'handle_ajax_gf_download', 'handle_ajax_gf_clear' ) as $m ) {
 	$fn = $ref->getMethod( $m );
 	$body = implode( '', array_slice( file( $fn->getFileName() ), $fn->getStartLine() - 1, $fn->getEndLine() - $fn->getStartLine() + 1 ) );
 	$p_nonce = strpos( $body, 'check_ajax_referer' ); $p_cap = strpos( $body, 'current_user_can' );
