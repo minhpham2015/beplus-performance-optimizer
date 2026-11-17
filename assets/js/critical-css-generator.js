@@ -515,6 +515,7 @@
 
 	var PANEL_CSS = [
 		':host{all:initial}',
+		'p,h2,h3,dt,dd,li,button,a,span,label{unicode-bidi:plaintext}',
 		'.card{box-sizing:border-box;position:fixed;inset-block-end:16px;inset-inline-end:16px;z-index:2147483000;width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:#fff;color:#1d2327;border:1px solid #c3c4c7;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.25);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:14px 16px}',
 		'h2{margin:0 0 8px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center}',
 		'.note{color:#50575e;font-size:12px;margin:0 0 8px}',

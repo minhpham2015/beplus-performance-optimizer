@@ -85,6 +85,7 @@ const VARIANTS = {
   '/slow':   { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.addEventListener('DOMContentLoaded',function(){var i=new Image();i.src='/hang.png?'+Date.now();document.body.appendChild(i);});}" },
   '/err':    { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){Object.defineProperty(document,'styleSheets',{get:function(){throw new Error('boom from the page');}});}" },
   '/noname': { headScript: "window.name='';" },
+  '/rtl':    { rtl: true },
   // the HTML parser of the FRAME is stuck behind a script that never arrives, at the end of the body / in the head
   '/stuck':      { beforeCfgScript: "<script>if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.write('<script src=\"/hang.js\"><\\/script>');}</script>" },
   '/stuck-head': { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.write('<script src=\"/hang.js\"><\\/script>');}" },
@@ -92,6 +93,7 @@ const VARIANTS = {
 };
 function variantHtml(base, v) {
   let h = base.replace('"maxBytes":150000', '"maxBytes":150000,"timing":{"hello":2500,"result":4000}');
+  if (v.rtl) h = h.replace('<html>', '<html dir="rtl" lang="he-IL">');
   if (v.headScript) h = h.replace('<title>t</title>', '<title>t</title><script>' + v.headScript + '</script>');
   if (v.beforeCfgScript) h = h.replace('<script>window.bepluspbCcss=', v.beforeCfgScript + '<script>window.bepluspbCcss=');
   return h;
@@ -214,6 +216,14 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(t && t.includes('Save Critical CSS'), 'works from a phone-sized window and can be repeated');
   await clickBtn(pg, 'Save Critical CSS'); await pg.waitForTimeout(500);
   ok(lastPost().css && lastPost().css.includes('@media (min-width: 768px)'), 'the result does not depend on the size of the administrator\'s own window');
+  await ctx.close();
+
+  // ---- a right-to-left site (Hebrew): the English panel text must not be scrambled by the page's direction ------------------------
+  ({ pg, ctx } = await open('/rtl', { width: 1280, height: 800 }));
+  await click(pg); t = await waitDone(pg);
+  const bidi = await pg.evaluate(() => { const c = document.querySelector('#bepluspb-ccss-panel').shadowRoot.querySelector('.card'); return [...c.querySelectorAll('p,h2,h3')].map(e => getComputedStyle(e).unicodeBidi); });
+  ok(bidi.length > 0 && bidi.every(v => v === 'plaintext'), 'RTL page: every text element of the panel decides its own direction (' + bidi.length + ' checked)');
+  if (process.env.SHOT) { await pg.screenshot({ path: process.env.SHOT }); }
   await ctx.close();
 
   // ---- failures say WHY (each page below fails in exactly one way; the limits are shortened by cfg.timing) -----------------------
