@@ -53,3 +53,9 @@ store_purge_result
 enqueue_lcp_analyzer
 handle_ajax_lcp_apply
 lcp_analyzer_strings
+enqueue_ccss_generator
+handle_ajax_ccss_save
+handle_ajax_ccss_delete
+ccss_page_type_options
+ccss_generator_strings
+render_critical_css_card

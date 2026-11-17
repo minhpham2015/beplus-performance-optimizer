@@ -60,6 +60,21 @@ trait BEPLUSPB_Admin_Admin_Bar {
 			);
 		}
 
+		if ( ! is_admin() ) {
+			$wp_admin_bar->add_node(
+				array(
+					'id'     => 'bepluspb-ccss',
+					'parent' => 'bepluspb-cache',
+					'title'  => esc_html__( 'Generate Critical CSS (this page type)', 'beplus-performance-booster' ),
+					'href'   => '#bepluspb-ccss',
+					'meta'   => array(
+						'class' => 'bepluspb-ccss-node',
+						'title' => esc_attr__( 'Work out the CSS the first screen needs and save it for this type of page', 'beplus-performance-booster' ),
+					),
+				)
+			);
+		}
+
 		// Single child panel node with full cache info + clear button.
 		$wp_admin_bar->add_node(
 			array(

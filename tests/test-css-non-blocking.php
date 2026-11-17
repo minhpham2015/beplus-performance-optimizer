@@ -65,6 +65,16 @@ $GLOBALS['stylesheet_dir'] = 'https://ex.com/';
 t_ok( converted( conv( $link ) ), 'a root-level theme URL does not exclude every stylesheet' );
 unset( $GLOBALS['stylesheet_dir'] );
 
+// With critical CSS covering the first paint, the theme's own CSS is deferred too (exclusions still win).
+function conv_full( $tag, $exclude = array() ) { return BEPLUSPB_CSS::make_non_blocking( $tag, $exclude, true ); }
+t_ok( converted( conv_full( $theme_plain ) ), 'defer_theme: style.css of the theme is deferred' );
+t_ok( converted( conv_full( $sub_child ) ) && converted( conv_full( $sub_parent ) ), 'defer_theme: theme sub-directory CSS is deferred' );
+t_ok( converted( conv_full( $theme_min ) ) && converted( conv_full( $sub_min ) ), 'defer_theme: theme CSS moved to the cache directory is deferred too' );
+t_ok( ! converted( conv_full( $sub_child, array( 'assets/css/main.min.css' ) ) ), 'defer_theme: "Exclude CSS Files" still keeps a stylesheet blocking' );
+t_ok( ! converted( conv_full( "<link rel='stylesheet' href='/a.css' media='print'>" ) ) && ! converted( conv_full( '<link rel="preload" as="style" href="/a.css">' ) ), 'defer_theme: print media and existing preloads are still left alone' );
+t_ok( $link === conv_full( $link, array( 'p/p.css' ) ), 'defer_theme: keyword exclusion honoured' );
+t_ok( ! converted( conv_full( $link ) ) === false, 'defer_theme: ordinary stylesheets are deferred as before' );
+
 // Conditional media can never be swapped in by a preload.
 foreach ( array( 'print', '(max-width:600px)', '(prefers-color-scheme: dark)', 'only screen and (min-width:1px)' ) as $m ) {
 	t_ok( ! converted( conv( str_replace( "media='all'", "media='$m'", $link ) ) ), "media=$m left blocking" );

@@ -21,6 +21,7 @@ require_once __DIR__ . '/admin/trait-bepluspb-admin-meta-box.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-object-cache.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-cloudflare.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-lcp.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-critical-css.php';
 
 /**
  * Class BEPLUSPB_Admin
@@ -47,6 +48,7 @@ class BEPLUSPB_Admin {
 	use BEPLUSPB_Admin_Ajax_Object_Cache;
 	use BEPLUSPB_Admin_Ajax_Cloudflare;
 	use BEPLUSPB_Admin_Ajax_Lcp;
+	use BEPLUSPB_Admin_Ajax_Critical_Css;
 
 	// =========================================================================
 	// Bootstrap
@@ -100,6 +102,11 @@ class BEPLUSPB_Admin {
 		// LCP Analyzer: script for administrators on the front end + the AJAX that saves its result.
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_lcp_analyzer' ) );
 		add_action( 'wp_ajax_bepluspb_lcp_apply', array( __CLASS__, 'handle_ajax_lcp_apply' ) );
+
+		// Critical CSS: generator for administrators on the front end + the AJAX behind it and the settings card.
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_ccss_generator' ) );
+		add_action( 'wp_ajax_bepluspb_ccss_save', array( __CLASS__, 'handle_ajax_ccss_save' ) );
+		add_action( 'wp_ajax_bepluspb_ccss_delete', array( __CLASS__, 'handle_ajax_ccss_delete' ) );
 
 		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
@@ -238,6 +245,7 @@ class BEPLUSPB_Admin {
 			// CSS.
 			'css_minify',
 			'css_non_blocking',
+			'critical_css_enabled',
 			'css_inline_all',
 			'css_inline_skip_elementor',
 			'css_remove_unused',

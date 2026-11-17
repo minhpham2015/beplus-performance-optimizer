@@ -235,6 +235,13 @@ $PC::on_save_post( 7, $p );
 t_ok( ! is_file( $f['post'] ) && ! is_file( $f['home'] ) && ! is_file( $f['p2'] ) && ! is_file( $f['author'] ) && ! is_file( $f['month'] ), 'editing a published post purges it, home (+pagination), author and date archives' );
 t_ok( is_file( $f['other'] ), 'an unrelated page stays cached' );
 
+// Critical CSS is printed into stored pages: changing it drops them (only while the page cache is on).
+$GLOBALS['hooks'] = array(); $PC::register_core_hooks();
+t_ok( ! empty( $GLOBALS['hooks']['update_option_bepluspb_critical_css'] ) && ! empty( $GLOBALS['hooks']['add_option_bepluspb_critical_css'] ), 'critical CSS option changes are hooked (update and first add)' );
+$f = $fill(); $E::reset();
+$PC::on_critical_css_changed();
+t_ok( ! is_file( $f['post'] ) && ! is_file( $f['home'] ) && ! is_file( $f['other'] ), 'a Critical CSS change purges every stored page' );
+
 $f = $fill(); $E::reset();
 $d = new WP_Post(); $d->ID = 9; $d->post_status = 'draft'; $GLOBALS['posts'][9] = $d;
 $PC::on_save_post( 9, $d );

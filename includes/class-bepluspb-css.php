@@ -131,17 +131,52 @@ class BEPLUSPB_CSS {
 			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude, ! empty( $opts['css_inline_skip_elementor'] ) ), $html );
 		}
 
+		$critical = '';
 		if ( $opts['css_non_blocking'] ) {
-			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$html    = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude ), $html );
+			$exclude  = bepluspb_parse_exclude_list( $opts['css_exclude'] );
+			$critical = self::critical_css_for( $opts, $html );
+			// With critical CSS the first paint no longer needs the theme's stylesheet, so it may be deferred too.
+			$deferred = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude, '' !== $critical ), $html );
+			if ( $deferred === $html ) {
+				$critical = ''; // Nothing was deferred (e.g. a CSP blocks the swap): nothing to bridge.
+			}
+			$html = $deferred;
 		}
 
 		if ( $opts['css_minify'] ) {
 			$html = BEPLUSPB_Utils::guard_transform( self::minify_inline_styles( $html ), $html );
 		}
 
+		if ( '' !== $critical ) {
+			// After the transforms so it is printed exactly as stored; first in the buffer = first in <head>.
+			$html = '<style id="bepluspb-critical-css">' . $critical . "</style>\n" . $html;
+		}
+
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		echo $html;
+	}
+
+	/**
+	 * Critical CSS to print for this page, or '' when it must not be used.
+	 *
+	 * Not used when the feature is off, when "Inline All CSS" already puts every stylesheet in the
+	 * page, when nothing is stored for this page type, or when an enforced Content-Security-Policy
+	 * (header or <meta>) would refuse a plain inline <style> (the page would then have no styles
+	 * until the deferred sheets load).
+	 *
+	 * @param  array  $opts Options.
+	 * @param  string $html Buffered wp_head output.
+	 * @return string
+	 */
+	private static function critical_css_for( $opts, $html ) {
+		if ( empty( $opts['critical_css_enabled'] ) || ! empty( $opts['css_inline_all'] ) ) {
+			return '';
+		}
+		$css = BEPLUSPB_Critical_CSS::css_for_request();
+		if ( '' === $css || BEPLUSPB_Critical_CSS::csp_blocks_inline_styles( self::collect_csp_policies( $html ) ) ) {
+			return '';
+		}
+		return $css;
 	}
 
 	// -------------------------------------------------------------------------
@@ -286,37 +321,43 @@ class BEPLUSPB_CSS {
 	 * in), and every link when a Content-Security-Policy forbids inline event
 	 * handlers (the swap would never run and the site would stay unstyled).
 	 *
-	 * @param  string $html    Buffered wp_head output.
-	 * @param  array  $exclude URL keywords whose stylesheets must be left untouched.
+	 * @param  string $html        Buffered wp_head output.
+	 * @param  array  $exclude     URL keywords whose stylesheets must be left untouched.
+	 * @param  bool   $defer_theme True when critical CSS covers the first paint: the theme's own
+	 *                             stylesheets are then deferred like any other (the "Exclude CSS
+	 *                             Files" list still applies).
 	 * @return string Modified HTML.
 	 */
-	public static function make_non_blocking( $html, $exclude ) {
+	public static function make_non_blocking( $html, $exclude, $defer_theme = false ) {
 		if ( self::csp_blocks_inline_handlers( self::collect_csp_policies( $html ) ) ) {
 			return $html;
 		}
 
-		// The theme's own stylesheets are what lays the page out: deferring them without
-		// critical CSS makes the page flash unstyled. Most themes do not keep their main CSS
-		// in style.css (Astra, Hello Elementor, GeneratePress, Kadence... load assets/css/*.css),
-		// so everything inside the active theme and parent theme directories stays blocking.
-		$theme_paths = array();
-		foreach ( array( get_bloginfo( 'stylesheet_url' ), trailingslashit( get_template_directory_uri() ) . 'style.css' ) as $theme_url ) {
-			$path = $theme_url ? wp_parse_url( $theme_url, PHP_URL_PATH ) : null;
-			if ( $path ) {
-				$theme_paths[ $path ] = true;
-				$exclude[]            = $path;
+		$theme_handles = array();
+		if ( ! $defer_theme ) {
+			// The theme's own stylesheets are what lays the page out: deferring them without
+			// critical CSS makes the page flash unstyled. Most themes do not keep their main CSS
+			// in style.css (Astra, Hello Elementor, GeneratePress, Kadence... load assets/css/*.css),
+			// so everything inside the active theme and parent theme directories stays blocking.
+			$theme_paths = array();
+			foreach ( array( get_bloginfo( 'stylesheet_url' ), trailingslashit( get_template_directory_uri() ) . 'style.css' ) as $theme_url ) {
+				$path = $theme_url ? wp_parse_url( $theme_url, PHP_URL_PATH ) : null;
+				if ( $path ) {
+					$theme_paths[ $path ] = true;
+					$exclude[]            = $path;
+				}
 			}
-		}
-		$theme_dirs = array();
-		foreach ( array( get_stylesheet_directory_uri(), get_template_directory_uri() ) as $theme_dir_url ) {
-			$dir_path = $theme_dir_url ? wp_parse_url( $theme_dir_url, PHP_URL_PATH ) : null;
-			// Never fall back to a bare "/": it would match every stylesheet on the site.
-			if ( $dir_path && '/' !== trim( $dir_path ) ) {
-				$theme_dirs[ trailingslashit( $dir_path ) ] = true;
-				$exclude[]                                  = trailingslashit( $dir_path );
+			$theme_dirs = array();
+			foreach ( array( get_stylesheet_directory_uri(), get_template_directory_uri() ) as $theme_dir_url ) {
+				$dir_path = $theme_dir_url ? wp_parse_url( $theme_dir_url, PHP_URL_PATH ) : null;
+				// Never fall back to a bare "/": it would match every stylesheet on the site.
+				if ( $dir_path && '/' !== trim( $dir_path ) ) {
+					$theme_dirs[ trailingslashit( $dir_path ) ] = true;
+					$exclude[]                                  = trailingslashit( $dir_path );
+				}
 			}
+			$theme_handles = self::theme_stylesheet_handles( $theme_paths, array_keys( $theme_dirs ) );
 		}
-		$theme_handles = self::theme_stylesheet_handles( $theme_paths, array_keys( $theme_dirs ) );
 
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',

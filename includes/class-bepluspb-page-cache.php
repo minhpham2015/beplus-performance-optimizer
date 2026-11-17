@@ -31,6 +31,9 @@ class BEPLUSPB_Page_Cache {
 	/** WP-Cron hook that removes expired cache files. */
 	const CRON_HOOK = 'bepluspb_page_cache_gc';
 
+	/** Option holding the Critical CSS entries (same name as BEPLUSPB_Critical_CSS::OPTION; kept literal so this class loads on its own). */
+	const CRITICAL_CSS_OPTION = 'bepluspb_critical_css';
+
 	/** Transient holding the last sync problem for the admin UI. */
 	const ERROR_TRANSIENT = 'bepluspb_page_cache_error';
 
@@ -1537,8 +1540,20 @@ class BEPLUSPB_Page_Cache {
 	public static function register_core_hooks() {
 		add_action( 'update_option_' . BEPLUSPB_OPTIONS_KEY, array( __CLASS__, 'on_settings_updated' ), 10, 2 );
 		add_action( 'add_option_' . BEPLUSPB_OPTIONS_KEY, array( __CLASS__, 'on_settings_added' ), 10, 2 );
+		// Critical CSS is printed into every stored page: any change of it must drop them (Rule 7/8).
+		add_action( 'update_option_' . self::CRITICAL_CSS_OPTION, array( __CLASS__, 'on_critical_css_changed' ) );
+		add_action( 'add_option_' . self::CRITICAL_CSS_OPTION, array( __CLASS__, 'on_critical_css_changed' ) );
 		add_action( self::CRON_HOOK, array( 'BEPLUSPB_Page_Cache_Engine', 'gc' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_repair' ) );
+	}
+
+	/**
+	 * The stored Critical CSS changed: stored pages still carry the old one.
+	 */
+	public static function on_critical_css_changed() {
+		if ( self::is_enabled() ) {
+			self::purge_all();
+		}
 	}
 
 	/**

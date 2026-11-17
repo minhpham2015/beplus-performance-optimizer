@@ -3,7 +3,7 @@
  * Fired when the plugin is deleted (not just deactivated).
  *
  * Cleans up ALL data created by Beplus Performance Booster:
- *  - The `bepluspb_settings` option from the database.
+ *  - The `bepluspb_settings` and `bepluspb_critical_css` options from the database.
  *  - Browser-caching rules from .htaccess.
  *  - All minified/cached CSS and JS files from the cache directory.
  *  - The `_bepluspb_disable_cache` post meta from every post/page.
@@ -23,6 +23,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 // ---------------------------------------------------------------------------
 
 delete_option( 'bepluspb_settings' );
+delete_option( 'bepluspb_critical_css' ); // Saved Critical CSS entries (user data, see BEPLUSPB_Critical_CSS).
 
 // Remove the cache-stats transient (60 s TTL, but clean up explicitly on uninstall).
 delete_transient( 'bepluspb_cache_stats' );

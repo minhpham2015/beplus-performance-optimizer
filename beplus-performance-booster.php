@@ -121,6 +121,9 @@ function bepluspb_default_options() {
 		'priority_images'                    => '',  // "image URL | home, all or /path/ | mobile, desktop or all", one per line (max 4).
 		'priority_images_hints'              => array(), // id => { srcset, sizes } captured by the LCP Analyzer (see BEPLUSPB_Priority_Images::entry_id()).
 
+		// --- Critical CSS (needs Non-Render-Blocking CSS; entries live in their own option, see BEPLUSPB_Critical_CSS) ---
+		'critical_css_enabled'               => 0,   // Print the stored critical CSS of the page type and defer every stylesheet (theme's included).
+
 		// --- Google Fonts ---
 		'google_fonts_mode'                  => 'off',   // 'off' | 'optimize' (font-display + preconnect on Google Fonts URLs already in the page).
 		'google_fonts_display'               => 'swap',  // 'swap' | 'fallback' | 'optional'.
@@ -248,6 +251,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-critical-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
