@@ -26,7 +26,11 @@
 	if (!cfg || !document.body) { return; }
 
 	var PROBE_PREFIX = 'bepluspb-ccss-probe:';
-	var VIEWPORTS = { mobile: { w: 390, h: 844 }, desktop: { w: 1366, h: 800 } };
+	var VIEWPORTS = { mobile: { w: 390, h: 844 }, tablet: { w: 820, h: 1180 }, desktop: { w: 1366, h: 800 }, large: { w: 1920, h: 1080 } };
+	var DEVICES = ['mobile', 'tablet', 'desktop', 'large'];
+	/** Extra screen heights below the first screen that are covered too (a taller window or a small scroll shows them at once). */
+	var EXTRA_AREA = 0.5;
+	var extraArea = true;
 	var SETTLE_MS = 1500;
 	var HELLO_MS = 20000;  // the script in the measuring frame must report in within this
 	var RESULT_MS = 60000; // then the analysis must arrive within this
@@ -52,7 +56,10 @@
 	/** A default waiting limit stretched to three times the page's own load time (never above 3 minutes). */
 	function adaptive(base) { return Math.min(180000, Math.max(base, ownLoadMs() * 3 + 10000)); }
 
-	function deviceOfWidth(width) { return width >= 768 ? 'desktop' : 'mobile'; }
+	function deviceOfWidth(width) { return width < 700 ? 'mobile' : (width < 1100 ? 'tablet' : (width < 1600 ? 'desktop' : 'large')); }
+
+	function emptyResults(value) { var o = {}; DEVICES.forEach(function (d) { o[d] = value; }); return o; }
+	function resultList() { return DEVICES.map(function (d) { return state.results[d]; }); }
 
 	// ---------------------------------------------------------------------------------
 	// Analysis (runs inside each measuring frame)
@@ -144,14 +151,14 @@
 	 * Which CSS rules the first screen of `win` needs. Runs in the measuring frame, or in THIS window against the
 	 * frame's window (same origin) when the script in the frame did not report.
 	 */
-	function analyse(win) {
+	function analyse(win, extra) {
 		win = win || window;
 		var doc = win.document;
 		var origin = win.location.origin;
 		var mm = function (text) { return mediaMatches(text, win); };
 		var vw = win.innerWidth;
 		var vh = win.innerHeight;
-		var visible = collectVisible(win, vw, vh);
+		var visible = collectVisible(win, vw, vh + (extra > 0 ? Math.round(vh * extra) : 0));
 		var matchCache = {};
 		var usedFamilies = {};
 		var usedAnimations = {};
@@ -273,7 +280,10 @@
 	// ---------------------------------------------------------------------------------
 
 	if (window.name && window.name.indexOf(PROBE_PREFIX) === 0) {
-		var token = window.name.slice(PROBE_PREFIX.length);
+		var nameRest = window.name.slice(PROBE_PREFIX.length);
+		var colon = nameRest.indexOf(':');
+		var frameExtra = colon > 0 ? Math.max(0, Math.min(2, parseFloat(nameRest.slice(0, colon)) || 0)) : 0;
+		var token = colon > 0 ? nameRest.slice(colon + 1) : nameRest;
 		/** Tell the parent how far we got: hello (script started), loaded, then result or error. */
 		var send = function (stage, payload) {
 			try {
@@ -286,7 +296,7 @@
 			send('loaded', null);
 			window.setTimeout(function () {
 				var result;
-				try { result = analyse(); } catch (e) {
+				try { result = analyse(window, frameExtra); } catch (e) {
 					send('error', { message: String(e && e.message || e), stack: String(e && e.stack || '').slice(0, 600) });
 					return;
 				}
@@ -309,6 +319,7 @@
 	 */
 	function analyseInFrame(device, callback) {
 		var size = VIEWPORTS[device];
+		var extra = extraArea ? EXTRA_AREA : 0;
 		var frameToken = String(Date.now()) + Math.random().toString(36).slice(2);
 		var frame = document.createElement('iframe');
 		var started = Date.now();
@@ -365,7 +376,7 @@
 				snapshotDoc();
 				var d = info.doc;
 				if (!d || d.bodyChildren < 1 || d.pendingStylesheets.length || info.frameHref === 'about:blank') { return null; }
-				var result = analyse(frame.contentWindow);
+				var result = analyse(frame.contentWindow, extra);
 				if (result.elements < 10) { return null; } // an (almost) empty page is no analysis
 				result.recovered = why;
 				result.docState = d.readyState;
@@ -434,7 +445,7 @@
 			fail(info.frameLoadAt === null ? 'not-loaded' : (info.readable === false ? 'unreadable' : 'no-hello'));
 		}, limit('hello', adaptive(HELLO_MS)));
 
-		frame.name = PROBE_PREFIX + frameToken;
+		frame.name = PROBE_PREFIX + extra + ':' + frameToken;
 		frame.setAttribute('aria-hidden', 'true');
 		frame.tabIndex = -1;
 		frame.title = '';
@@ -576,7 +587,7 @@
 		var lines = ['Beplus Performance Booster - Critical CSS Generator diagnostics', 'page: ' + window.location.href.split('#')[0], 'time: ' + new Date().toISOString(), 'browser: ' + navigator.userAgent];
 		var c = navigator.connection;
 		if (c) { lines.push('network (as the browser sees it): ' + (c.effectiveType || '?') + ', downlink ' + c.downlink + ' Mbit/s, rtt ' + c.rtt + ' ms' + (c.saveData ? ', data saver on' : '')); }
-		['mobile', 'desktop'].forEach(function (d) {
+		DEVICES.forEach(function (d) {
 			var r = state.results[d];
 			if (r && r.items) {
 				lines.push('', d + ': ok, ' + r.rules + ' rules, ' + r.bytes + ' bytes, ' + r.skippedSheets + ' unreadable stylesheets, ' + r.elements + ' first-screen elements' + (r.recovered ? ' [analysed from this window after "' + r.recovered + '", frame readyState ' + r.docState + ']' : ''));
@@ -606,7 +617,7 @@
 
 	/** Conclusion + copyable details, shown whenever something failed. */
 	function diagnosticsBox() {
-		var failed = [state.results.mobile, state.results.desktop].some(function (r) { return !r || r.failed; });
+		var failed = resultList().some(function (r) { return !r || r.failed; });
 		if (!failed) { return null; }
 		var box = el('section', null, []);
 		var conclusion = state.diag && state.diag.conclusion;
@@ -624,6 +635,14 @@
 		box.appendChild(area);
 		box.appendChild(el('div', { class: 'row' }, [copy]));
 		return box;
+	}
+
+	/** Checkbox: also cover the area just below the first screen (takes effect at the next analysis). */
+	function extraAreaRow() {
+		var box = el('input', { type: 'checkbox', 'data-role': 'extra-area' });
+		box.checked = extraArea;
+		box.addEventListener('change', function () { extraArea = box.checked; });
+		return el('label', { class: 'note' }, [box, el('span', { text: ' ' + t('extraArea') })]);
 	}
 
 	function deviceSection(device, r) {
@@ -648,10 +667,13 @@
 			el('h2', null, [el('span', { text: t('title') }), close]),
 			el('p', { class: 'note', text: t('optimizedNote') }),
 			deviceSection('mobile', state.results.mobile),
-			deviceSection('desktop', state.results.desktop)
+			deviceSection('tablet', state.results.tablet),
+			deviceSection('desktop', state.results.desktop),
+			deviceSection('large', state.results.large),
+			extraAreaRow()
 		]);
 
-		var done = state.results.mobile !== 'pending' && state.results.desktop !== 'pending';
+		var done = resultList().every(function (r) { return r !== 'pending'; });
 		if (done) { card.appendChild(summary()); }
 		while (root.childNodes.length > 1) { root.removeChild(root.lastChild); }
 		root.appendChild(card);
@@ -660,7 +682,7 @@
 	function summary() {
 		var css = state.css;
 		var bytes = css.length;
-		var usableResults = [state.results.mobile, state.results.desktop].filter(function (r) { return r && r.items; });
+		var usableResults = resultList().filter(function (r) { return r && r.items; });
 		var box = el('div', null, []);
 
 		if (!usableResults.length) {
@@ -745,11 +767,11 @@
 	// ---------------------------------------------------------------------------------
 
 	function start() {
-		state = { results: { mobile: 'pending', desktop: 'pending' }, css: '', diag: null, note: '' };
+		state = { results: emptyResults('pending'), css: '', diag: null, note: '' };
 		render();
 		// One frame at a time: on a slow connection three copies of the page loading together (this window and
 		// two frames) each take three times as long.
-		var order = ['mobile', 'desktop'];
+		var order = DEVICES;
 		(function next(i) {
 			if (i >= order.length) { complete(); return; }
 			analyseInFrame(order[i], function (result) {
@@ -767,16 +789,16 @@
 	function analyseHere() {
 		var device = deviceOfWidth(window.innerWidth);
 		var result;
-		try { result = analyse(); } catch (e) { result = { failed: true, kind: 'error', message: String(e && e.message || e), waited: 0, info: {} }; }
+		try { result = analyse(window, extraArea ? EXTRA_AREA : 0); } catch (e) { result = { failed: true, kind: 'error', message: String(e && e.message || e), waited: 0, info: {} }; }
 		state.results[device] = result;
-		state.css = mergeToCss([state.results.mobile, state.results.desktop]);
+		state.css = mergeToCss(resultList());
 		state.note = result.failed ? '' : t('hereDone').replace('%s', t(device));
 		render();
 	}
 
 	/** Both screen sizes are done: merge what worked and, if anything failed, find out why. */
 	function complete() {
-		var results = [state.results.mobile, state.results.desktop];
+		var results = resultList();
 		state.css = mergeToCss(results);
 		render();
 		if (results.some(function (r) { return !r || r.failed; })) {

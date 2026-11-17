@@ -34,6 +34,7 @@ html, body { margin: 0; font-family: "Inter", sans-serif; --stack: "Inter", sans
 .menu-toggle { display: none; }
 .nav a:hover { color: red; }
 .nav a:focus-visible { outline: 2px solid blue; }
+.peek { color: #abc; }
 .footer { background: #000; height: 100px; }
 .unused-thing { color: red; }
 .is-open .menu { display: block; }
@@ -53,7 +54,7 @@ const OTHER_ORIGIN_CSS = `.cross-origin-rule { color: red; }`;
 const PRINT_CSS = `.print-rule { display: none; }`;
 
 const cfg = (extra) => ({ ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'n0nce', key: 'front', label: 'Front page', storedBytes: 0, enabled: true, inlineAll: false, maxBytes: 150000, settingsUrl: '/wp-admin/options-general.php?page=beplus-performance-booster',
-  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', desktop: 'Desktop', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets',
+  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', tablet: 'Tablet', desktop: 'Desktop', large: 'Large screen', extraArea: 'Also cover the area just below', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets',
     nothing: 'Nothing could be analysed. The technical details below say why.',
     failNotLoaded: 'The page did not finish loading in the measuring frame within %d s', failSlow: 'The page started loading in the measuring frame but had not finished after %d s',
     failUnreadable: 'The measuring frame shows a page this tool cannot read', failNoHello: 'The page loaded in the measuring frame but the generator did not run there',
@@ -66,7 +67,7 @@ function body() {
   return `${adminBar}
 <header class="nav" style="height:60px"><a href="/" style="display:inline-block;padding:10px">Home</a><button class="menu-toggle">Menu</button><div class="desktop-bar">bar</div></header>
 <section class="hero"><h1 class="card"><span class="title">Hero title</span></h1><div class="grid"><i>1</i><i>2</i></div><p class="layered">layered</p><p class="inline-rule">inline</p><div class="hidden-menu"><span class="menu">x</span></div></section>
-<div style="height:2500px"></div><p class="layered-below">below</p><footer class="footer">footer</footer><p class="footer-below-widget">w</p>`;
+<div style="height:540px"></div><p class="peek">peek</p><div style="height:1960px"></div><p class="layered-below">below</p><footer class="footer">footer</footer><p class="footer-below-widget">w</p>`;
 }
 const INLINE_CSS = '.inline-rule{padding:4px;color:#333}.hidden-menu{display:none}.inline-below{margin:0}';
 const FIXTURES = (otherOrigin) => ({
@@ -155,7 +156,7 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(!(await panelText(pg)), 'no panel before the admin bar item is clicked');
   await click(pg); let t = await waitDone(pg);
   console.log('--- panel:', (t || '').replace(/\s+/g, ' ').slice(0, 400));
-  ok(t && t.includes('Mobile') && t.includes('Desktop') && t.includes('Save Critical CSS'), 'both screen sizes analysed, save offered');
+  ok(t && t.includes('Mobile') && t.includes('Tablet') && t.includes('Desktop') && t.includes('Large screen') && t.includes('Save Critical CSS'), 'all four screen sizes analysed, save offered');
   ok(t && /Critical CSS: [\d.]+ (KB|B)/.test(t) && t.includes('Saves for: Front page'), 'summary shows the size and the target page type');
   ok(t && t.includes('1 stylesheets skipped'), 'the cross-origin stylesheet is reported as skipped (' + (t.match(/(\d+) stylesheets skipped/g) || []).join(',') + ')');
   await clickBtn(pg, 'Save Critical CSS'); await pg.waitForTimeout(600);
@@ -216,6 +217,15 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(t && t.includes('Save Critical CSS'), 'works from a phone-sized window and can be repeated');
   await clickBtn(pg, 'Save Critical CSS'); await pg.waitForTimeout(500);
   ok(lastPost().css && lastPost().css.includes('@media (min-width: 768px)'), 'the result does not depend on the size of the administrator\'s own window');
+  await ctx.close();
+
+  // ---- the area just below the first screen: covered by default, left out when the checkbox is off ------------------------------
+  ({ pg, ctx } = await open('/page', { width: 1280, height: 800 }));
+  await click(pg); await waitDone(pg); await clickBtn(pg, 'Save Critical CSS'); await pg.waitForTimeout(500);
+  ok(lastPost().css.includes('.peek'), 'an element just below the first screen (about 1.5 screens down) is covered by default');
+  await pg.evaluate(() => { document.querySelector('#bepluspb-ccss-panel').shadowRoot.querySelector('input[data-role="extra-area"]').click(); });
+  await clickBtn(pg, 'Analyse again'); await waitDone(pg); await clickBtn(pg, 'Save Critical CSS'); await pg.waitForTimeout(500);
+  ok(!lastPost().css.includes('.peek') && lastPost().css.includes('.hero'), 'with the checkbox off only the first screen is covered');
   await ctx.close();
 
   // ---- a right-to-left site (Hebrew): the English panel text must not be scrambled by the page's direction ------------------------

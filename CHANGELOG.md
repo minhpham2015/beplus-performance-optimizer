@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Critical CSS Generator covers more screens.** It now analyses four sizes (phone 390x844, tablet 820x1180, desktop 1366x800, large 1920x1080) instead of two, and by default also covers the area just below the first screen (half a screen more, with a checkbox in the panel to turn it off). A visitor on a big monitor or a tablet, or one who scrolls a little, no longer meets elements whose CSS is still loading. The CSS grows slightly; the frames are measured one after the other.
 - **Critical CSS no longer depends on "Non-Render-Blocking CSS".** With "Use Critical CSS" on, a page whose type has a saved entry (or a Default entry) prints it and defers every stylesheet, the theme's included, whether or not Non-Render-Blocking is on. Pages without an entry follow the Non-Render-Blocking switch exactly as before (off = untouched; on = the theme's CSS stays blocking). When only Critical CSS is on, the head buffer is opened only on pages that have an entry. The "needs Non-Render-Blocking" warnings (settings card, generator panel) are gone.
 
 ### Fixed

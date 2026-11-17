@@ -5,7 +5,7 @@
  * Part of BEPLUSPB_Admin, split out of class-bepluspb-admin.php (see the other traits).
  *
  * The generator runs in the administrator's own browser (admin bar → "Generate Critical CSS"):
- * it works out which rules the first screen needs, on a phone-sized and a desktop-sized copy
+ * it works out which rules the first screen needs, on phone, tablet, desktop and large-screen sized copies
  * of the page, and offers to save the result for the current page type. The plugin never
  * fetches anything; the handlers store what the administrator sends after validating it
  * (BEPLUSPB_Critical_CSS::sanitize_css()).
@@ -137,9 +137,12 @@ trait BEPLUSPB_Admin_Ajax_Critical_Css {
 	private static function ccss_generator_strings() {
 		return array(
 			'title'              => __( 'Critical CSS Generator', 'beplus-performance-booster' ),
-			'working'            => __( 'Analysing the page on a phone-sized and a desktop-sized copy…', 'beplus-performance-booster' ),
+			'working'            => __( 'Analysing the page on phone, tablet, desktop and large-screen sized copies…', 'beplus-performance-booster' ),
 			'mobile'             => __( 'Mobile', 'beplus-performance-booster' ),
+			'tablet'             => __( 'Tablet', 'beplus-performance-booster' ),
 			'desktop'            => __( 'Desktop', 'beplus-performance-booster' ),
+			'large'              => __( 'Large screen', 'beplus-performance-booster' ),
+			'extraArea'          => __( 'Also cover the area just below the first screen (recommended; applies from the next analysis)', 'beplus-performance-booster' ),
 			'failed'             => __( 'Could not analyse this screen size.', 'beplus-performance-booster' ),
 			'nothing'            => __( 'Nothing could be analysed. The technical details below say why.', 'beplus-performance-booster' ),
 			/* translators: %d: seconds waited. */

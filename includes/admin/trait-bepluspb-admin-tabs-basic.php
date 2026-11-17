@@ -992,7 +992,7 @@ else :
 						</table>
 						<p class="description">
 							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>
-							<?php esc_html_e( 'open a page of that type on your site while logged in as an administrator and choose Beplus Performance Booster → "Generate Critical CSS (this page type)" in the admin bar. The page is analysed on a phone-sized and a desktop-sized copy and the result is saved for the page type (front page, posts, pages, archives…).', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'open a page of that type on your site while logged in as an administrator and choose Beplus Performance Booster → "Generate Critical CSS (this page type)" in the admin bar. The page is analysed on a phone, tablet, desktop and large-screen sized copies and the result is saved for the page type (front page, posts, pages, archives…).', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
