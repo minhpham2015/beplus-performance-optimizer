@@ -53,7 +53,14 @@ const OTHER_ORIGIN_CSS = `.cross-origin-rule { color: red; }`;
 const PRINT_CSS = `.print-rule { display: none; }`;
 
 const cfg = (extra) => ({ ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'n0nce', key: 'front', label: 'Front page', storedBytes: 0, enabled: true, nonBlocking: true, inlineAll: false, maxBytes: 150000, settingsUrl: '/wp-admin/options-general.php?page=beplus-performance-booster',
-  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', desktop: 'Desktop', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', needDefer: 'only used together with Non-Render-Blocking', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets' }, ...extra });
+  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', desktop: 'Desktop', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', needDefer: 'only used together with Non-Render-Blocking', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets',
+    nothing: 'Nothing could be analysed. The technical details below say why.',
+    failNotLoaded: 'The page did not finish loading in the measuring frame within %d s', failSlow: 'The page started loading in the measuring frame but had not finished after %d s',
+    failUnreadable: 'The measuring frame shows a page this tool cannot read', failNoHello: 'The page loaded in the measuring frame but the generator did not run there',
+    failError: 'The analysis failed inside the page:', failAnalysisSlow: 'The page loaded but the analysis did not finish within %d s',
+    details: 'Technical details (copy them if you ask for help)', copy: 'Copy', copied: 'Copied',
+    diagFramingRefused: 'Your site tells browsers not to show its pages in a frame', diagRedirect: 'Opening this page address answers with a redirect',
+    here: 'Analyse this window only (no frames)', hereDone: 'Analysed this window only (%s size).' }, ...extra });
 const adminBar = '<div id="wpadminbar" style="position:fixed;top:0;left:0;right:0;height:32px;z-index:99999;background:#222"><ul><li id="wp-admin-bar-bepluspb-ccss"><a href="#bepluspb-ccss" style="color:#fff">Generate</a></li></ul></div>';
 function body() {
   return `${adminBar}
@@ -70,6 +77,20 @@ const FIXTURES = (otherOrigin) => ({
   '/disabled': null,
 });
 
+// Pages that fail in one specific way when they are loaded inside the measuring frame (timing shortened for the test).
+const VARIANTS = {
+  '/xfo':    { headers: { 'X-Frame-Options': 'DENY' } },
+  '/redir':  { redirectFrames: true },
+  '/stall':  { stallFrames: true },
+  '/slow':   { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){document.addEventListener('DOMContentLoaded',function(){var i=new Image();i.src='/hang.png?'+Date.now();document.body.appendChild(i);});}" },
+  '/err':    { headScript: "if(window.name.indexOf('bepluspb-ccss-probe:')===0){Object.defineProperty(document,'styleSheets',{get:function(){throw new Error('boom from the page');}});}" },
+  '/noname': { headScript: "window.name='';" },
+};
+function variantHtml(base, v) {
+  let h = base.replace('"maxBytes":150000', '"maxBytes":150000,"timing":{"hello":2500,"result":4000}');
+  if (v.headScript) h = h.replace('<title>t</title>', '<title>t</title><script>' + v.headScript + '</script>');
+  return h;
+}
 const posts = [];
 function makeServer(label) {
   return http.createServer((req, res) => {
@@ -81,6 +102,13 @@ function makeServer(label) {
     if (u === '/css/adminbar.css') return send('text/css', '#wpadminbar{background:#23282d}.admin-bar-only-rule{color:red}');
     if (u === '/css/other.css') return send('text/css', OTHER_ORIGIN_CSS);
     if (u === '/wp-admin/admin-ajax.php' && req.method === 'POST') { let b = ''; req.on('data', d => b += d); req.on('end', () => { posts.push(b); send('application/json', JSON.stringify({ success: true, data: { message: 'Critical CSS saved.' } })); }); return; }
+    if (u === '/hang.png') return; // never answered: keeps the page's load event pending
+    if (VARIANTS[u]) {
+      const v = VARIANTS[u]; const frame = req.headers['sec-fetch-dest'] === 'iframe';
+      if (frame && v.stallFrames) return; // the frame request hangs for ever
+      if (frame && v.redirectFrames) { res.writeHead(302, { Location: server.otherOrigin + '/landing' }); return res.end(); }
+      return send('text/html', variantHtml(server.fixtures['/page'], v), v.headers || {});
+    }
     if (u === '/page') return send('text/html', server.fixtures['/page']);
     if (u === '/disabled') return send('text/html', server.fixtures['/page'].replace('"enabled":true', '"enabled":false').replace('"nonBlocking":true', '"nonBlocking":false').replace('"inlineAll":false', '"inlineAll":true').replace('"storedBytes":0', '"storedBytes":1234'));
     if (u === '/only-critical') { const css = server.criticalCss || ''; return send('text/html', `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body class="admin-bar logged-in">${body().replace(/<div id="wpadminbar"[\s\S]*?<\/div>/, '')}</body></html>`); }
@@ -92,16 +120,17 @@ let server;
 
 let failures = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) failures++; };
 async function panelText(pg) { return pg.evaluate(() => { const h = document.querySelector('#bepluspb-ccss-panel'); const c = h && h.shadowRoot && h.shadowRoot.querySelector('.card'); return c ? c.textContent : null; }); }
-async function waitDone(pg, ms = 40000) { const t0 = Date.now(); for (;;) { const t = await panelText(pg); if (t && !t.includes('Analysing') && (t.includes('Save Critical CSS') || t.includes('Could not analyse'))) return t; if (Date.now() - t0 > ms) return t; await pg.waitForTimeout(250); } }
+async function waitDone(pg, ms = 40000) { const t0 = Date.now(); for (;;) { const t = await panelText(pg); if (t && !t.includes('Analysing') && (t.includes('Save Critical CSS') || t.includes('Nothing could be analysed'))) return t; if (Date.now() - t0 > ms) return t; await pg.waitForTimeout(250); } }
 const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n => { const m = b.match(new RegExp('name="' + n + '"\\r\\n\\r\\n([\\s\\S]*?)\\r\\n--')); return m ? m[1] : null; }; return { key: f('key'), css: f('css'), source: f('source'), nonce: f('nonce'), action: f('action') }; };
 
 (async () => {
   server = makeServer();
-  const other = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/css' }); res.end(OTHER_ORIGIN_CSS); }); // no CORS headers on purpose
+  const other = http.createServer((req, res) => { if (req.url.startsWith('/css/')) { res.writeHead(200, { 'content-type': 'text/css' }); return res.end(OTHER_ORIGIN_CSS); } res.writeHead(200, { 'content-type': 'text/html' }); res.end('<!doctype html><title>landing</title>another origin'); }); // no CORS headers on purpose
   await new Promise(r => other.listen(0, '127.0.0.1', r));
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const otherOrigin = 'http://localhost:' + other.address().port; // another origin: "localhost" vs "127.0.0.1"
   server.fixtures = FIXTURES(otherOrigin);
+  server.otherOrigin = otherOrigin;
   const base = 'http://127.0.0.1:' + server.address().port;
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   async function open(p, viewport) {
@@ -182,7 +211,49 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   ok(lastPost().css && lastPost().css.includes('@media (min-width: 768px)'), 'the result does not depend on the size of the administrator\'s own window');
   await ctx.close();
 
-  await browser.close(); server.close(); other.close();
+  // ---- failures say WHY (each page below fails in exactly one way; the limits are shortened by cfg.timing) -----------------------
+  const detailsOf = pg => pg.evaluate(() => { const h = document.querySelector('#bepluspb-ccss-panel'); const a = h && h.shadowRoot && h.shadowRoot.querySelector('textarea[data-role="details"]'); return a ? a.value : null; });
+  async function failing(path) {
+    const o = await open(path, { width: 1280, height: 800 });
+    await click(o.pg); const text = await waitDone(o.pg, 60000);
+    await o.pg.waitForTimeout(1500); // the extra check of the page address finishes after the panel first shows
+    return { ...o, text, details: await detailsOf(o.pg) };
+  }
+  let f = await failing('/xfo');
+  ok(f.text && f.text.includes('Nothing could be analysed'), 'framing refused: nothing analysed, and the panel says so');
+  ok(f.details && /X-Frame-Options: DENY/.test(f.details), 'framing refused: the technical details show the X-Frame-Options: DENY header');
+  ok(f.text.includes('tells browsers not to show its pages in a frame'), 'framing refused: the panel names the cause');
+  ok(/mobile: FAILED/.test(f.details) && /desktop: FAILED/.test(f.details) && /browser: /.test(f.details), 'the details cover both screen sizes and the browser');
+  // fallback without frames
+  await clickBtn(f.pg, 'Analyse this window only (no frames)'); t = await panelText(f.pg);
+  ok(t && t.includes('Analysed this window only (Desktop size).') && t.includes('Save Critical CSS'), 'window-only analysis works where frames cannot, and says which size it covered');
+  await clickBtn(f.pg, 'Save Critical CSS'); await f.pg.waitForTimeout(500);
+  ok(lastPost().css && lastPost().css.includes('height: 500px') && lastPost().css.includes('@media (min-width: 768px)') && !lastPost().css.includes('admin-bar'), 'the window-only result is a real critical CSS (desktop rules, no admin bar) and can be saved');
+  await f.ctx.close();
+
+  f = await failing('/redir');
+  ok(f.text.includes('cannot read') && /frame readable: NO/.test(f.details), 'redirect to another domain: the frame is reported as unreadable (another origin)');
+  ok(/GET of this page: HTTP 200/.test(f.details), 'redirect only for frames: the extra check shows a normal request is answered normally');
+  await f.ctx.close();
+
+  f = await failing('/stall');
+  ok(f.text.includes('did not finish loading') && /frame load event: never/.test(f.details) && /script in the frame reported in: never/.test(f.details), 'a frame that never loads: "did not finish loading", load event and script both "never"');
+  await f.ctx.close();
+
+  f = await failing('/slow');
+  ok(f.text.includes('had not finished after') && !/script in the frame reported in: never/.test(f.details) && /page finished loading \(said by the script\): no/.test(f.details), 'a page that never finishes loading: the script did report in, but "had not finished after N s"');
+  await f.ctx.close();
+
+  f = await failing('/err');
+  ok(f.text.includes('The analysis failed inside the page: boom from the page') && /error: boom from the page/.test(f.details), 'an exception inside the page is shown with its message, NOT as a timeout');
+  ok(!f.text.includes('did not answer in time'), 'and no longer described as "did not answer in time"');
+  await f.ctx.close();
+
+  f = await failing('/noname');
+  ok(f.text.includes('the generator did not run there') && /frame readable: yes/.test(f.details), 'window.name reset by the page: loaded and readable, but the generator did not run');
+  await f.ctx.close();
+
+  await browser.close(); if (server.closeAllConnections) server.closeAllConnections(); server.close(); other.close();
   console.log(failures ? failures + ' FAILURE(S)' : 'ALL OK');
   process.exit(failures ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

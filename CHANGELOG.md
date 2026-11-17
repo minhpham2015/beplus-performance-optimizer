@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Critical CSS Generator: a failure now says why.** Every failure (a timeout, a page that threw, a frame that could not be read) used to show the same "did not answer in time". The measuring frame now reports in stages (script started, page loaded, analysis done or failed) and the panel names the cause: the page never finished loading (slow server/connection; with the browser's DevTools network throttling on, turn it off), the frame holds a page it cannot read (redirect to another origin, or `X-Frame-Options` / CSP `frame-ancestors` refusing frames), the page loaded but the generator did not run (blocked/delayed script, `window.name` reset), or the analysis threw inside the page (its message is shown). After a failure ONE extra GET of the same page address (same site and cookies, headers only, body dropped) reports a redirect or the frame-blocking headers, and a "Technical details" box (stage timings, readable/unreadable frame, browser, network type, that GET) can be copied and sent for support.
+- **Critical CSS Generator on slow connections.** The two measuring frames are now loaded one after the other (this window plus two frames loading together made each three times slower), and the waiting limits grow with the page's own load time (3x, at least 20 s to start and 60 s for the analysis, up to 3 minutes) instead of a fixed 25 s.
+- **New fallback: "Analyse this window only (no frames)"** for sites where frames cannot work: it analyses the window as it is (its width decides mobile or desktop); press it again at the other width (resize, or the browser's device mode) and the results are merged.
+- Google Fonts settings: the note shown when Self-host is not selected is no longer red (it is information, not an error), and the font-display choices have short labels with the explanation underneath (the long labels were cut off).
+
 ## [1.3.0] - 2026-11-17
 
 ### Added

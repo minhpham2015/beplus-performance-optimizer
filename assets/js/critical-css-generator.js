@@ -15,7 +15,9 @@
  * logged-in users are left out: visitors never see them.
  *
  * Nothing is sent anywhere except the admin-ajax.php of this site, and only after the
- * administrator presses "Save". Page data is only ever written with textContent.
+ * administrator presses "Save". When an analysis FAILS, one extra GET of this very page address
+ * (same site, same cookies, headers only) is made to tell why (redirect, frame-blocking headers).
+ * Page data is only ever written with textContent.
  */
 (function () {
 	'use strict';
@@ -26,10 +28,31 @@
 	var PROBE_PREFIX = 'bepluspb-ccss-probe:';
 	var VIEWPORTS = { mobile: { w: 390, h: 844 }, desktop: { w: 1366, h: 800 } };
 	var SETTLE_MS = 1500;
-	var TIMEOUT_MS = 25000;
+	var HELLO_MS = 20000;  // the script in the measuring frame must report in within this
+	var RESULT_MS = 60000; // then the analysis must arrive within this
 	var BIG_BYTES = 60000;
 
 	function t(key) { return (cfg.i18n && cfg.i18n[key]) || key; }
+
+	/** A waiting limit in ms; `cfg.timing` can only tighten/loosen it within sane bounds (used by the tests). */
+	function limit(key, fallback) {
+		var v = cfg.timing && cfg.timing[key];
+		return typeof v === 'number' && v >= 500 && v <= 180000 ? v : fallback;
+	}
+
+	/** How long this very page took to load: a slow connection or server makes the measuring frames slow too. */
+	function ownLoadMs() {
+		try {
+			var nav = performance.getEntriesByType('navigation')[0];
+			if (nav && nav.loadEventEnd > 0) { return nav.loadEventEnd; }
+		} catch (e) { /* no navigation timing */ }
+		return 0;
+	}
+
+	/** A default waiting limit stretched to three times the page's own load time (never above 3 minutes). */
+	function adaptive(base) { return Math.min(180000, Math.max(base, ownLoadMs() * 3 + 10000)); }
+
+	function deviceOfWidth(width) { return width >= 768 ? 'desktop' : 'mobile'; }
 
 	// ---------------------------------------------------------------------------------
 	// Analysis (runs inside each measuring frame)
@@ -242,24 +265,60 @@
 
 	if (window.name && window.name.indexOf(PROBE_PREFIX) === 0) {
 		var token = window.name.slice(PROBE_PREFIX.length);
+		/** Tell the parent how far we got: hello (script started), loaded, then result or error. */
+		var send = function (stage, payload) {
+			try {
+				window.parent.postMessage({ bepluspbCcss: token, stage: stage, payload: payload || null }, window.location.origin);
+				return true;
+			} catch (e) { return false; }
+		};
+		send('hello', { readyState: document.readyState });
 		whenLoaded(function () {
+			send('loaded', null);
 			window.setTimeout(function () {
 				var result;
-				try { result = analyse(); } catch (e) { result = { failed: true, message: String(e && e.message || e) }; }
-				try { window.parent.postMessage({ bepluspbCcss: token, result: result }, window.location.origin); } catch (e2) { /* parent gone */ }
+				try { result = analyse(); } catch (e) {
+					send('error', { message: String(e && e.message || e), stack: String(e && e.stack || '').slice(0, 600) });
+					return;
+				}
+				if (!send('result', result)) { send('error', { message: 'the result could not be sent to the page that asked for it' }); }
 			}, SETTLE_MS);
 		});
 		return;
 	}
 
-	/** Load this page in an off-screen same-origin frame of the given size and collect its analysis. */
+	/**
+	 * Load this page in an off-screen same-origin frame of the given size and collect its analysis.
+	 *
+	 * The result is either the analysis or { failed: true, kind, info, waited } where kind says WHY:
+	 *  not-loaded    the frame never finished loading (hung server/connection)
+	 *  unreadable    the frame holds a page we cannot read (redirected to another origin, or framing refused)
+	 *  no-hello      the page loaded but our script never reported (blocked, delayed, window.name reset)
+	 *  slow          our script started but the page had not finished loading in time
+	 *  analysis-slow the page loaded but the analysis did not arrive in time
+	 *  error         the analysis threw inside the page (message, stack)
+	 */
 	function analyseInFrame(device, callback) {
 		var size = VIEWPORTS[device];
 		var frameToken = String(Date.now()) + Math.random().toString(36).slice(2);
 		var frame = document.createElement('iframe');
+		var started = Date.now();
 		var finished = false;
-		var timer;
+		var timer = null;
+		var info = { helloAt: null, helloState: '', loadedAt: null, frameLoadAt: null, readable: null, frameHref: '', readyState: '' };
 
+		function since() { return Date.now() - started; }
+
+		/** What the parent can see of the frame: its address and state, or that it cannot read it at all. */
+		function inspect() {
+			try {
+				info.frameHref = frame.contentWindow.location.href;
+				info.readyState = frame.contentDocument ? frame.contentDocument.readyState : '';
+				info.readable = true;
+			} catch (e) {
+				info.readable = false;
+			}
+		}
 		function finish(result) {
 			if (finished) { return; }
 			finished = true;
@@ -268,14 +327,40 @@
 			if (frame.parentNode) { frame.parentNode.removeChild(frame); }
 			callback(result);
 		}
+		function fail(kind, extra) {
+			if (finished) { return; }
+			inspect();
+			var result = { failed: true, kind: kind, info: info, waited: since() };
+			Object.keys(extra || {}).forEach(function (k) { result[k] = extra[k]; });
+			finish(result);
+		}
 		function onMessage(event) {
 			var data = event.data;
 			if (event.origin !== window.location.origin || event.source !== frame.contentWindow ||
-				!data || data.bepluspbCcss !== frameToken || !data.result) { return; }
-			finish(data.result);
+				!data || data.bepluspbCcss !== frameToken) { return; }
+			var payload = data.payload || {};
+			if (data.stage === 'hello') {
+				info.helloAt = since();
+				info.helloState = payload.readyState || '';
+				window.clearTimeout(timer);
+				timer = window.setTimeout(function () { fail(info.loadedAt === null ? 'slow' : 'analysis-slow'); }, limit('result', adaptive(RESULT_MS)));
+			} else if (data.stage === 'loaded') {
+				info.loadedAt = since();
+			} else if (data.stage === 'error') {
+				fail('error', { message: String(payload.message || ''), stack: String(payload.stack || '') });
+			} else if (data.stage === 'result' && data.payload) {
+				finish(data.payload);
+			}
 		}
 		window.addEventListener('message', onMessage);
-		timer = window.setTimeout(function () { finish({ failed: true }); }, TIMEOUT_MS);
+		frame.addEventListener('load', function () {
+			if (info.frameLoadAt === null) { info.frameLoadAt = since(); }
+			inspect();
+		});
+		timer = window.setTimeout(function () {
+			inspect();
+			fail(info.frameLoadAt === null ? 'not-loaded' : (info.readable === false ? 'unreadable' : 'no-hello'));
+		}, limit('hello', adaptive(HELLO_MS)));
 
 		frame.name = PROBE_PREFIX + frameToken;
 		frame.setAttribute('aria-hidden', 'true');
@@ -284,6 +369,38 @@
 		frame.style.cssText = 'position:fixed;top:0;left:-10000px;border:0;pointer-events:none;width:' + size.w + 'px;height:' + size.h + 'px;';
 		frame.src = window.location.href.split('#')[0];
 		document.body.appendChild(frame);
+	}
+
+	/**
+	 * After a failure: ONE GET of this very page address (same site, same cookies, headers only; the body is
+	 * never read) to see what a request for it gets back. Explains a redirect or a frame-blocking header.
+	 */
+	function diagnose(callback) {
+		var lines = [];
+		var conclusion = '';
+		var t0 = Date.now();
+		var controller = typeof AbortController === 'function' ? new AbortController() : null;
+		var guard = window.setTimeout(function () { if (controller) { controller.abort(); } }, 15000);
+		fetch(window.location.href.split('#')[0], { credentials: 'same-origin', cache: 'no-store', redirect: 'manual', signal: controller ? controller.signal : undefined })
+			.then(function (response) {
+				var ms = Date.now() - t0;
+				if (response.type === 'opaqueredirect') {
+					lines.push('GET of this page: it answers with a REDIRECT (' + ms + ' ms)');
+					conclusion = 'redirect';
+				} else {
+					var xfo = response.headers.get('x-frame-options');
+					var csp = response.headers.get('content-security-policy') || '';
+					var ancestors = csp.split(';').map(function (d) { return d.trim(); }).filter(function (d) { return /^frame-ancestors\b/i.test(d); })[0] || '';
+					lines.push('GET of this page: HTTP ' + response.status + ' in ' + ms + ' ms');
+					lines.push('X-Frame-Options: ' + (xfo || '(none)'));
+					lines.push('CSP frame-ancestors: ' + (ancestors || '(none)'));
+					lines.push('server: ' + (response.headers.get('server') || '(not shown)'));
+					if ((xfo && /^\s*deny\s*$/i.test(xfo)) || (ancestors && !/'self'|\*/.test(ancestors))) { conclusion = 'framing-refused'; }
+				}
+				if (controller) { controller.abort(); } // headers are enough: do not download the page again
+			})
+			.catch(function (e) { if (!lines.length) { lines.push('GET of this page failed: ' + (e && e.message ? e.message : e)); } })
+			.then(function () { window.clearTimeout(guard); callback({ lines: lines, conclusion: conclusion }); });
 	}
 
 	// ---------------------------------------------------------------------------------
@@ -372,12 +489,68 @@
 
 	function kb(bytes) { return bytes >= 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' B'; }
 
+	/** The reason an analysis failed, in words (the exact numbers are in the technical details). */
+	function failureText(r) {
+		var keys = { 'not-loaded': 'failNotLoaded', 'slow': 'failSlow', 'unreadable': 'failUnreadable', 'no-hello': 'failNoHello', 'error': 'failError', 'analysis-slow': 'failAnalysisSlow' };
+		var key = r && keys[r.kind];
+		if (!key) { return t('failed'); }
+		var text = t(key).replace('%d', String(Math.round((r.waited || 0) / 1000)));
+		return r.kind === 'error' && r.message ? text + ' ' + r.message : text;
+	}
+
+	/** Everything known about a failure, as plain text the administrator can copy and send. */
+	function detailsText() {
+		var lines = ['Beplus Performance Booster - Critical CSS Generator diagnostics', 'page: ' + window.location.href.split('#')[0], 'time: ' + new Date().toISOString(), 'browser: ' + navigator.userAgent];
+		var c = navigator.connection;
+		if (c) { lines.push('network (as the browser sees it): ' + (c.effectiveType || '?') + ', downlink ' + c.downlink + ' Mbit/s, rtt ' + c.rtt + ' ms' + (c.saveData ? ', data saver on' : '')); }
+		['mobile', 'desktop'].forEach(function (d) {
+			var r = state.results[d];
+			if (r && r.items) {
+				lines.push('', d + ': ok, ' + r.rules + ' rules, ' + r.bytes + ' bytes, ' + r.skippedSheets + ' unreadable stylesheets, ' + r.elements + ' first-screen elements');
+			} else if (!r || r.failed) {
+				var i = (r && r.info) || {};
+				lines.push('', d + ': FAILED (' + ((r && r.kind) || 'unknown') + ') after ' + ((r && r.waited) || 0) + ' ms');
+				lines.push('  script in the frame reported in: ' + (i.helloAt === null || i.helloAt === undefined ? 'never' : i.helloAt + ' ms (readyState ' + i.helloState + ')'));
+				lines.push('  frame load event: ' + (i.frameLoadAt === null || i.frameLoadAt === undefined ? 'never' : i.frameLoadAt + ' ms'));
+				lines.push('  page finished loading (said by the script): ' + (i.loadedAt === null || i.loadedAt === undefined ? 'no' : i.loadedAt + ' ms'));
+				lines.push('  frame readable: ' + (i.readable === null || i.readable === undefined ? 'unknown' : (i.readable ? 'yes, ' + i.frameHref + ' (readyState ' + i.readyState + ')' : 'NO (another origin, or blocked)')));
+				if (r && r.message) { lines.push('  error: ' + r.message); }
+				if (r && r.stack) { lines.push('  stack: ' + r.stack.split('\n').slice(0, 3).join(' | ')); }
+			}
+		});
+		lines.push('', 'check of this page address:');
+		if (state.diag) { state.diag.lines.forEach(function (l) { lines.push('  ' + l); }); } else { lines.push('  (running...)'); }
+		return lines.join('\n');
+	}
+
+	/** Conclusion + copyable details, shown whenever something failed. */
+	function diagnosticsBox() {
+		var failed = [state.results.mobile, state.results.desktop].some(function (r) { return !r || r.failed; });
+		if (!failed) { return null; }
+		var box = el('section', null, []);
+		var conclusion = state.diag && state.diag.conclusion;
+		if (conclusion === 'framing-refused') { box.appendChild(el('p', { class: 'err', text: t('diagFramingRefused') })); }
+		if (conclusion === 'redirect') { box.appendChild(el('p', { class: 'warn', text: t('diagRedirect') })); }
+		box.appendChild(el('h3', { text: t('details') }));
+		var area = el('textarea', { readonly: 'readonly', 'data-role': 'details', 'aria-label': t('details') });
+		area.value = detailsText();
+		var copy = el('button', { type: 'button', class: 'secondary', text: t('copy') });
+		copy.addEventListener('click', function () {
+			area.select();
+			var done = function () { copy.textContent = t('copied'); };
+			if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(area.value).then(done, function () { try { document.execCommand('copy'); done(); } catch (e) { /* the text is selected: Ctrl+C */ } }); } else { try { document.execCommand('copy'); done(); } catch (e2) { /* the text is selected: Ctrl+C */ } }
+		});
+		box.appendChild(area);
+		box.appendChild(el('div', { class: 'row' }, [copy]));
+		return box;
+	}
+
 	function deviceSection(device, r) {
 		var children = [el('h3', { text: t(device) })];
 		if (r === 'pending') {
 			children.push(el('p', { class: 'note', text: t('working') }));
 		} else if (!r || r.failed) {
-			children.push(el('p', { class: 'warn', text: t('failed') }));
+			children.push(el('p', { class: 'warn', text: failureText(r) }));
 		} else {
 			children.push(el('p', { class: 'note', text: r.rules + ' ' + t('rules') + ' · ' + kb(r.bytes) }));
 			if (r.skippedSheets) { children.push(el('p', { class: 'warn', text: r.skippedSheets + ' ' + t('skipped') })); }
@@ -409,11 +582,14 @@
 		var box = el('div', null, []);
 
 		if (!usableResults.length) {
-			box.appendChild(el('p', { class: 'err', text: t('failed') }));
+			box.appendChild(el('p', { class: 'err', text: t('nothing') }));
+			var why = diagnosticsBox();
+			if (why) { box.appendChild(why); }
 			box.appendChild(actionsRow(false));
 			return box;
 		}
 
+		if (state.note) { box.appendChild(el('p', { class: 'ok', text: state.note })); }
 		box.appendChild(el('section', null, [
 			el('h3', { text: t('total') + ': ' + kb(bytes) }),
 			el('p', { class: 'note', text: t('target') + ': ' + cfg.label + (cfg.storedBytes ? ' — ' + t('stored') : '') })
@@ -439,6 +615,8 @@
 		box.appendChild(el('div', { class: 'row' }, [saveBtn, toggle]));
 		box.appendChild(status);
 		box.appendChild(preview);
+		var partial = diagnosticsBox();
+		if (partial) { box.appendChild(partial); }
 		box.appendChild(actionsRow(true));
 		return box;
 	}
@@ -446,8 +624,10 @@
 	function actionsRow() {
 		var again = el('button', { type: 'button', class: 'secondary', text: t('again') });
 		again.addEventListener('click', start);
+		var here = el('button', { type: 'button', class: 'secondary', text: t('here') });
+		here.addEventListener('click', analyseHere);
 		var settings = el('a', { class: 'btn secondary', href: cfg.settingsUrl, target: '_blank', rel: 'noopener', text: t('settings') });
-		return el('div', { class: 'row' }, [again, settings]);
+		return el('div', { class: 'row' }, [again, here, settings]);
 	}
 
 	function save(css, status, button) {
@@ -484,17 +664,43 @@
 	// ---------------------------------------------------------------------------------
 
 	function start() {
-		state = { results: { mobile: 'pending', desktop: 'pending' }, css: '' };
+		state = { results: { mobile: 'pending', desktop: 'pending' }, css: '', diag: null, note: '' };
 		render();
-		['mobile', 'desktop'].forEach(function (device) {
-			analyseInFrame(device, function (result) {
-				state.results[device] = result;
-				if (state.results.mobile !== 'pending' && state.results.desktop !== 'pending') {
-					state.css = mergeToCss([state.results.mobile, state.results.desktop]);
-				}
+		// One frame at a time: on a slow connection three copies of the page loading together (this window and
+		// two frames) each take three times as long.
+		var order = ['mobile', 'desktop'];
+		(function next(i) {
+			if (i >= order.length) { complete(); return; }
+			analyseInFrame(order[i], function (result) {
+				state.results[order[i]] = result;
 				render();
+				next(i + 1);
 			});
-		});
+		})(0);
+	}
+
+	/**
+	 * Fallback without frames: analyse THIS window (its width decides mobile or desktop). Pressing it again at the
+	 * other width (resize the window, or DevTools device mode) adds the other size; the results are merged.
+	 */
+	function analyseHere() {
+		var device = deviceOfWidth(window.innerWidth);
+		var result;
+		try { result = analyse(); } catch (e) { result = { failed: true, kind: 'error', message: String(e && e.message || e), waited: 0, info: {} }; }
+		state.results[device] = result;
+		state.css = mergeToCss([state.results.mobile, state.results.desktop]);
+		state.note = result.failed ? '' : t('hereDone').replace('%s', t(device));
+		render();
+	}
+
+	/** Both screen sizes are done: merge what worked and, if anything failed, find out why. */
+	function complete() {
+		var results = [state.results.mobile, state.results.desktop];
+		state.css = mergeToCss(results);
+		render();
+		if (results.some(function (r) { return !r || r.failed; })) {
+			diagnose(function (diag) { state.diag = diag; render(); });
+		}
 	}
 
 	function bind() {
