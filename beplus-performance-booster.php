@@ -120,6 +120,10 @@ function bepluspb_default_options() {
 		// --- Priority Images (LCP) ---
 		'priority_images'                    => '',  // "image URL | home, all or /path/ | mobile, desktop or all", one per line (max 4).
 
+		// --- Google Fonts ---
+		'google_fonts_mode'                  => 'off',   // 'off' | 'optimize' (font-display + preconnect on Google Fonts URLs already in the page).
+		'google_fonts_display'               => 'swap',  // 'swap' | 'fallback' | 'optional'.
+
 		// --- Font Preload ---
 		'font_preload'                       => '',  // Font URLs to preload (newline-separated).
 
@@ -243,6 +247,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
@@ -384,6 +389,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
 	BEPLUSPB_Priority_Images::init( $opts );
+	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
 }

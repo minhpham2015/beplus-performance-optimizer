@@ -312,6 +312,9 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( $input['remove_js_handles'] )
 			: '';
 
+		$sanitized['google_fonts_mode']    = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_mode'] ?? '', array( 'off', 'optimize' ), 'off' );
+		$sanitized['google_fonts_display'] = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_display'] ?? '', BEPLUSPB_Google_Fonts::DISPLAY_VALUES, 'swap' );
+
 		// Priority Images: keep only valid lines and say which ones were dropped.
 		$priority_raw                = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
 		$priority_parsed             = BEPLUSPB_Priority_Images::parse( $priority_raw );

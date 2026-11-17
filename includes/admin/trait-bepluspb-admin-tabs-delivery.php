@@ -52,6 +52,47 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 
 			</div>
 		</div>
+
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Google Fonts', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Show text immediately with a fallback font instead of keeping it invisible until a Google Font arrives, and open the connection to Google early. Helps First Contentful Paint and Largest Contentful Paint when the LCP element is text.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_google_fonts_mode"><?php esc_html_e( 'Optimize Google Fonts', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_google_fonts_mode" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[google_fonts_mode]">
+							<option value="off" <?php selected( $opts['google_fonts_mode'], 'off' ); ?>><?php esc_html_e( 'Off', 'beplus-performance-booster' ); ?></option>
+							<option value="optimize" <?php selected( $opts['google_fonts_mode'], 'optimize' ); ?>><?php esc_html_e( 'Optimize (font-display + preconnect)', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Adds font-display to Google Fonts links and @import rules found in the page head that do not set one, and adds preconnect hints for fonts.googleapis.com and fonts.gstatic.com. Nothing is downloaded or stored by the plugin. A font-display the site already sets is kept, and icon fonts (Material Icons/Symbols, Font Awesome) are skipped because a swap would flash their icon names as text.', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<?php esc_html_e( 'Not covered: fonts loaded by JavaScript (WebFont Loader), added after the head (footer), or by a page builder that already has its own font-display setting (e.g. Elementor).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_google_fonts_display"><?php esc_html_e( 'font-display value', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_google_fonts_display" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[google_fonts_display]">
+							<option value="swap" <?php selected( $opts['google_fonts_display'], 'swap' ); ?>><?php esc_html_e( 'swap (recommended): fallback font first, swapped when the font arrives', 'beplus-performance-booster' ); ?></option>
+							<option value="fallback" <?php selected( $opts['google_fonts_display'], 'fallback' ); ?>><?php esc_html_e( 'fallback: short invisible period, swap only if the font arrives quickly', 'beplus-performance-booster' ); ?></option>
+							<option value="optional" <?php selected( $opts['google_fonts_display'], 'optional' ); ?>><?php esc_html_e( 'optional: use the font only if it is already available (least layout shift)', 'beplus-performance-booster' ); ?></option>
+						</select>
+					</div>
+				</div>
+
+			</div>
+		</div>
 		<?php
 	}
 
