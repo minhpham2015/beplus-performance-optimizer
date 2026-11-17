@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -563,6 +563,9 @@ The optional Page Cache Preload only requests your own site's pages.
 
 == Changelog ==
 
+= 1.3.2 =
+* Fix: the Critical CSS Generator no longer saves the admin toolbar's page offset (an empty 32px band above the page for visitors). If you generated Critical CSS with 1.3.0 or 1.3.1, generate it again and save.
+
 = 1.3.1 =
 * Change: Critical CSS now works on its own. A page with saved Critical CSS prints it and loads every stylesheet after the first paint whether or not "Non-Render-Blocking CSS" is on; pages without an entry behave as before.
 * New: the Critical CSS Generator analyses four screen sizes (phone, tablet, desktop, large screen) and, by default, also the area just below the first screen, so big monitors, tablets and a small scroll no longer show unstyled elements. After updating, generate your Critical CSS again.
@@ -785,6 +788,9 @@ The optional Page Cache Preload only requests your own site's pages.
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.3.2 =
+Fixes an empty band above the page caused by Critical CSS generated while logged in. If you use Critical CSS, generate it again and save after updating.
 
 = 1.3.1 =
 Critical CSS no longer needs Non-Render-Blocking CSS, and its generator covers more screen sizes. If you use Critical CSS, generate it again after updating.

@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-17
+
 ### Fixed
 - **Critical CSS Generator saved the toolbar's page offset.** WordPress prints `html { margin-top: 32px !important }` (46px on small screens) in an inline `<style id="admin-bar-inline-css">` (older versions: a `<style>` without an id); only the `admin-bar-css` file was skipped, so the rule landed in the saved CSS and visitors saw a 32px empty band above the page. Every stylesheet of the toolbar (file and inline, `dashicons`) is now skipped, a `html`/`* html` `margin-top` of 32/46px `!important` is dropped whichever stylesheet holds it, and `.wp-toolbar` selectors are excluded. Entries saved with an earlier version must be generated again.
 
