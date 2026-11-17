@@ -133,8 +133,10 @@ checking whether it would break the SVN slug binding).
   through nonce → capability checked AJAX; they never run for visitors.
 - `includes/class-bepluspb-google-fonts.php` — head buffer (priority 0 … 10000) that adds `font-display` +
   preconnect to Google Fonts URLs, and in "selfhost" mode swaps downloaded stylesheets for local copies.
-- `includes/class-bepluspb-google-fonts-local.php` — **the only code that makes outbound requests** (see Hard
-  Rule #9). Everything it stores or links comes from a strict parse of Google's stylesheet.
+- `includes/class-bepluspb-google-fonts-local.php` — **the only code that downloads content from a third-party
+  server for the site to store and serve** (see Hard Rule #9; the other outbound code is the admin-triggered
+  Cloudflare API client and the page-cache preload, which only requests the site's own pages). Everything it
+  stores or links comes from a strict parse of Google's stylesheet.
 - `includes/class-bepluspb-cleanup.php` — despite the name, this only
   dequeues default WP scripts/styles (emoji, embed, block CSS, WooCommerce
   on non-shop pages). It does NOT touch the database. If you add real DB
@@ -277,7 +279,9 @@ checking whether it would break the SVN slug binding).
    - The capture buffer must stay the OUTERMOST buffer so it stores the final
      HTML, and only stores when the callback sees `START|FINAL` without `CLEAN`.
 
-9. **Outbound requests — `BEPLUSPB_Google_Fonts_Local` is the only place, keep it that way.**
+9. **Third-party downloads — `BEPLUSPB_Google_Fonts_Local` is the only code that fetches content from another
+   server for the site to store and serve; keep it narrow.** (The Cloudflare class makes admin-triggered API calls
+   with a token, the page-cache preload requests only the site's own pages — each has its own rules above.)
    Exactly two hosts compared for equality (`fonts.googleapis.com`, `fonts.gstatic.com`), HTTPS, `redirection => 0`,
    `reject_unsafe_urls`, no cookies, size/count limits, one `wp_remote_get()` call site, never during a visitor's
    request (front end only queues; WP-Cron or the admin's button downloads). No URL may come from the browser or a

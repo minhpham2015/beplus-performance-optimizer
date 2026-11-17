@@ -2,8 +2,9 @@
 /**
  * Google Fonts self-hosting: download the stylesheet and the font files once, serve them from this site.
  *
- * This is the only part of the plugin that makes requests to another server, so it is deliberately
- * narrow:
+ * This is the only part of the plugin that downloads content from a third-party server to store and
+ * serve it (Cloudflare's API calls are admin-triggered requests with a token; the Page Cache preload only
+ * requests the site's own pages), so it is deliberately narrow:
  *
  *  - Only two hosts, matched exactly: `fonts.googleapis.com` (the stylesheet) and `fonts.gstatic.com`
  *    (the font files named inside that stylesheet). No URL is ever typed in: the stylesheet URLs are

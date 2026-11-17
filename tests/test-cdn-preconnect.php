@@ -54,4 +54,15 @@ t_ok( array() === $GLOBALS['hooks'], 'disabled CDN registers nothing' );
 boot( array_merge( $base, array( 'cdn_url' => '' ) ) );
 t_ok( array() === $GLOBALS['hooks'], 'missing CDN URL registers nothing' );
 
+// Self-hosted Google Fonts are never moved to the CDN (cross-origin fonts need CORS the CDN may not send).
+boot( array_merge( $base, array( 'cdn_file_types' => 'css,js,jpg,png,woff2' ) ) );
+foreach ( array( '/wp-content/uploads/bepluspb-cache/fonts/776bd13aeb772f45.css?ver=1', 'https://ex.com/wp-content/uploads/bepluspb-cache/fonts/abc.woff2', '/wp-content/uploads/bepluspb-cache/fonts/' . str_repeat( 'a', 20 ) . '.woff2' ) as $local_font ) {
+	t_ok( $local_font === BEPLUSPB_CDN::rewrite_url( $local_font ), "stays on this site: $local_font" );
+}
+t_ok( 'https://cdn.example.net/wp-content/uploads/2026/photo.png' === BEPLUSPB_CDN::rewrite_url( '/wp-content/uploads/2026/photo.png' ) && 'https://cdn.example.net/wp-content/uploads/bepluspb-cache/main-abc.css' === BEPLUSPB_CDN::rewrite_url( '/wp-content/uploads/bepluspb-cache/main-abc.css' ), 'other uploads and the plugin\'s minified CSS/JS are still served from the CDN' );
+$html = "<link rel='stylesheet' href='/wp-content/uploads/bepluspb-cache/fonts/776bd13aeb772f45.css?ver=1'><img src='/wp-content/uploads/a.png'>";
+t_ok( false !== strpos( BEPLUSPB_CDN::rewrite_html( $html ), "href='/wp-content/uploads/bepluspb-cache/fonts/776bd13aeb772f45.css?ver=1'" ) && false !== strpos( BEPLUSPB_CDN::rewrite_html( $html ), 'https://cdn.example.net/wp-content/uploads/a.png' ), 'the full-page rewrite keeps the font stylesheet local and still rewrites images' );
+boot( array_merge( $base, array( 'cdn_exclude' => "my-keyword\nanother" ) ) );
+t_ok( '/x/my-keyword.jpg' === BEPLUSPB_CDN::rewrite_url( '/x/my-keyword.jpg' ) && '/wp-content/uploads/bepluspb-cache/fonts/a.css' === BEPLUSPB_CDN::rewrite_url( '/wp-content/uploads/bepluspb-cache/fonts/a.css' ), 'the administrator\'s own exclusions are kept next to the built-in one' );
+
 echo "OK ($n assertions)\n";

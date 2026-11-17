@@ -148,7 +148,10 @@ class BEPLUSPB_CDN {
 		// trusted to reflect the real origin scheme behind proxies/load balancers.
 		self::$cdn_base          = ( 'http' === $scheme ? 'http://' : 'https://' ) . $host;
 		self::$site_host         = wp_parse_url( home_url(), PHP_URL_HOST );
-		self::$excludes          = bepluspb_parse_exclude_list( $opts['cdn_exclude'] );
+		// Self-hosted Google Fonts stay on this site: a font is fetched cross-origin (CORS) when the CSS that
+		// names it comes from the CDN, and not every CDN sends Access-Control-Allow-Origin. Google's own
+		// servers did, so serving the local copy from the CDN could silently break fonts that used to work.
+		self::$excludes          = array_merge( bepluspb_parse_exclude_list( $opts['cdn_exclude'] ), array( '/bepluspb-cache/fonts/' ) );
 		self::$webp_avif_enabled = ! empty( $opts['cdn_webp_avif'] );
 		self::$accepted_formats  = null; // Reset per-request cache; init() runs once per request.
 		self::$sibling_exists    = array();
