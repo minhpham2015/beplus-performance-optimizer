@@ -312,6 +312,19 @@ class BEPLUSPB_Admin {
 			? sanitize_textarea_field( $input['remove_js_handles'] )
 			: '';
 
+		// Priority Images: keep only valid lines and say which ones were dropped.
+		$priority_raw                = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
+		$priority_parsed             = BEPLUSPB_Priority_Images::parse( $priority_raw );
+		$sanitized['priority_images'] = BEPLUSPB_Priority_Images::sanitize( $priority_raw );
+		if ( $priority_parsed['errors'] ) {
+			add_settings_error(
+				BEPLUSPB_OPTIONS_KEY,
+				'bepluspb_priority_images',
+				esc_html( __( 'Priority Images: some lines were not saved.', 'beplus-performance-booster' ) . ' ' . implode( ' ', $priority_parsed['errors'] ) ),
+				'warning'
+			);
+		}
+
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';

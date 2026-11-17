@@ -6,7 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Priority Images (LCP)** (`priority_images`, Media card; `BEPLUSPB_Priority_Images`). One line per image — `image URL | home, all or /page-path/ (end with * for a prefix) | mobile, desktop or all` — max 4. For every entry that applies to the current page it prints `<link rel="preload" as="image" type="…" fetchpriority="high">` at `wp_head` priority 1 (`media` query for mobile/desktop) and, for `<img>` tags core renders (WordPress 6.4+), replaces `loading="lazy"` with `fetchpriority="high"` — also when a theme wrote the lazy attribute itself, because the administrator listed the image on purpose. Matching is on the URL path (resized `-123x456`/`-scaled` copies, CDN-rewritten hosts and percent-encoded names all match). Output only: the plugin never fetches the URL (no SSRF surface); URLs must be http(s) or root-relative with an image extension, no credentials/fragments/quotes; invalid lines are dropped on save with a notice. Works for hardcoded images and CSS background heroes (preload only). Settings save purges the Page Cache like every other option. Test: `tests/test-priority-images.php`.
+- **CDN: automatic `preconnect`** to the CDN host (through `wp_resource_hints`, de-duplicated by core) and, when the CDN file types include fonts, the `crossorigin` variant at `wp_head` priority 2. Skipped when the CDN host is the site host. Test: `tests/test-cdn-preconnect.php`.
+
 ### Fixed
+- **Non-Render-Blocking CSS made themes flash unstyled** (FOUC). Only `style.css` of the theme was kept blocking, but most themes (Astra, Hello Elementor, GeneratePress, Kadence...) keep their layout CSS elsewhere (`assets/css/*.css`), so it was deferred while its inline `<style>` applied at once. Everything under the active theme and parent theme directories now stays blocking, by URL path and by registered handle (so it also holds after Minify / Remove Unused CSS moved the file). Plugin/builder stylesheets are still deferred. Tests: `tests/test-css-non-blocking.php`.
+
 - **Page Cache stayed off on multilingual sites with one domain per language** (WPML "A different
   domain per language", incl. subdomains such as `en.example.com`; Polylang "one domain per
   language"): the settings screen kept saying "The site address changed since these settings were
@@ -20,6 +26,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   filter `bepluspb_page_cache_allowed_hosts` for other multi-domain setups. Test:
   `tests/test-page-cache-class.php` ("multilingual sites"). **After updating, press Save on the
   Page Cache settings once** (or visit any page) so the config is rebuilt with all domains.
+
+### Changed
+- `lazy_skip_first_n` is documented as legacy: it has no UI and has been unused since Lazy Load v2 (it only seeds the core threshold when that field is missing). Use Priority Images for the hero/LCP image.
 
 ## [1.2.2] - 2026-11-16
 

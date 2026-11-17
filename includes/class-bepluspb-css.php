@@ -276,9 +276,11 @@ class BEPLUSPB_CSS {
 	/**
 	 * Replace <link rel="stylesheet"> tags with the preload + onload swap pattern.
 	 *
-	 * Left untouched (still render-blocking, on purpose): the active theme's
-	 * main stylesheet(s) — matched by registered handle, so it still works once
-	 * Minify/Remove Unused CSS moved the file to the cache directory —, URL
+	 * Left untouched (still render-blocking, on purpose): every stylesheet of the
+	 * active theme and its parent (style.css and anything under the theme
+	 * directories, e.g. assets/css/main.min.css) — matched by registered handle too,
+	 * so it still works once Minify/Remove Unused CSS moved the file to the cache
+	 * directory —, URL
 	 * keywords in $exclude, links that already preload or carry their own
 	 * onload, links with a conditional `media` (preload would never swap them
 	 * in), and every link when a Content-Security-Policy forbids inline event
@@ -293,6 +295,10 @@ class BEPLUSPB_CSS {
 			return $html;
 		}
 
+		// The theme's own stylesheets are what lays the page out: deferring them without
+		// critical CSS makes the page flash unstyled. Most themes do not keep their main CSS
+		// in style.css (Astra, Hello Elementor, GeneratePress, Kadence... load assets/css/*.css),
+		// so everything inside the active theme and parent theme directories stays blocking.
 		$theme_paths = array();
 		foreach ( array( get_bloginfo( 'stylesheet_url' ), trailingslashit( get_template_directory_uri() ) . 'style.css' ) as $theme_url ) {
 			$path = $theme_url ? wp_parse_url( $theme_url, PHP_URL_PATH ) : null;
@@ -301,7 +307,16 @@ class BEPLUSPB_CSS {
 				$exclude[]            = $path;
 			}
 		}
-		$theme_handles = self::theme_stylesheet_handles( $theme_paths );
+		$theme_dirs = array();
+		foreach ( array( get_stylesheet_directory_uri(), get_template_directory_uri() ) as $theme_dir_url ) {
+			$dir_path = $theme_dir_url ? wp_parse_url( $theme_dir_url, PHP_URL_PATH ) : null;
+			// Never fall back to a bare "/": it would match every stylesheet on the site.
+			if ( $dir_path && '/' !== trim( $dir_path ) ) {
+				$theme_dirs[ trailingslashit( $dir_path ) ] = true;
+				$exclude[]                                  = trailingslashit( $dir_path );
+			}
+		}
+		$theme_handles = self::theme_stylesheet_handles( $theme_paths, array_keys( $theme_dirs ) );
 
 		return preg_replace_callback(
 			'/<link[^>]+rel=[\'"]stylesheet[\'"][^>]*>/i',
@@ -390,10 +405,11 @@ class BEPLUSPB_CSS {
 	/**
 	 * Handles of registered styles whose source is one of the theme stylesheets.
 	 *
-	 * @param  array $theme_paths URL paths of the theme stylesheets (path => true).
+	 * @param  array    $theme_paths URL paths of the theme stylesheets (path => true).
+	 * @param  string[] $theme_dirs  URL paths of the active/parent theme directories, with trailing slash.
 	 * @return array Handle set (handle => true).
 	 */
-	private static function theme_stylesheet_handles( $theme_paths ) {
+	private static function theme_stylesheet_handles( $theme_paths, $theme_dirs = array() ) {
 		$handles = array();
 		$styles  = function_exists( 'wp_styles' ) ? wp_styles() : null;
 		if ( ! $styles || empty( $styles->registered ) || ! is_array( $styles->registered ) ) {
@@ -402,7 +418,16 @@ class BEPLUSPB_CSS {
 		foreach ( $styles->registered as $handle => $dep ) {
 			$src  = is_object( $dep ) && isset( $dep->src ) && is_string( $dep->src ) ? $dep->src : '';
 			$path = '' !== $src ? wp_parse_url( $src, PHP_URL_PATH ) : null;
-			if ( $path && isset( $theme_paths[ $path ] ) ) {
+			if ( ! $path ) {
+				continue;
+			}
+			$in_theme = isset( $theme_paths[ $path ] );
+			foreach ( $theme_dirs as $dir ) {
+				if ( ! $in_theme && 0 === strpos( $path, $dir ) ) {
+					$in_theme = true;
+				}
+			}
+			if ( $in_theme ) {
 				$handles[ (string) $handle ] = true;
 			}
 		}

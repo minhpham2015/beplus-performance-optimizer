@@ -37,6 +37,13 @@ class BEPLUSPB_CDN {
 	private static $cdn_base = '';
 
 	/**
+	 * Whether the configured file types include web fonts (they need a CORS preconnect).
+	 *
+	 * @var bool
+	 */
+	private static $serves_fonts = false;
+
+	/**
 	 * Host portion of home_url(), used to confirm a URL is local before rewriting.
 	 *
 	 * @var string
@@ -152,6 +159,11 @@ class BEPLUSPB_CDN {
 			return;
 		}
 		self::$ext_pattern = implode( '|', array_map( array( __CLASS__, 'quote_ext' ), $exts ) );
+		self::$serves_fonts = (bool) array_intersect( array_map( 'strtolower', array_map( 'ltrim', $exts, array_fill( 0, count( $exts ), '.' ) ) ), array( 'woff', 'woff2', 'ttf', 'otf', 'eot' ) );
+
+		// Open the connection to the CDN while the HTML is still being parsed.
+		add_filter( 'wp_resource_hints', array( __CLASS__, 'resource_hints' ), 10, 2 );
+		add_action( 'wp_head', array( __CLASS__, 'output_font_preconnect' ), 2 );
 
 		$content_dir  = trim( (string) wp_parse_url( content_url(), PHP_URL_PATH ), '/' );
 		$includes_dir = trim( (string) wp_parse_url( includes_url(), PHP_URL_PATH ), '/' );
@@ -178,6 +190,46 @@ class BEPLUSPB_CDN {
 		// attributes that never pass through the filters above.
 		add_action( 'template_redirect', array( __CLASS__, 'buffer_start' ), 0 );
 		add_action( 'shutdown', array( __CLASS__, 'buffer_end' ), 0 );
+	}
+
+	/**
+	 * Add a plain `preconnect` hint for the CDN host (images, CSS and JS are fetched
+	 * without CORS). WordPress de-duplicates it against hints from other plugins.
+	 * Skipped when the "CDN" is the site's own host.
+	 *
+	 * @param  array  $urls          URLs of this relation type.
+	 * @param  string $relation_type Relation type (preconnect, dns-prefetch, ...).
+	 * @return array
+	 */
+	public static function resource_hints( $urls, $relation_type ) {
+		if ( 'preconnect' === $relation_type && self::cdn_is_external() ) {
+			$urls[] = self::$cdn_base;
+		}
+		return $urls;
+	}
+
+	/**
+	 * Fonts are fetched with CORS, over a connection a plain preconnect does not warm:
+	 * print the `crossorigin` variant (wp_resource_hints cannot, it keys by URL) when the
+	 * CDN serves font files.
+	 */
+	public static function output_font_preconnect() {
+		if ( self::$serves_fonts && self::cdn_is_external() ) {
+			echo '<link rel="preconnect" href="' . esc_url( self::$cdn_base ) . '" crossorigin>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped.
+		}
+	}
+
+	/**
+	 * Whether the CDN host differs from the site host (otherwise there is nothing to warm up).
+	 *
+	 * @return bool
+	 */
+	private static function cdn_is_external() {
+		if ( '' === self::$cdn_base ) {
+			return false;
+		}
+		$host = wp_parse_url( self::$cdn_base, PHP_URL_HOST );
+		return ! empty( $host ) && strtolower( $host ) !== strtolower( (string) self::$site_host );
 	}
 
 	/**

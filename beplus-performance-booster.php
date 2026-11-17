@@ -99,7 +99,7 @@ function bepluspb_default_options() {
 		'cache_headers'                      => 0,
 
 		// --- Lazy Load — Advanced options ---
-		'lazy_skip_first_n'                  => 1,   // Skip the first N images (LCP / hero).
+		'lazy_skip_first_n'                  => 1,   // Legacy (no UI, unused since Lazy Load v2): only seeds lazy_core_threshold when that field is missing. Use "Priority Images" for the hero/LCP image.
 		'lazy_core_threshold'                => 3,   // Core-managed media omission threshold.
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
@@ -116,6 +116,9 @@ function bepluspb_default_options() {
 
 		// --- Advanced JS ---
 		'remove_js_handles'                  => '',  // JS handles to dequeue (newline-separated).
+
+		// --- Priority Images (LCP) ---
+		'priority_images'                    => '',  // "image URL | home, all or /path/ | mobile, desktop or all", one per line (max 4).
 
 		// --- Font Preload ---
 		'font_preload'                       => '',  // Font URLs to preload (newline-separated).
@@ -239,6 +242,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-minify.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-ucss.php';
@@ -379,6 +383,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_CSS::init( $opts );
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
+	BEPLUSPB_Priority_Images::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
 }

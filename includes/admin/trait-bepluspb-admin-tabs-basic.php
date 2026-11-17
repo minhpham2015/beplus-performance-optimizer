@@ -881,6 +881,26 @@ else :
 					</div>
 				</div>
 
+
+				<!-- Priority Images (LCP) -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_priority_images"><?php esc_html_e( 'Priority Images (LCP)', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_priority_images"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[priority_images]"
+							rows="4" class="large-text code"
+							placeholder="<?php echo esc_attr( "/wp-content/uploads/hero.jpg | home\n/wp-content/uploads/hero-mobile.jpg | home | mobile\n/wp-content/uploads/hero-wide.jpg | home | desktop" ); ?>"><?php echo esc_textarea( $opts['priority_images'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, or a page path such as /about/ (end with * to include everything below it). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. At most 4 lines.', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<?php esc_html_e( 'Use the exact URL the browser downloads for that page (DevTools → Network → Img, or the PageSpeed Insights "LCP element" row): a different size or format is downloaded twice. Prefer a specific page over "all"; preloading an image a page does not show wastes bandwidth. Find the LCP element first (PageSpeed Insights → Diagnostics).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 			</div>
 		</div>
 		<?php

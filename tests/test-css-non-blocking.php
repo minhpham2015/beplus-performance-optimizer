@@ -12,12 +12,16 @@ function trailingslashit( $s ) { return rtrim( $s, '/\\' ) . '/'; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function get_bloginfo( $k ) { return 'stylesheet_url' === $k ? 'https://ex.com/wp-content/themes/child/style.css?ver=1' : ''; }
 function get_template_directory_uri() { return 'https://ex.com/wp-content/themes/parent'; }
+function get_stylesheet_directory_uri() { return $GLOBALS['stylesheet_dir'] ?? 'https://ex.com/wp-content/themes/child'; }
 function wp_styles() {
 	$o = new stdClass();
 	$o->registered = array(
 		'child-style'  => (object) array( 'src' => 'https://ex.com/wp-content/themes/child/style.css' ),
 		'parent-style' => (object) array( 'src' => '/wp-content/themes/parent/style.css' ),
 		'plugin-css'   => (object) array( 'src' => 'https://ex.com/wp-content/plugins/p/p.css' ),
+		'child-main'   => (object) array( 'src' => 'https://ex.com/wp-content/themes/child/assets/css/main.min.css' ),
+		'parent-theme' => (object) array( 'src' => '/wp-content/themes/parent/assets/css/theme.css' ),
+		'parent-lookalike' => (object) array( 'src' => '/wp-content/themes/parent-evil/x.css' ),
 		'no-src'       => (object) array( 'src' => false ),
 	);
 	return $o;
@@ -43,6 +47,23 @@ $parent_min = "<link rel='stylesheet' id='parent-style-css' href='/wp-content/up
 t_ok( ! converted( conv( $parent_min ) ), 'parent theme stylesheet kept (by handle)' );
 $other_min = "<link rel='stylesheet' id='plugin-css-css' href='https://ex.com/wp-content/uploads/bepluspb-cache/plugin-css-abc123abc123.css' />";
 t_ok( converted( conv( $other_min ) ), 'unrelated minified stylesheet still converted' );
+
+// Themes that keep their layout CSS outside style.css (Astra, Hello Elementor, GeneratePress...).
+$sub_child = "<link rel='stylesheet' id='child-main-css' href='https://ex.com/wp-content/themes/child/assets/css/main.min.css?ver=3' />";
+t_ok( ! converted( conv( $sub_child ) ), 'child theme CSS in a sub-directory stays blocking (by path)' );
+$sub_parent = "<link rel='stylesheet' id='whatever-css' href='/wp-content/themes/parent/assets/css/theme.css' />";
+t_ok( ! converted( conv( $sub_parent ) ), 'parent theme CSS in a sub-directory stays blocking (by path)' );
+$sub_min = "<link rel='stylesheet' id='parent-theme-css' href='https://ex.com/wp-content/uploads/bepluspb-cache/parent-theme-abc123abc123.css' />";
+t_ok( ! converted( conv( $sub_min ) ), 'theme sub-directory CSS stays blocking after Minify moved it (by handle)' );
+$sub_min2 = "<link rel='stylesheet' id='child-main-css' href='https://ex.com/wp-content/uploads/bepluspb-cache/ucss-x-child-main-abc123abc1.css' />";
+t_ok( ! converted( conv( $sub_min2 ) ), 'same for the child theme after Remove Unused CSS' );
+$lookalike = "<link rel='stylesheet' id='parent-lookalike-css' href='/wp-content/themes/parent-evil/x.css' />";
+t_ok( converted( conv( $lookalike ) ), 'a theme directory with the same prefix is not mistaken for the active theme' );
+t_ok( converted( conv( "<link rel='stylesheet' id='plugin-css-css' href='https://ex.com/wp-content/plugins/parent/p.css' />" ) ), 'plugin CSS is still deferred' );
+// A theme directory that resolves to "/" must never turn the exclusion into "everything".
+$GLOBALS['stylesheet_dir'] = 'https://ex.com/';
+t_ok( converted( conv( $link ) ), 'a root-level theme URL does not exclude every stylesheet' );
+unset( $GLOBALS['stylesheet_dir'] );
 
 // Conditional media can never be swapped in by a preload.
 foreach ( array( 'print', '(max-width:600px)', '(prefers-color-scheme: dark)', 'only screen and (min-width:1px)' ) as $m ) {
