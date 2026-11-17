@@ -50,3 +50,6 @@ return_url_field
 sanitize_options
 save_meta_box
 store_purge_result
+enqueue_lcp_analyzer
+handle_ajax_lcp_apply
+lcp_analyzer_strings

@@ -44,6 +44,22 @@ trait BEPLUSPB_Admin_Admin_Bar {
 			)
 		);
 
+		// LCP Analyzer: only meaningful on a front-end page (it measures the page being viewed).
+		if ( ! is_admin() ) {
+			$wp_admin_bar->add_node(
+				array(
+					'id'     => 'bepluspb-lcp',
+					'parent' => 'bepluspb-cache',
+					'title'  => esc_html__( 'Analyze LCP (this page)', 'beplus-performance-booster' ),
+					'href'   => '#bepluspb-lcp',
+					'meta'   => array(
+						'class' => 'bepluspb-lcp-node',
+						'title' => esc_attr__( 'Find the Largest Contentful Paint element of this page and prioritize its image', 'beplus-performance-booster' ),
+					),
+				)
+			);
+		}
+
 		// Single child panel node with full cache info + clear button.
 		$wp_admin_bar->add_node(
 			array(

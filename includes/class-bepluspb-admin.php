@@ -20,6 +20,7 @@ require_once __DIR__ . '/admin/trait-bepluspb-admin-actions.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-meta-box.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-object-cache.php';
 require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-cloudflare.php';
+require_once __DIR__ . '/admin/trait-bepluspb-admin-ajax-lcp.php';
 
 /**
  * Class BEPLUSPB_Admin
@@ -45,6 +46,7 @@ class BEPLUSPB_Admin {
 	use BEPLUSPB_Admin_Meta_Box;
 	use BEPLUSPB_Admin_Ajax_Object_Cache;
 	use BEPLUSPB_Admin_Ajax_Cloudflare;
+	use BEPLUSPB_Admin_Ajax_Lcp;
 
 	// =========================================================================
 	// Bootstrap
@@ -94,6 +96,10 @@ class BEPLUSPB_Admin {
 		add_action( 'wp_ajax_bepluspb_cf_test_connection', array( __CLASS__, 'handle_ajax_cf_test_connection' ) );
 		add_action( 'wp_ajax_bepluspb_cf_purge', array( __CLASS__, 'handle_ajax_cf_purge' ) );
 		add_action( 'wp_ajax_bepluspb_cf_devmode', array( __CLASS__, 'handle_ajax_cf_devmode' ) );
+
+		// LCP Analyzer: script for administrators on the front end + the AJAX that saves its result.
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_lcp_analyzer' ) );
+		add_action( 'wp_ajax_bepluspb_lcp_apply', array( __CLASS__, 'handle_ajax_lcp_apply' ) );
 
 		// Admin notices for cache clears and unavailable configured backends.
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_show_cleared_notice' ) );
@@ -319,6 +325,14 @@ class BEPLUSPB_Admin {
 		$priority_raw                = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
 		$priority_parsed             = BEPLUSPB_Priority_Images::parse( $priority_raw );
 		$sanitized['priority_images'] = BEPLUSPB_Priority_Images::sanitize( $priority_raw );
+		// srcset/sizes hints are not part of the settings form: keep the stored ones (pruned to the lines that remain).
+		if ( isset( $input['priority_images_hints'] ) ) {
+			$priority_hints = $input['priority_images_hints'];
+		} else {
+			$priority_saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+			$priority_hints = is_array( $priority_saved ) && isset( $priority_saved['priority_images_hints'] ) ? $priority_saved['priority_images_hints'] : array();
+		}
+		$sanitized['priority_images_hints'] = BEPLUSPB_Priority_Images::sanitize_hints( $priority_hints, $sanitized['priority_images'] );
 		if ( $priority_parsed['errors'] ) {
 			add_settings_error(
 				BEPLUSPB_OPTIONS_KEY,

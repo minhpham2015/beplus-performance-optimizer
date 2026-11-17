@@ -119,6 +119,7 @@ function bepluspb_default_options() {
 
 		// --- Priority Images (LCP) ---
 		'priority_images'                    => '',  // "image URL | home, all or /path/ | mobile, desktop or all", one per line (max 4).
+		'priority_images_hints'              => array(), // id => { srcset, sizes } captured by the LCP Analyzer (see BEPLUSPB_Priority_Images::entry_id()).
 
 		// --- Google Fonts ---
 		'google_fonts_mode'                  => 'off',   // 'off' | 'optimize' (font-display + preconnect on Google Fonts URLs already in the page).

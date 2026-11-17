@@ -148,4 +148,94 @@ t_ok( false === call_user_func( $cb, false, 'img', array( 'src' => '/wp-content/
 boot( "/wp-content/uploads/2026/hero.jpg | /about/", '/contact/' );
 t_ok( 'lazy' === filt( '/wp-content/uploads/2026/hero.jpg' )['loading'], 'no priority boost on pages the entry does not apply to' );
 
+// ---- srcset / sizes hints --------------------------------------------------------------
+$h = $P::sanitize_hint( '/u/h-480.jpg 480w,/u/h-960.jpg 960w, https://cdn.ex.com/u/h-1440.jpg 1440w', '(max-width: 600px) 100vw, 50vw' );
+t_ok( '/u/h-480.jpg 480w, /u/h-960.jpg 960w, https://cdn.ex.com/u/h-1440.jpg 1440w' === $h['srcset'] && '(max-width: 600px) 100vw, 50vw' === $h['sizes'], 'srcset is normalised, sizes kept' );
+$h = $P::sanitize_hint( "/u/a.jpg 1x, /u/a-2x.jpg 2x,\n/u/a-3x.jpg 3x", '' );
+t_ok( '/u/a.jpg 1x, /u/a-2x.jpg 2x, /u/a-3x.jpg 3x' === $h['srcset'] && '' === $h['sizes'], 'density descriptors and newlines accepted' );
+t_ok( '/u/a.jpg' === $P::sanitize_hint( '/u/a.jpg', '' )['srcset'], 'a candidate without descriptor is valid' );
+t_ok( '/u/w,200.jpg 200w' === $P::sanitize_hint( '/u/w,200.jpg 200w', '' )['srcset'], 'a comma inside the URL is not a separator (browser tokenising)' );
+foreach ( array(
+	'/u/a.jpg 480w, javascript:alert(1) 960w' => 'one bad candidate',
+	'/u/a.php 480w'                           => 'non-image candidate',
+	'/u/a.jpg 480'                            => 'descriptor without unit',
+	'/u/a.jpg 480w 2x'                        => 'two descriptors',
+	'/u/a.jpg 12345678w'                      => 'huge descriptor',
+	'/u/a".jpg 480w'                          => 'quote in candidate',
+	'//evil.test/a.jpg 480w'                  => 'protocol-relative candidate',
+	str_repeat( '/u/a.jpg 1x, ', 13 )         => 'more than 12 candidates',
+	str_repeat( 'a', 5000 )                   => 'oversized',
+	''                                        => 'empty',
+) as $bad_srcset => $why ) {
+	t_ok( '' === $P::sanitize_hint( (string) $bad_srcset, '100vw' )['srcset'], "srcset rejected: $why" );
+}
+t_ok( '' === $P::sanitize_hint( '/u/a.jpg 480w', '100vw" onload="x' )['sizes'] && '' === $P::sanitize_hint( '/u/a.jpg 480w', '<b>' )['sizes'] && '' === $P::sanitize_hint( '/u/a.jpg 480w', str_repeat( '1', 301 ) )['sizes'], 'sizes: quotes, tags and oversize rejected' );
+t_ok( '' === $P::sanitize_hint( array( 'x' ), null )['srcset'], 'non-string input is harmless' );
+t_ok( '' === $P::sanitize_hint( '', '100vw' )['sizes'], 'sizes without a usable srcset is dropped' );
+
+// entry id changes with the line
+$e1 = $P::parse( '/a.jpg | home' )['entries'][0]; $e2 = $P::parse( '/a.jpg | home | mobile' )['entries'][0]; $e3 = $P::parse( '/a.jpg | /about/' )['entries'][0];
+t_ok( 3 === count( array_unique( array( $P::entry_id( $e1 ), $P::entry_id( $e2 ), $P::entry_id( $e3 ) ) ) ) && 16 === strlen( $P::entry_id( $e1 ) ), 'entry id depends on url, scope and device' );
+
+// output with a hint attached through the option
+$id = $P::entry_id( $e1 );
+$_SERVER['REQUEST_URI'] = '/'; $GLOBALS['hooks'] = array(); $GLOBALS['is_front'] = true;
+BEPLUSPB_Priority_Images::init( array( 'priority_images' => '/a.jpg | home', 'priority_images_hints' => array( $id => array( 'srcset' => '/a-480.jpg 480w, /a-960.jpg 960w', 'sizes' => '100vw' ) ) ) );
+$out = head();
+t_ok( false !== strpos( $out, 'href="/a.jpg" imagesrcset="/a-480.jpg 480w, /a-960.jpg 960w" imagesizes="100vw" type="image/jpeg" fetchpriority="high"' ), 'preload carries imagesrcset and imagesizes next to the fallback href' );
+BEPLUSPB_Priority_Images::init( array( 'priority_images' => '/a.jpg | home', 'priority_images_hints' => array( $id => array( 'srcset' => '/a-480.jpg 480w, "><script>', 'sizes' => '100vw' ) ) ) );
+t_ok( false === strpos( head(), 'imagesrcset' ) && false === strpos( head(), '<script>' ), 'a tampered stored hint is re-validated and not printed' );
+BEPLUSPB_Priority_Images::init( array( 'priority_images' => '/a.jpg | home', 'priority_images_hints' => array( 'other-id' => array( 'srcset' => '/x.jpg 1x' ) ) ) );
+t_ok( false === strpos( head(), 'imagesrcset' ), 'a hint of another line is not applied' );
+BEPLUSPB_Priority_Images::init( array( 'priority_images' => '/a.jpg | home', 'priority_images_hints' => 'garbage' ) );
+t_ok( false !== strpos( head(), 'href="/a.jpg"' ), 'non-array hints option is ignored' );
+
+// sanitize_hints keeps only hints of lines that remain
+$text  = $P::sanitize( "/a.jpg | home\n/b.jpg | /about/" );
+$ida   = $P::entry_id( $P::parse( $text )['entries'][0] );
+$kept  = $P::sanitize_hints( array( $ida => array( 'srcset' => '/a-1.jpg 1x', 'sizes' => '' ), 'gone' => array( 'srcset' => '/z.jpg 1x' ), 'bad' => 'x' ), $text );
+t_ok( array_keys( $kept ) === array( $ida ), 'stale and malformed hints are pruned' );
+t_ok( array() === $P::sanitize_hints( 'x', $text ), 'non-array hints give an empty set' );
+
+// ---- apply_entries (what the LCP Analyzer saves) ----------------------------------------
+$r = $P::apply_entries( '', array(), array( array( 'url' => '/h.jpg', 'scope' => 'home', 'device' => 'all', 'srcset' => '/h-1.jpg 1x', 'sizes' => '' ) ) );
+t_ok( '/h.jpg | home' === $r['text'] && 1 === $r['count'] && 1 === count( $r['hints'] ), 'first analysis is added, with its hint' );
+$r2 = $P::apply_entries( $r['text'], $r['hints'], array(
+	array( 'url' => '/m.jpg', 'scope' => 'home', 'device' => 'mobile' ),
+	array( 'url' => '/d.jpg', 'scope' => 'home', 'device' => 'desktop', 'srcset' => '/d-1.jpg 1x' ),
+) );
+t_ok( "/m.jpg | home | mobile\n/d.jpg | home | desktop" === $r2['text'], 're-analysing the same page replaces its previous lines' );
+t_ok( 1 === count( $r2['hints'] ) && ! isset( $r2['hints'][ $P::entry_id( $P::parse( '/h.jpg | home' )['entries'][0] ) ] ), 'the replaced line loses its hint, the new one has one' );
+$r3 = $P::apply_entries( $r2['text'], $r2['hints'], array( array( 'url' => '/about.jpg', 'scope' => '/about/', 'device' => 'all' ) ) );
+t_ok( "/m.jpg | home | mobile\n/d.jpg | home | desktop\n/about.jpg | /about/" === $r3['text'] && 1 === count( $r3['hints'] ), 'another page is added, other pages and their hints are kept' );
+$r4 = $P::apply_entries( $r3['text'], $r3['hints'], array( array( 'url' => '/x.jpg', 'scope' => '/x/', 'device' => 'all' ), array( 'url' => '/y.jpg', 'scope' => '/x/', 'device' => 'mobile' ) ) );
+t_ok( isset( $r4['error'] ), 'a result that would exceed 4 lines is refused, nothing is half-saved' );
+t_ok( isset( $P::apply_entries( '', array(), array() )['error'] ) && isset( $P::apply_entries( '', array(), 'x' )['error'] ), 'empty / non-array payload refused' );
+t_ok( isset( $P::apply_entries( '', array(), array( 'x' ) )['error'] ), 'non-array row refused' );
+$many = array(); for ( $i = 0; $i < 5; $i++ ) { $many[] = array( 'url' => "/i$i.jpg", 'scope' => 'all', 'device' => 'all' ); }
+t_ok( isset( $P::apply_entries( '', array(), $many )['error'] ), 'more than 4 incoming rows refused' );
+$bad_rows = array(
+	'newline in url'   => array( 'url' => "/a.jpg\n/evil.jpg", 'scope' => 'home' ),
+	'pipe in url'      => array( 'url' => '/a.jpg | all', 'scope' => 'home' ),
+	'newline in scope' => array( 'url' => '/a.jpg', 'scope' => "home\n/b.jpg | all" ),
+	'pipe in scope'    => array( 'url' => '/a.jpg', 'scope' => 'home | mobile' ),
+	'bad scheme'       => array( 'url' => 'javascript:alert(1)//a.jpg', 'scope' => 'home' ),
+	'not an image'     => array( 'url' => '/a.php', 'scope' => 'home' ),
+	'bad scope'        => array( 'url' => '/a.jpg', 'scope' => 'nowhere' ),
+	'bad device'       => array( 'url' => '/a.jpg', 'scope' => 'home', 'device' => 'tablet' ),
+	'empty url'        => array( 'url' => '', 'scope' => 'home' ),
+	'missing url'      => array( 'scope' => 'home' ),
+	'array url'        => array( 'url' => array( '/a.jpg' ), 'scope' => 'home' ),
+);
+foreach ( $bad_rows as $why => $row ) {
+	$res = $P::apply_entries( '/keep.jpg | /keep/', array(), array( $row ) );
+	t_ok( isset( $res['error'] ) && ! isset( $res['text'] ), "apply refused: $why" );
+}
+$res = $P::apply_entries( '/keep.jpg | /keep/', array(), array( array( 'url' => '/a.jpg', 'scope' => 'home' ), array( 'url' => '/a.jpg', 'scope' => 'home' ) ) );
+t_ok( "/keep.jpg | /keep/\n/a.jpg | home" === $res['text'], 'an identical row sent twice is stored once' );
+$res = $P::apply_entries( '/keep.jpg | /Keep/', array(), array( array( 'url' => '/n.jpg', 'scope' => '/keep/' ) ) );
+t_ok( '/n.jpg | /keep/' === $res['text'], 'scopes are compared case-insensitively when replacing' );
+$_SERVER['REQUEST_URI'] = '/Shop/Hats/?x=1';
+t_ok( '/shop/hats/' === $P::current_path(), 'current_path() is public: decoded, lower-cased, without the query' );
+
 echo "OK ($n assertions)\n";

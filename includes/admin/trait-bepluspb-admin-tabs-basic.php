@@ -896,6 +896,10 @@ else :
 							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, or a page path such as /about/ (end with * to include everything below it). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. At most 4 lines.', 'beplus-performance-booster' ); ?>
 						</p>
 						<p class="description">
+							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>
+							<?php esc_html_e( 'open the page on your site while logged in as an administrator and choose Beplus Performance Booster → "Analyze LCP (this page)" in the admin bar. It finds the LCP element for mobile and desktop, tells you what is wrong with it and adds the image to this list for you (with the srcset the browser used, so the preload matches on every screen density).', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
 							<?php esc_html_e( 'Use the exact URL the browser downloads for that page (DevTools → Network → Img, or the PageSpeed Insights "LCP element" row): a different size or format is downloaded twice. Prefer a specific page over "all"; preloading an image a page does not show wastes bandwidth. Find the LCP element first (PageSpeed Insights → Diagnostics).', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>

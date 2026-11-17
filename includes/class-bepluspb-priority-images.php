@@ -82,6 +82,18 @@ class BEPLUSPB_Priority_Images {
 		}
 		self::$entries = $parsed['entries'];
 
+		// srcset/sizes captured by the LCP Analyzer: lets the preload pick the same candidate
+		// as the <img> on any screen density. Re-validated here, the option is data.
+		$hints = isset( $opts['priority_images_hints'] ) && is_array( $opts['priority_images_hints'] ) ? $opts['priority_images_hints'] : array();
+		foreach ( self::$entries as $i => $entry ) {
+			$id = self::entry_id( $entry );
+			if ( isset( $hints[ $id ] ) && is_array( $hints[ $id ] ) ) {
+				$hint                         = self::sanitize_hint( $hints[ $id ]['srcset'] ?? '', $hints[ $id ]['sizes'] ?? '' );
+				self::$entries[ $i ]['srcset'] = $hint['srcset'];
+				self::$entries[ $i ]['sizes']  = $hint['sizes'];
+			}
+		}
+
 		add_action( 'wp_head', array( __CLASS__, 'output_preload' ), 1 );
 
 		// Same floor as BEPLUSPB_Images: older cores have no loading-attributes filter.
@@ -171,11 +183,201 @@ class BEPLUSPB_Priority_Images {
 	 * @return string
 	 */
 	public static function sanitize( $raw ) {
+		return self::entries_to_text( self::parse( $raw )['entries'] );
+	}
+
+	/**
+	 * Canonical textarea value for a list of entries.
+	 *
+	 * @param  array[] $entries Entries as returned by parse().
+	 * @return string
+	 */
+	private static function entries_to_text( $entries ) {
 		$lines = array();
-		foreach ( self::parse( $raw )['entries'] as $entry ) {
+		foreach ( $entries as $entry ) {
 			$lines[] = $entry['url'] . ' | ' . $entry['scope'] . ( 'all' === $entry['device'] ? '' : ' | ' . $entry['device'] );
 		}
 		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Stable id of an entry (what a srcset hint is attached to): changes when the line changes.
+	 *
+	 * @param  array $entry Entry with url, scope and device.
+	 * @return string
+	 */
+	public static function entry_id( $entry ) {
+		return substr( sha1( $entry['url'] . '|' . $entry['scope'] . '|' . $entry['device'] ), 0, 16 );
+	}
+
+	/**
+	 * Validate a srcset/sizes pair captured from an <img>.
+	 *
+	 * Every candidate URL must pass the same rules as the image URL itself (http(s) or
+	 * root-relative, image extension, no quotes/whitespace) and descriptors must be `123w` or
+	 * `2x`; a single bad candidate drops the whole srcset (the plain preload still works).
+	 * `sizes` is limited to the characters of a media condition / length list.
+	 *
+	 * @param  mixed $srcset Raw srcset attribute.
+	 * @param  mixed $sizes  Raw sizes attribute.
+	 * @return array { srcset: string, sizes: string } (empty strings when not usable).
+	 */
+	public static function sanitize_hint( $srcset, $sizes ) {
+		$out    = array(
+			'srcset' => '',
+			'sizes'  => '',
+		);
+		$srcset = is_string( $srcset ) ? trim( $srcset ) : '';
+		if ( '' === $srcset || strlen( $srcset ) > 4096 ) {
+			return $out;
+		}
+		$clean = self::clean_srcset( $srcset );
+		if ( '' === $clean ) {
+			return $out;
+		}
+		$out['srcset'] = $clean;
+		$sizes         = is_string( $sizes ) ? trim( $sizes ) : '';
+		if ( '' !== $sizes && strlen( $sizes ) <= 300 && preg_match( '#^[A-Za-z0-9\s,:().%+\-*/]+$#D', $sizes ) ) {
+			$out['sizes'] = (string) preg_replace( '/\s+/', ' ', $sizes );
+		}
+		return $out;
+	}
+
+	/**
+	 * Parse a srcset the way browsers split it (a candidate is a URL token, then an optional
+	 * descriptor up to the next comma) and rebuild it from validated parts.
+	 *
+	 * @param  string $srcset Raw attribute value.
+	 * @return string Normalised srcset, or '' when invalid.
+	 */
+	private static function clean_srcset( $srcset ) {
+		$candidates = array();
+		$length     = strlen( $srcset );
+		$pos        = 0;
+		while ( $pos < $length ) {
+			$pos += strspn( $srcset, " \t\r\n\f,", $pos );
+			if ( $pos >= $length ) {
+				break;
+			}
+			$url_length = strcspn( $srcset, " \t\r\n\f", $pos );
+			$url        = substr( $srcset, $pos, $url_length );
+			$pos       += $url_length;
+			$descriptor = '';
+			if ( ',' === substr( $url, -1 ) ) {
+				$url = rtrim( $url, ',' );
+			} else {
+				$comma      = strpos( $srcset, ',', $pos );
+				$raw        = false === $comma ? substr( $srcset, $pos ) : substr( $srcset, $pos, $comma - $pos );
+				$pos        = false === $comma ? $length : $comma + 1;
+				$descriptor = trim( $raw );
+			}
+			$type = '';
+			$key  = '';
+			if ( count( $candidates ) >= 12 || '' === self::clean_url( $url, $type, $key ) ) {
+				return '';
+			}
+			if ( '' !== $descriptor && ! preg_match( '/^(?:\d{1,5}w|\d{1,2}(?:\.\d{1,3})?x)$/D', $descriptor ) ) {
+				return '';
+			}
+			$candidates[] = $url . ( '' !== $descriptor ? ' ' . $descriptor : '' );
+		}
+		return implode( ', ', $candidates );
+	}
+
+	/**
+	 * Keep only the hints that belong to a line still present in the textarea.
+	 *
+	 * @param  mixed  $raw  Stored hints (id => { srcset, sizes }).
+	 * @param  string $text Canonical textarea value.
+	 * @return array
+	 */
+	public static function sanitize_hints( $raw, $text ) {
+		$out = array();
+		if ( ! is_array( $raw ) ) {
+			return $out;
+		}
+		foreach ( self::parse( $text )['entries'] as $entry ) {
+			$id = self::entry_id( $entry );
+			if ( isset( $raw[ $id ] ) && is_array( $raw[ $id ] ) ) {
+				$hint = self::sanitize_hint( $raw[ $id ]['srcset'] ?? '', $raw[ $id ]['sizes'] ?? '' );
+				if ( '' !== $hint['srcset'] ) {
+					$out[ $id ] = $hint;
+				}
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Merge the result of an LCP analysis into the saved list.
+	 *
+	 * The analysis covers a whole page for every device, so it REPLACES whatever the list
+	 * already holds for the same page scope (a stale hero from an earlier analysis, or a
+	 * hand-written line for that page) and leaves every other page alone.
+	 *
+	 * @param  string $current_text  Saved textarea value.
+	 * @param  mixed  $current_hints Saved hints.
+	 * @param  mixed  $incoming      List of { url, scope, device, srcset?, sizes? } from the analyzer.
+	 * @return array { text, hints, count } on success, { error } otherwise.
+	 */
+	public static function apply_entries( $current_text, $current_hints, $incoming ) {
+		if ( ! is_array( $incoming ) || array() === $incoming || count( $incoming ) > self::MAX_ENTRIES ) {
+			return array( 'error' => __( 'Nothing valid to apply.', 'beplus-performance-booster' ) );
+		}
+
+		$new_entries = array();
+		$new_hints   = array();
+		foreach ( $incoming as $row ) {
+			if ( ! is_array( $row ) ) {
+				return array( 'error' => __( 'Nothing valid to apply.', 'beplus-performance-booster' ) );
+			}
+			$parts = array();
+			foreach ( array( 'url', 'scope', 'device' ) as $field ) {
+				$value = isset( $row[ $field ] ) && is_string( $row[ $field ] ) ? trim( $row[ $field ] ) : '';
+				// One field can never smuggle in another field or another line.
+				if ( 'device' === $field && '' === $value ) {
+					$value = 'all';
+				}
+				if ( '' === $value || preg_match( '/[\r\n|]/', $value ) ) {
+					return array( 'error' => __( 'The analysis returned an unusable image, page or device.', 'beplus-performance-booster' ) );
+				}
+				$parts[] = $value;
+			}
+			$parsed = self::parse( implode( ' | ', $parts ) );
+			if ( 1 !== count( $parsed['entries'] ) ) {
+				return array( 'error' => $parsed['errors'] ? reset( $parsed['errors'] ) : __( 'The analysis returned an unusable image.', 'beplus-performance-booster' ) );
+			}
+			$entry                          = $parsed['entries'][0];
+			$id                             = self::entry_id( $entry );
+			$new_entries[ $id ]             = $entry;
+			$hint                           = self::sanitize_hint( $row['srcset'] ?? '', $row['sizes'] ?? '' );
+			if ( '' !== $hint['srcset'] ) {
+				$new_hints[ $id ] = $hint;
+			}
+		}
+
+		$scopes = array();
+		foreach ( $new_entries as $entry ) {
+			$scopes[ strtolower( $entry['scope'] ) ] = true;
+		}
+		$kept = array();
+		foreach ( self::parse( $current_text )['entries'] as $entry ) {
+			if ( ! isset( $scopes[ strtolower( $entry['scope'] ) ] ) ) {
+				$kept[] = $entry;
+			}
+		}
+		$all = array_merge( $kept, array_values( $new_entries ) );
+		if ( count( $all ) > self::MAX_ENTRIES ) {
+			return array( 'error' => sprintf( /* translators: %d: maximum number of lines. */ __( 'The Priority Images list is full (%d lines). Remove a line in Settings first.', 'beplus-performance-booster' ), self::MAX_ENTRIES ) );
+		}
+
+		$text = self::entries_to_text( $all );
+		$hints = self::sanitize_hints( array_merge( is_array( $current_hints ) ? $current_hints : array(), $new_hints ), $text );
+		return array(
+			'text'  => $text,
+			'hints' => $hints,
+			'count' => count( $all ),
+		);
 	}
 
 	/**
@@ -271,7 +473,7 @@ class BEPLUSPB_Priority_Images {
 	 *
 	 * @return string Decoded, lower-cased, starting with "/".
 	 */
-	private static function request_path() {
+	public static function current_path() {
 		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- only compared, never printed.
 		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
 		$base = untrailingslashit( (string) wp_parse_url( home_url(), PHP_URL_PATH ) );
@@ -295,7 +497,7 @@ class BEPLUSPB_Priority_Images {
 		if ( empty( self::$entries ) ) {
 			return self::$active;
 		}
-		$path    = self::request_path();
+		$path    = self::current_path();
 		$is_home = is_front_page();
 		foreach ( self::$entries as $entry ) {
 			if ( self::scope_matches( $entry['scope'], $path, $is_home ) ) {
@@ -314,9 +516,16 @@ class BEPLUSPB_Priority_Images {
 	 */
 	public static function output_preload() {
 		foreach ( self::active_entries() as $entry ) {
-			$media = 'all' !== $entry['device'] ? ' media="' . esc_attr( self::MEDIA[ $entry['device'] ] ) . '"' : '';
+			$media  = 'all' !== $entry['device'] ? ' media="' . esc_attr( self::MEDIA[ $entry['device'] ] ) . '"' : '';
+			$srcset = '';
+			if ( ! empty( $entry['srcset'] ) ) {
+				$srcset = ' imagesrcset="' . esc_attr( $entry['srcset'] ) . '"';
+				if ( ! empty( $entry['sizes'] ) ) {
+					$srcset .= ' imagesizes="' . esc_attr( $entry['sizes'] ) . '"';
+				}
+			}
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every value is escaped above/below.
-			echo '<link rel="preload" as="image" href="' . esc_url( $entry['url'] ) . '" type="' . esc_attr( $entry['type'] ) . '" fetchpriority="high"' . $media . ' data-bepluspb-priority-image="1">' . "\n";
+			echo '<link rel="preload" as="image" href="' . esc_url( $entry['url'] ) . '"' . $srcset . ' type="' . esc_attr( $entry['type'] ) . '" fetchpriority="high"' . $media . ' data-bepluspb-priority-image="1">' . "\n";
 		}
 	}
 
