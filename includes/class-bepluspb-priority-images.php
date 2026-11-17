@@ -88,7 +88,7 @@ class BEPLUSPB_Priority_Images {
 		foreach ( self::$entries as $i => $entry ) {
 			$id = self::entry_id( $entry );
 			if ( isset( $hints[ $id ] ) && is_array( $hints[ $id ] ) ) {
-				$hint                         = self::sanitize_hint( $hints[ $id ]['srcset'] ?? '', $hints[ $id ]['sizes'] ?? '' );
+				$hint                          = self::sanitize_hint( $hints[ $id ]['srcset'] ?? '', $hints[ $id ]['sizes'] ?? '' );
 				self::$entries[ $i ]['srcset'] = $hint['srcset'];
 				self::$entries[ $i ]['sizes']  = $hint['sizes'];
 			}
@@ -347,10 +347,10 @@ class BEPLUSPB_Priority_Images {
 			if ( 1 !== count( $parsed['entries'] ) ) {
 				return array( 'error' => $parsed['errors'] ? reset( $parsed['errors'] ) : __( 'The analysis returned an unusable image.', 'beplus-performance-booster' ) );
 			}
-			$entry                          = $parsed['entries'][0];
-			$id                             = self::entry_id( $entry );
-			$new_entries[ $id ]             = $entry;
-			$hint                           = self::sanitize_hint( $row['srcset'] ?? '', $row['sizes'] ?? '' );
+			$entry              = $parsed['entries'][0];
+			$id                 = self::entry_id( $entry );
+			$new_entries[ $id ] = $entry;
+			$hint               = self::sanitize_hint( $row['srcset'] ?? '', $row['sizes'] ?? '' );
 			if ( '' !== $hint['srcset'] ) {
 				$new_hints[ $id ] = $hint;
 			}
@@ -371,7 +371,7 @@ class BEPLUSPB_Priority_Images {
 			return array( 'error' => sprintf( /* translators: %d: maximum number of lines. */ __( 'The Priority Images list is full (%d lines). Remove a line in Settings first.', 'beplus-performance-booster' ), self::MAX_ENTRIES ) );
 		}
 
-		$text = self::entries_to_text( $all );
+		$text  = self::entries_to_text( $all );
 		$hints = self::sanitize_hints( array_merge( is_array( $current_hints ) ? $current_hints : array(), $new_hints ), $text );
 		return array(
 			'text'  => $text,

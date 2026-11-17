@@ -312,22 +312,22 @@ class BEPLUSPB_Google_Fonts_Local {
 		$length = '(?:-?\d{1,3}(?:\.\d{1,3})?(?:px|em|rem))';
 		$tag    = "'[A-Za-z0-9]{4}'";
 		$map    = array(
-			'font-family'                => '/^([\'"])[A-Za-z0-9 _.\-]{1,80}\1$/D',
-			'font-weight'                => '/^(?:normal|bold|\d{1,4})$/D',
-			'font-style'                 => '/^(?:normal|italic)$/D',
-			'font-size'                  => '/^\d{1,3}(?:\.\d{1,3})?(?:px|em|rem)$/D',
-			'line-height'                => '/^(?:normal|\d(?:\.\d{1,3})?|' . $length . ')$/D',
-			'letter-spacing'             => '/^(?:normal|' . $length . ')$/D',
-			'text-transform'             => '/^(?:none|uppercase|lowercase|capitalize)$/D',
-			'display'                    => '/^(?:inline-block|inline|block)$/D',
-			'white-space'                => '/^(?:nowrap|normal|pre)$/D',
-			'word-wrap'                  => '/^(?:normal|break-word)$/D',
-			'direction'                  => '/^(?:ltr|rtl)$/D',
-			'font-feature-settings'      => '/^' . $tag . '(?: (?:on|off|\d))?(?:\s*,\s*' . $tag . '(?: (?:on|off|\d))?)*$/D',
+			'font-family'                   => '/^([\'"])[A-Za-z0-9 _.\-]{1,80}\1$/D',
+			'font-weight'                   => '/^(?:normal|bold|\d{1,4})$/D',
+			'font-style'                    => '/^(?:normal|italic)$/D',
+			'font-size'                     => '/^\d{1,3}(?:\.\d{1,3})?(?:px|em|rem)$/D',
+			'line-height'                   => '/^(?:normal|\d(?:\.\d{1,3})?|' . $length . ')$/D',
+			'letter-spacing'                => '/^(?:normal|' . $length . ')$/D',
+			'text-transform'                => '/^(?:none|uppercase|lowercase|capitalize)$/D',
+			'display'                       => '/^(?:inline-block|inline|block)$/D',
+			'white-space'                   => '/^(?:nowrap|normal|pre)$/D',
+			'word-wrap'                     => '/^(?:normal|break-word)$/D',
+			'direction'                     => '/^(?:ltr|rtl)$/D',
+			'font-feature-settings'         => '/^' . $tag . '(?: (?:on|off|\d))?(?:\s*,\s*' . $tag . '(?: (?:on|off|\d))?)*$/D',
 			'-webkit-font-feature-settings' => '/^' . $tag . '(?: (?:on|off|\d))?(?:\s*,\s*' . $tag . '(?: (?:on|off|\d))?)*$/D',
-			'-webkit-font-smoothing'     => '/^(?:antialiased|subpixel-antialiased|auto)$/D',
-			'-moz-osx-font-smoothing'    => '/^(?:grayscale|auto)$/D',
-			'font-variation-settings'    => '/^' . $tag . '\s+-?\d{1,4}(?:\.\d{1,3})?(?:\s*,\s*' . $tag . '\s+-?\d{1,4}(?:\.\d{1,3})?)*$/D',
+			'-webkit-font-smoothing'        => '/^(?:antialiased|subpixel-antialiased|auto)$/D',
+			'-moz-osx-font-smoothing'       => '/^(?:grayscale|auto)$/D',
+			'font-variation-settings'       => '/^' . $tag . '\s+-?\d{1,4}(?:\.\d{1,3})?(?:\s*,\s*' . $tag . '\s+-?\d{1,4}(?:\.\d{1,3})?)*$/D',
 		);
 		return isset( $map[ $name ] ) && 1 === preg_match( $map[ $name ], $value );
 	}
@@ -400,7 +400,12 @@ class BEPLUSPB_Google_Fonts_Local {
 		$css = '';
 		foreach ( $faces as $face ) {
 			$css .= "@font-face{font-family:'" . $face['family'] . "';";
-			foreach ( array( 'style' => 'font-style', 'weight' => 'font-weight', 'stretch' => 'font-stretch', 'display' => 'font-display' ) as $key => $property ) {
+			foreach ( array(
+				'style'   => 'font-style',
+				'weight'  => 'font-weight',
+				'stretch' => 'font-stretch',
+				'display' => 'font-display',
+			) as $key => $property ) {
 				if ( '' !== $face[ $key ] ) {
 					$css .= $property . ':' . $face[ $key ] . ';';
 				}
@@ -562,7 +567,7 @@ class BEPLUSPB_Google_Fonts_Local {
 			'retry'   => 0,
 			'errors'  => array(),
 		);
-		$now = time();
+		$now      = time();
 
 		foreach ( $queue as $id => $entry ) {
 			if ( $entry['fails'] >= self::MAX_FAILS && $now - $entry['last'] < self::RETRY_AFTER ) {

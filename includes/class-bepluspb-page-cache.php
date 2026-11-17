@@ -618,9 +618,9 @@ class BEPLUSPB_Page_Cache {
 	 * @return string[]
 	 */
 	private static function allowed_hosts() {
-		$home = get_option( 'home' );
-		$site = get_option( 'siteurl' );
-		$urls = array(
+		$home  = get_option( 'home' );
+		$site  = get_option( 'siteurl' );
+		$urls  = array(
 			is_string( $home ) && '' !== $home ? $home : home_url(),
 			is_string( $site ) && '' !== $site ? $site : site_url(),
 		);

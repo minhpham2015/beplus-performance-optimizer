@@ -125,8 +125,8 @@ function bepluspb_default_options() {
 		'critical_css_enabled'               => 0,   // Print the stored critical CSS of the page type and defer every stylesheet (theme's included).
 
 		// --- Google Fonts ---
-		'google_fonts_mode'                  => 'off',   // 'off' | 'optimize' (font-display + preconnect on Google Fonts URLs already in the page).
-		'google_fonts_display'               => 'swap',  // 'swap' | 'fallback' | 'optional'.
+		'google_fonts_mode'                  => 'off',   // off, optimize (font-display + preconnect) or selfhost (download the fonts once, serve them from this site).
+		'google_fonts_display'               => 'swap',  // swap, fallback or optional.
 
 		// --- Font Preload ---
 		'font_preload'                       => '',  // Font URLs to preload (newline-separated).

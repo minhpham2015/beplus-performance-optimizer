@@ -336,8 +336,8 @@ class BEPLUSPB_Admin {
 		$sanitized['google_fonts_display'] = BEPLUSPB_Page_Cache::sanitize_choice( $input['google_fonts_display'] ?? '', BEPLUSPB_Google_Fonts::DISPLAY_VALUES, 'swap' );
 
 		// Priority Images: keep only valid lines and say which ones were dropped.
-		$priority_raw                = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
-		$priority_parsed             = BEPLUSPB_Priority_Images::parse( $priority_raw );
+		$priority_raw                 = isset( $input['priority_images'] ) ? (string) $input['priority_images'] : '';
+		$priority_parsed              = BEPLUSPB_Priority_Images::parse( $priority_raw );
 		$sanitized['priority_images'] = BEPLUSPB_Priority_Images::sanitize( $priority_raw );
 		// srcset/sizes hints are not part of the settings form: keep the stored ones (pruned to the lines that remain).
 		if ( isset( $input['priority_images_hints'] ) ) {

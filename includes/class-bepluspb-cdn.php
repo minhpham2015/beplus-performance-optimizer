@@ -146,8 +146,8 @@ class BEPLUSPB_CDN {
 		// Respect an explicit scheme in the configured CDN URL; otherwise default
 		// to https. CDN edge domains generally require TLS, and is_ssl() cannot be
 		// trusted to reflect the real origin scheme behind proxies/load balancers.
-		self::$cdn_base          = ( 'http' === $scheme ? 'http://' : 'https://' ) . $host;
-		self::$site_host         = wp_parse_url( home_url(), PHP_URL_HOST );
+		self::$cdn_base  = ( 'http' === $scheme ? 'http://' : 'https://' ) . $host;
+		self::$site_host = wp_parse_url( home_url(), PHP_URL_HOST );
 		// Self-hosted Google Fonts stay on this site: a font is fetched cross-origin (CORS) when the CSS that
 		// names it comes from the CDN, and not every CDN sends Access-Control-Allow-Origin. Google's own
 		// servers did, so serving the local copy from the CDN could silently break fonts that used to work.
@@ -161,7 +161,7 @@ class BEPLUSPB_CDN {
 		if ( empty( $exts ) ) {
 			return;
 		}
-		self::$ext_pattern = implode( '|', array_map( array( __CLASS__, 'quote_ext' ), $exts ) );
+		self::$ext_pattern  = implode( '|', array_map( array( __CLASS__, 'quote_ext' ), $exts ) );
 		self::$serves_fonts = (bool) array_intersect( array_map( 'strtolower', array_map( 'ltrim', $exts, array_fill( 0, count( $exts ), '.' ) ) ), array( 'woff', 'woff2', 'ttf', 'otf', 'eot' ) );
 
 		// Open the connection to the CDN while the HTML is still being parsed.

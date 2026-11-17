@@ -12,6 +12,8 @@
  * docs/google-fonts-browser-test.js loads in Chromium.
  *
  * Run: php docs/google-fonts-live-test.php [output-dir] [page.html]
+ *
+ * @package Beplus_Performance_Booster
  */
 
 // phpcs:disable
