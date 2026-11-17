@@ -129,7 +129,7 @@ checking whether it would break the SVN slug binding).
 - `includes/class-bepluspb-critical-css.php` + `assets/js/critical-css-generator.js` — Critical CSS per **page
   type** (not URL), RTL sets separate, in its own non-autoloaded option. Stored data is cleaned on save and
   ignored on read if it contains `<`; printed only when something was actually deferred and no CSP forbids
-  inline `<style>`. The generator and `assets/js/lcp-analyzer.js` run in the administrator's browser and save
+  inline `<style>`. It is independent of the Non-Render-Blocking switch (a page with an entry defers all CSS itself). The generator and `assets/js/lcp-analyzer.js` run in the administrator's browser and save
   through nonce → capability checked AJAX; they never run for visitors.
 - `includes/class-bepluspb-google-fonts.php` — head buffer (priority 0 … 10000) that adds `font-display` +
   preconnect to Google Fonts URLs, and in "selfhost" mode swaps downloaded stylesheets for local copies.

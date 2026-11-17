@@ -52,8 +52,8 @@ html, body { margin: 0; font-family: "Inter", sans-serif; --stack: "Inter", sans
 const OTHER_ORIGIN_CSS = `.cross-origin-rule { color: red; }`;
 const PRINT_CSS = `.print-rule { display: none; }`;
 
-const cfg = (extra) => ({ ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'n0nce', key: 'front', label: 'Front page', storedBytes: 0, enabled: true, nonBlocking: true, inlineAll: false, maxBytes: 150000, settingsUrl: '/wp-admin/options-general.php?page=beplus-performance-booster',
-  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', desktop: 'Desktop', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', needDefer: 'only used together with Non-Render-Blocking', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets',
+const cfg = (extra) => ({ ajaxUrl: '/wp-admin/admin-ajax.php', nonce: 'n0nce', key: 'front', label: 'Front page', storedBytes: 0, enabled: true, inlineAll: false, maxBytes: 150000, settingsUrl: '/wp-admin/options-general.php?page=beplus-performance-booster',
+  i18n: { title: 'Critical CSS Generator', working: 'Analysing', mobile: 'Mobile', desktop: 'Desktop', failed: 'Could not analyse', rules: 'rules', skipped: 'stylesheets skipped', total: 'Critical CSS', target: 'Saves for', stored: 'Replaces the saved entry', big: 'This is large', tooBig: 'over the size limit', needEnable: 'The Critical CSS switch is off', inlineAll: 'not used while Inline All CSS', save: 'Save Critical CSS', saving: 'Saving', saved: 'Saved. Reload', error: 'Could not save:', preview: 'Show the CSS', again: 'Analyse again', settings: 'Open settings', close: 'Close', optimizedNote: 'Generated from the original stylesheets',
     nothing: 'Nothing could be analysed. The technical details below say why.',
     failNotLoaded: 'The page did not finish loading in the measuring frame within %d s', failSlow: 'The page started loading in the measuring frame but had not finished after %d s',
     failUnreadable: 'The measuring frame shows a page this tool cannot read', failNoHello: 'The page loaded in the measuring frame but the generator did not run there',
@@ -206,7 +206,7 @@ const lastPost = () => { const b = posts[posts.length - 1] || ''; const f = n =>
   // ---- warnings when the feature cannot work ----------------------------------------------------
   ({ pg, ctx } = await open('/disabled', { width: 1280, height: 800 }));
   await click(pg); t = await waitDone(pg);
-  ok(t && t.includes('The Critical CSS switch is off') && t.includes('only used together with Non-Render-Blocking') && t.includes('not used while Inline All CSS'), 'panel warns when the switch is off, Non-Render-Blocking is off or Inline All CSS is on');
+  ok(t && t.includes('The Critical CSS switch is off') && t.includes('not used while Inline All CSS'), 'panel warns when the switch is off, Non-Render-Blocking is off or Inline All CSS is on');
   ok(t && t.includes('Replaces the saved entry'), 'panel says it replaces the saved entry');
   await ctx.close();
 

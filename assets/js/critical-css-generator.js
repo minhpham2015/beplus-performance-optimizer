@@ -677,7 +677,6 @@
 			el('p', { class: 'note', text: t('target') + ': ' + cfg.label + (cfg.storedBytes ? ' — ' + t('stored') : '') })
 		]));
 		if (!cfg.enabled) { box.appendChild(el('p', { class: 'warn', text: t('needEnable') })); }
-		if (!cfg.nonBlocking) { box.appendChild(el('p', { class: 'warn', text: t('needDefer') })); }
 		if (cfg.inlineAll) { box.appendChild(el('p', { class: 'warn', text: t('inlineAll') })); }
 		if (bytes > BIG_BYTES) { box.appendChild(el('p', { class: 'warn', text: t('big') })); }
 		var tooBig = bytes > cfg.maxBytes;

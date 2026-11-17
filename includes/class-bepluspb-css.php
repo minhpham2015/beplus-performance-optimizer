@@ -44,7 +44,7 @@ class BEPLUSPB_CSS {
 			add_action( 'wp_enqueue_scripts', array( __CLASS__, 'remove_css_handles' ), 9999 );
 		}
 
-		if ( $opts['css_non_blocking'] || $opts['css_minify'] || $opts['css_inline_all'] ) {
+		if ( $opts['css_non_blocking'] || $opts['css_minify'] || $opts['css_inline_all'] || ! empty( $opts['critical_css_enabled'] ) ) {
 			add_action( 'wp_head', array( __CLASS__, 'buffer_start' ), 1 );
 			add_action( 'wp_head', array( __CLASS__, 'buffer_end' ), 9999 );
 		}
@@ -102,6 +102,13 @@ class BEPLUSPB_CSS {
 			return;
 		}
 
+		// Critical CSS alone (all other switches off) only needs the buffer on pages that have an entry.
+		$opts = bepluspb_get_options();
+		if ( ! $opts['css_non_blocking'] && ! $opts['css_minify'] && ! $opts['css_inline_all']
+			&& ( empty( $opts['critical_css_enabled'] ) || '' === BEPLUSPB_Critical_CSS::css_for_request() ) ) {
+			return;
+		}
+
 		self::$buffer_level = ob_get_level();
 		ob_start();
 	}
@@ -131,10 +138,10 @@ class BEPLUSPB_CSS {
 			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude, ! empty( $opts['css_inline_skip_elementor'] ) ), $html );
 		}
 
-		$critical = '';
-		if ( $opts['css_non_blocking'] ) {
-			$exclude  = bepluspb_parse_exclude_list( $opts['css_exclude'] );
-			$critical = self::critical_css_for( $opts, $html );
+		// Critical CSS is independent of the Non-Render-Blocking switch: a page with an entry defers everything.
+		$critical = self::critical_css_for( $opts, $html );
+		if ( '' !== $critical || $opts['css_non_blocking'] ) {
+			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
 			// With critical CSS the first paint no longer needs the theme's stylesheet, so it may be deferred too.
 			$deferred = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude, '' !== $critical ), $html );
 			if ( $deferred === $html ) {

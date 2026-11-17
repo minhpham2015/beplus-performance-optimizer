@@ -15,6 +15,7 @@ function add_action( $h, $cb = null, $p = 10 ) { $GLOBALS['hooks'][] = $h . ':' 
 function add_filter( $h, $cb = null, $p = 10 ) { $GLOBALS['hooks'][] = $h . ':' . ( is_array( $cb ) ? $cb[1] : $cb ); }
 function remove_action( $h, $cb, $p = 10 ) { $GLOBALS['removed'][] = "$h:$cb"; }
 function remove_filter( $h, $cb, $p = 10 ) { $GLOBALS['removed'][] = "$h:$cb"; }
+function bepluspb_get_options() { return array( 'css_non_blocking' => 1, 'css_minify' => 0, 'css_inline_all' => 0, 'critical_css_enabled' => 0 ); }
 function wp_is_block_theme() { return $GLOBALS['block_theme']; }
 function is_customize_preview() { return false; }
 function t_ok( $c, $m ) { if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }

@@ -669,7 +669,7 @@ else :
 								<?php checked( $opts['css_non_blocking'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'Convert stylesheet links to preload + onload swap so they do not block rendering. A &lt;noscript&gt; fallback is included.', 'beplus-performance-booster' ); ?></span>
 						</label>
-						<p class="description"><?php esc_html_e( 'The active theme\'s main stylesheet, print/conditional-media stylesheets and links that already load asynchronously are kept as normal links automatically; the feature switches itself off when a Content-Security-Policy blocks inline event handlers. If you still see a flash of unstyled content (FOUC), add that stylesheet to "Exclude CSS Files".', 'beplus-performance-booster' ); ?></p>
+						<p class="description"><?php esc_html_e( 'The active theme\'s main stylesheet, print/conditional-media stylesheets and links that already load asynchronously are kept as normal links automatically; the feature switches itself off when a Content-Security-Policy blocks inline event handlers. If you still see a flash of unstyled content (FOUC), add that stylesheet to "Exclude CSS Files". Pages that have saved Critical CSS are handled by that feature even when this switch is off.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -957,11 +957,8 @@ else :
 							<span class="bepluspb-check-text"><?php esc_html_e( 'On pages that have saved Critical CSS, print it in the head and defer every stylesheet, the theme\'s included.', 'beplus-performance-booster' ); ?></span>
 						</label>
 						<p class="description">
-							<?php esc_html_e( 'Needs "Non-Render-Blocking CSS" (above). Pages of a type without an entry (and no Default entry) are untouched. It is not used with "Inline All CSS", nor when a Content-Security-Policy forbids inline styles. Right-to-left pages use their own entries.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Works on its own, without "Non-Render-Blocking CSS". Pages of a type without an entry (and no Default entry) are untouched. It is not used with "Inline All CSS", nor when a Content-Security-Policy forbids inline styles. Right-to-left pages use their own entries.', 'beplus-performance-booster' ); ?>
 						</p>
-						<?php if ( ! empty( $opts['critical_css_enabled'] ) && empty( $opts['css_non_blocking'] ) ) : ?>
-							<p class="bepluspb-warn"><?php esc_html_e( 'Non-Render-Blocking CSS is off, so Critical CSS is not used.', 'beplus-performance-booster' ); ?></p>
-						<?php endif; ?>
 					</div>
 				</div>
 

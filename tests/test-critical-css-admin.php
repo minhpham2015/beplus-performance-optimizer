@@ -46,12 +46,12 @@ function call_h( $name ) { try { BEPLUSPB_Admin::$name(); } catch ( Done $e ) { 
 reset_ctx(); BEPLUSPB_Admin::enqueue_ccss_generator();
 t_ok( 'bepluspb-ccss-generator' === $GLOBALS['enqueued'][0] && 'https://ex.com/wp-content/plugins/beplus/assets/js/critical-css-generator.js' === $GLOBALS['enqueued'][1] && true === $GLOBALS['enqueued'][4], 'administrator on the front end: generator enqueued in the footer' );
 $c = $GLOBALS['localized'][2];
-t_ok( 'bepluspbCcss' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_ccss_save' === $c['nonce'] && 'front' === $c['key'] && 'Front page' === $c['label'] && 0 === $c['storedBytes'] && true === $c['enabled'] && true === $c['nonBlocking'] && false === $c['inlineAll'] && 150000 === $c['maxBytes'], 'config: nonce, current page type, flags, limit' );
-t_ok( ! empty( $c['i18n']['save'] ) && ! empty( $c['i18n']['needDefer'] ), 'texts provided' );
+t_ok( 'bepluspbCcss' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_ccss_save' === $c['nonce'] && 'front' === $c['key'] && 'Front page' === $c['label'] && 0 === $c['storedBytes'] && true === $c['enabled'] && false === $c['inlineAll'] && 150000 === $c['maxBytes'], 'config: nonce, current page type, flags, limit' );
+t_ok( ! empty( $c['i18n']['save'] ), 'texts provided' );
 BEPLUSPB_Critical_CSS::save( 'front', 'a{b:c}' ); BEPLUSPB_Admin::enqueue_ccss_generator();
 t_ok( 6 === $GLOBALS['localized'][2]['storedBytes'], 'existing entry size reported' );
 $GLOBALS['opts']['critical_css_enabled'] = 0; $GLOBALS['opts']['css_non_blocking'] = 0; $GLOBALS['opts']['css_inline_all'] = 1; BEPLUSPB_Admin::enqueue_ccss_generator();
-t_ok( false === $GLOBALS['localized'][2]['enabled'] && false === $GLOBALS['localized'][2]['nonBlocking'] && true === $GLOBALS['localized'][2]['inlineAll'], 'switch states reported so the panel can warn' );
+t_ok( false === $GLOBALS['localized'][2]['enabled'] && true === $GLOBALS['localized'][2]['inlineAll'], 'switch states reported so the panel can warn' );
 $GLOBALS['opts'] = array( 'critical_css_enabled' => 1, 'css_non_blocking' => 1, 'css_inline_all' => 0 );
 foreach ( array( array( 'admin' => true ), array( 'bar' => false ), array( 'can' => false ) ) as $over ) {
 	reset_ctx( $over ); BEPLUSPB_Admin::enqueue_ccss_generator();

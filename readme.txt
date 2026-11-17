@@ -159,7 +159,7 @@ Recommended for checkout/cart and other heavily dynamic pages.
 
 **Use Critical CSS**
 Default: off
-Requires: Non-Render-Blocking CSS
+Works on its own: it does not need Non-Render-Blocking CSS
 
 Prints the CSS the first screen needs in the page head and loads every
 stylesheet (your theme's included) after the first paint, so the page is drawn at
