@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -563,6 +563,13 @@ The optional Page Cache Preload only requests your own site's pages.
 
 == Changelog ==
 
+= 1.3.1 =
+* Change: Critical CSS now works on its own. A page with saved Critical CSS prints it and loads every stylesheet after the first paint whether or not "Non-Render-Blocking CSS" is on; pages without an entry behave as before.
+* New: the Critical CSS Generator analyses four screen sizes (phone, tablet, desktop, large screen) and, by default, also the area just below the first screen, so big monitors, tablets and a small scroll no longer show unstyled elements. After updating, generate your Critical CSS again.
+* Fix: the Critical CSS Generator now says why an analysis failed (slow page, blocked frame, redirect, script error), works on slow connections and on pages where the footer script is delayed, and offers "Analyse this window only" as a fallback and a copyable technical report.
+* Fix: the Critical CSS Generator and LCP Analyzer panels no longer scramble text on right-to-left sites.
+* Fix: Google Fonts settings: the note about Self-host is no longer red and the font-display labels are no longer cut off.
+
 = 1.3.0 =
 * New: Critical CSS. Print the CSS the first screen needs in the page head and load every stylesheet after the first paint, with no flash of unstyled content. Generate it from the admin bar ("Generate Critical CSS"): the page is analysed in your browser on a phone-sized and a desktop-sized copy and saved per page type (front page, posts, pages, archives…; right-to-left pages separately). Or paste CSS by hand. Off by default; needs Non-Render-Blocking CSS.
 * New: Priority Images (LCP). Tell the browser which image is the Largest Contentful Paint of a page: it is preloaded with high priority and no longer lazy-loaded. The new "Analyze LCP" tool in the admin bar finds the LCP element for mobile and desktop, explains what is wrong with it and fills Priority Images for you.
@@ -778,6 +785,9 @@ The optional Page Cache Preload only requests your own site's pages.
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+Critical CSS no longer needs Non-Render-Blocking CSS, and its generator covers more screen sizes. If you use Critical CSS, generate it again after updating.
 
 = 1.3.0 =
 Adds Critical CSS, Priority Images with an LCP Analyzer, and Google Fonts optimisation/self-hosting (all off by default). Non-Render-Blocking CSS now keeps your whole theme folder's CSS render-blocking (fixes the flash of unstyled content). Multilingual sites with one domain per language (WPML/Polylang): press Save once on the Page Cache settings after updating.
