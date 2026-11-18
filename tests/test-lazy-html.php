@@ -177,4 +177,10 @@ $out = BEPLUSPB_Lazy_HTML::process( $page( $body, $csp ), $bgo );
 $t( false === strpos( $out, 'data-bpb-bg' ), 'bg: with a CSP blocking the loader, backgrounds are left alone' );
 $GLOBALS['skip_filter'] = null;
 
+// ---- markup inside an attribute value is not part of the page ------------------------------------------------------------
+$attr = '<div data-content=\'<img src="/in-attr.jpg" width="10" height="10">\' id="h">x</div><div title="<img src=/t.jpg> <!-- c -->">y</div>';
+$out  = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg">' . $attr . '<img src="/real.jpg">' ), $base );
+$t( false !== strpos( $out, $attr ), 'an <img> inside an attribute value is left exactly as it was (no broken quotes), comments inside it too' );
+$t( false !== strpos( $out, '<img data-bpb-src="/real.jpg"' ) && false === strpos( $out, "\x1a" ), 'real images after it are still converted and no placeholder token is left behind' );
+
 echo "OK ($n assertions)\n";

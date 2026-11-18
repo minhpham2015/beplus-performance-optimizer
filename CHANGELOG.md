@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **HTML lazy load: an `<img>` inside an attribute value broke the page.** `data-content='<img src="...">'`-style attributes (tooltips, popups, HTML in JSON) were converted like real images and the SVG placeholder's quotes ended the attribute early. Tags whose attribute values contain markup are now hidden from the engine together with scripts/styles/comments (tokens nested in them are restored first, since `strtr()` does not re-scan). Test: `tests/test-lazy-html.php`.
+- **Delay JS (Advanced) rewrote scripts that are only text inside other markup.** Scripts inside `<noscript>`, `<template>` (blocked templates that are cloned later), `<textarea>` (changed what it shows), comments and attribute values were turned into `javascript/blocked`, and a conditional comment such as `<!--[if lt IE 9]><script ...>` before the first real script took the runtime with it, so nothing was released. Those blocks are now hidden while the page is rewritten (`BEPLUSPB_JS::protect_inert_markup()`); real `<script>`/`<style>` blocks are matched first, so a `"<!--"` inside a script does not start a "comment". Test: `tests/test-delay-js-builtin-excludes.php`.
+
 ## [1.3.4] - 2026-11-18
 
 ### Fixed

@@ -105,6 +105,21 @@ define( 'ELEMENTOR_VERSION', '3.30.0' );
 $out = $page( '<script>var a = 1;</script>' );
 t_ok( 1 === preg_match( '/var _bepluspb=\{[^}]*"elementor-animations":true/', $out ), 'with Elementor active the config enables the animations' );
 
+// ---- scripts that are only text inside other markup are not rewritten ------------------------------------------------
+$out = $page(
+	'<noscript><script>var inNoscript=1;</script></noscript><template><script>var inTemplate=1;</script></template>'
+	. '<textarea><script>var inTextarea=1;</script></textarea><!--[if lt IE 9]><script src="/ie.js"></script><![endif]-->'
+	. '<div data-x=\'<script>var inAttr=1;</script>\'>x</div><script>document.write("<!--");</script><script>var real=1;</script>'
+);
+t_ok( 2 === substr_count( $out, '<script type="javascript/blocked"' ), 'inert markup: only the two real scripts are blocked' );
+t_ok( false !== strpos( $out, '<noscript><script>var inNoscript=1;</script></noscript>' ) && false !== strpos( $out, '<template><script>var inTemplate=1;</script></template>' ) && false !== strpos( $out, '<textarea><script>var inTextarea=1;</script></textarea>' ), 'inert markup: noscript/template/textarea content is unchanged' );
+t_ok( false !== strpos( $out, '<!--[if lt IE 9]><script src="/ie.js"></script><![endif]-->' ) && false !== strpos( $out, "<div data-x='<script>var inAttr=1;</script>'>" ), 'inert markup: conditional comments and attribute values are unchanged' );
+t_ok( $blocked( $out, 'var real=1' ) && $blocked( $out, 'document.write("<!--")' ), 'inert markup: a "<!--" inside a script does not hide the scripts after it' );
+t_ok( false === strpos( $out, "\x1a" ), 'inert markup: no token is left behind' );
+t_ok( strpos( $out, 'var _bepluspb=' ) > strpos( $out, '<![endif]-->' ) && strpos( $out, 'var _bepluspb=' ) < strpos( $out, 'document.write(' ), 'inert markup: the runtime sits right before the first real script, not inside a comment' );
+$out = $page( '<!--[if lt IE 9]><script src="/ie.js"></script><![endif]--><script>var after=1;</script>' );
+t_ok( false !== strpos( $out, 'var _bepluspb=' ), 'inert markup: a script that only appears inside a comment does not take the runtime with it' );
+
 // ---- Simple mode ---------------------------------------------------------------------------------------------------------------
 $tag = function ( $src, $extra = '' ) { return "<script src=\"$src\"$extra></script>\n"; };
 $simple = function ( $src, $handle, $extra = '' ) use ( $tag ) { return BEPLUSPB_JS::delay_scripts( $tag( $src, $extra ), $handle, $src ); };

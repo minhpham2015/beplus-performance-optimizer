@@ -134,6 +134,25 @@ class BEPLUSPB_Lazy_HTML {
 			return $html;
 		}
 
+		// An attribute value that holds markup (data-content='<img src="...">', tooltips, JSON with HTML) is not
+		// part of the page: converting an <img> inside it would break the attribute (our placeholder has quotes).
+		$safe = preg_replace_callback(
+			'#<(?!img\b|picture\b|iframe\b|source\b)[a-z][a-z0-9-]*+\b(?:[^>"\']++|"[^"]*+"|\'[^\']*+\')*+>#i',
+			function ( $m ) use ( &$map ) {
+				$original = strtr( $m[0], $map ); // A comment/script token inside the attribute is put back first: strtr() does not re-scan.
+				if ( false === strpos( $original, '<', 1 ) ) {
+					return $m[0];
+				}
+				$token         = "\x1aBPB" . count( $map ) . "\x1a";
+				$map[ $token ] = $original;
+				return $token;
+			},
+			$safe
+		);
+		if ( null === $safe ) {
+			return $html;
+		}
+
 		$use_js = true;
 		if ( class_exists( 'BEPLUSPB_CSS' ) && BEPLUSPB_CSS::csp_blocks_inline_handlers( BEPLUSPB_CSS::collect_csp_policies( $head ) ) ) {
 			$use_js = false; // The inline loader would be blocked: native loading="lazy" instead.

@@ -533,6 +533,13 @@ class BEPLUSPB_JS {
 		if ( ! file_exists( $script_path ) ) {
 			return $buffer;
 		}
+
+		// Scripts inside <noscript>, <template>, <textarea>, comments (conditional comments for old IE) and
+		// attribute values are not scripts of this page: rewriting them blocked templates that are cloned later,
+		// changed what a textarea shows, and could even put the runtime inside a comment.
+		$inert  = array();
+		$buffer = self::protect_inert_markup( $buffer, $inert );
+
 		$runtime_js = file_get_contents( $script_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 
 		// Build the _bepluspb config object passed to the runtime.
@@ -774,6 +781,50 @@ class BEPLUSPB_JS {
 			$buffer
 		);
 
-		return $buffer;
+		return $inert ? strtr( $buffer, $inert ) : $buffer;
+	}
+
+	/**
+	 * Hide markup that merely contains script tags: noscript/template/textarea blocks, comments, and tags whose
+	 * attribute values hold markup. Real <script>/<style> blocks are matched first, so a "<!--" inside a script
+	 * never starts a "comment". Restore with strtr() (tokens nested inside a protected tag are put back first).
+	 *
+	 * @param  string $buffer Page.
+	 * @param  array  $map    Token => original (by reference).
+	 * @return string
+	 */
+	private static function protect_inert_markup( $buffer, &$map ) {
+		if ( false !== strpos( $buffer, "\x1a" ) ) {
+			return $buffer; // Our token byte is in the page: leave it as it was.
+		}
+		$out = preg_replace_callback(
+			'#<(script|style|noscript|template|textarea)\b[^>]*+>.*?</\1\s*>|<!--.*?-->#is',
+			function ( $m ) use ( &$map ) {
+				if ( isset( $m[1] ) && in_array( strtolower( $m[1] ), array( 'script', 'style' ), true ) ) {
+					return $m[0];
+				}
+				$token         = "\x1aBPJ" . count( $map ) . "\x1a";
+				$map[ $token ] = $m[0];
+				return $token;
+			},
+			$buffer
+		);
+		if ( null === $out ) {
+			return $buffer;
+		}
+		$tagged = preg_replace_callback(
+			'#<(?!script\b|style\b)[a-z][a-z0-9-]*+\b(?:[^>"\']++|"[^"]*+"|\'[^\']*+\')*+>#i',
+			function ( $m ) use ( &$map ) {
+				$original = strtr( $m[0], $map );
+				if ( false === strpos( $original, '<', 1 ) ) {
+					return $m[0];
+				}
+				$token         = "\x1aBPJ" . count( $map ) . "\x1a";
+				$map[ $token ] = $original;
+				return $token;
+			},
+			$out
+		);
+		return null === $tagged ? $out : $tagged;
 	}
 }
