@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-18
+
 ### Fixed
 - **Minify JS Files broke scripts that contain a regular expression ending in `\//`** (found with Contact Form 7 6.2.5: `n.replace(/^\//,"")` in its `index.js`; the console said "Uncaught SyntaxError: Invalid regular expression: missing /" and the form reloaded the page on submit). `BEPLUSPB_Utils::strip_js_comments()` claimed to handle RegExp literals but did not: it saw `//` inside the regex as a line comment and deleted the rest of the line, which in a one-line bundle meant the rest of the file (13,054 bytes became 1,283). Three changes: (1) regex literals are now recognised (by the preceding token: operator/opening punctuation/`return`-like keyword; doubtful cases such as `a++ /` count as division, copied verbatim and closed on the same line only) and copied untouched; (2) `BEPLUSPB_Minify::minify_js()` leaves bundler output (very long lines, i.e. already minified under a name without `.min`) alone; (3) the JS cache key is versioned (`j2`) so the broken copies already stored are regenerated. Also: the `/*! … */` licence comment no longer gets a doubled `!`. Not a Delay JS problem: the same file breaks without Delay JS. Measured on 245 real-world scripts (npm packages, WP Meteor, Contact Form 7): the old code left 10 of them with invalid syntax, the new code 0. Tests: `tests/test-minify-js.php`.
 
