@@ -40,6 +40,70 @@ class BEPLUSPB_Utils {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Whether a "/" after the code in $out starts a regular expression (true) or is a division (false).
+	 *
+	 * Decided from the last significant token: an operator or opening punctuation (or one of the
+	 * keywords below) allows a regex; an identifier, number, ")" or "]" or a string means division.
+	 * Doubtful cases (`++ /`, `) /`) count as division: a wrong "regex" would copy code verbatim and
+	 * could leave a comment behind, while a missed regex is what broke Contact Form 7.
+	 *
+	 * @param  string $out JavaScript emitted so far (comments already removed).
+	 * @return bool
+	 */
+	private static function regex_allowed( $out ) {
+		$tail = rtrim( substr( $out, -40 ) );
+		if ( '' === $tail ) {
+			return true;
+		}
+		$p = $tail[ strlen( $tail ) - 1 ];
+		if ( ( '+' === $p || '-' === $p ) && strlen( $tail ) > 1 && $tail[ strlen( $tail ) - 2 ] === $p ) {
+			return false; // a++ / b
+		}
+		if ( false !== strpos( '(,=:[!&|?{};+-*%<>~^', $p ) ) {
+			return true;
+		}
+		if ( preg_match( '/([A-Za-z_$][\w$]*)$/', $tail, $m ) ) {
+			return in_array( $m[1], array( 'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await' ), true );
+		}
+		return false;
+	}
+
+	/**
+	 * End offset (after the closing "/") of the regex literal that starts at $start, or null when
+	 * none closes on the same line (then it was a division after all).
+	 *
+	 * @param  string $js    JavaScript source.
+	 * @param  int    $start Offset of the opening "/".
+	 * @param  int    $len   Source length.
+	 * @return int|null
+	 */
+	private static function regex_literal_end( $js, $start, $len ) {
+		$i        = $start + 1;
+		$in_class = false;
+		while ( $i < $len ) {
+			$c = $js[ $i ];
+			if ( "\n" === $c || "\r" === $c ) {
+				return null;
+			}
+			if ( '\\' === $c ) {
+				$i += 2;
+				continue;
+			}
+			if ( $in_class ) {
+				if ( ']' === $c ) {
+					$in_class = false;
+				}
+			} elseif ( '[' === $c ) {
+				$in_class = true;
+			} elseif ( '/' === $c ) {
+				return $i + 1;
+			}
+			++$i;
+		}
+		return null;
+	}
+
+	/**
 	 * Strip single-line (//) and multi-line (/* … * /) comments from a
 	 * JavaScript source string while correctly handling:
 	 *
@@ -127,6 +191,18 @@ class BEPLUSPB_Utils {
 			if ( '/' === $c && ( $i + 1 ) < $len ) {
 				$next = $js[ $i + 1 ];
 
+				// Regular-expression literal, e.g. s.replace(/^\//, ""): copied verbatim, because the
+				// "//" or "/*" inside it (`\//`, `[/*]`) is not a comment. It can never start with
+				// "/" or "*" (those begin comments) and only appears where an expression may start.
+				if ( '/' !== $next && '*' !== $next && self::regex_allowed( $out ) ) {
+					$end = self::regex_literal_end( $js, $i, $len );
+					if ( null !== $end ) {
+						$out .= substr( $js, $i, $end - $i );
+						$i    = $end;
+						continue;
+					}
+				}
+
 				// Single-line comment //.
 				if ( '/' === $next ) {
 					// Preserve URL protocol (e.g. http://, https://).
@@ -165,7 +241,7 @@ class BEPLUSPB_Utils {
 					}
 
 					if ( $is_license ) {
-						$out .= '/*!' . $comment . '*/';
+						$out .= '/*' . $comment . '*/'; // $comment already starts with the "!".
 					} else {
 						$out .= ' ';
 					}
