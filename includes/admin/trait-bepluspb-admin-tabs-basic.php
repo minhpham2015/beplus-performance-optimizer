@@ -189,7 +189,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php
 						foreach ( $diff as $key => $change ) :
 							?>
-						<tr><th scope="row"><code><?php echo esc_html( $key ); ?></code></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : self::format_recommendation_value( $change['from'] ) ); ?></td><td><?php echo esc_html( self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<tr><th scope="row"><?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></td><td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
 						<?php
 else :
 	?>
