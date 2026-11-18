@@ -2,41 +2,41 @@
 
 File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file này và cập nhật cột **Trạng thái**.
 
-Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
+Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `PARTIAL` (đã làm một phần, nêu rõ phần còn thiếu) · `DONE` · `BLOCKED` · `PRO` (không làm trong bản miễn phí hiện tại, để dành cho bản Pro)
 
-Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-18 · Phiên bản hiện tại: 1.3.4 trên `staging` · Nhánh mặc định: `master`
 
-> **Rủi ro lớn nhất hiện tại:** #1–#3 đã phát hành trong 1.1.14 nhưng **chưa smoke test trên WordPress thật** (24 mục ở cuối file). Làm việc này trước khi thêm tính năng mới.
+> **Smoke test:** chủ dự án đã test xong trên WordPress thật (2026-11-18, các mục 1–32 và O1–O5 bên dưới), nên #1–#4 chuyển sang `DONE`.
 
-## 1.2.0 — Page cache (lỗ hổng lớn nhất) — code đã nằm trong 1.1.14, còn #4 để đóng mốc 1.2.0
+## 1.2.0 — Page cache (lỗ hổng lớn nhất) — đã phát hành, smoke test xong
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
-| 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | REVIEW |
-| 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | REVIEW |
-| 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | REVIEW |
-| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Chưa smoke test trên WP thật. | REVIEW |
+| 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | DONE |
+| 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | DONE |
+| 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | DONE |
+| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Chưa smoke test trên WP thật. | DONE |
 
 ## 1.3.0 — Tải trang và dễ dùng
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
-| 5 | Critical CSS | Dịch vụ ngoài hoặc dán thủ công. Bản chạy trên máy chủ cần review bảo mật riêng. | TODO |
-| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Công sức nhỏ, thấy hiệu quả ngay. | TODO |
+| 5 | Critical CSS | Làm theo hướng khác roadmap: tạo ngay trên trình duyệt của admin, theo **loại trang** (không dùng dịch vụ ngoài, không chạy trên máy chủ). Xong ở 1.3.0; sau đó thêm 4 viewport, vùng dưới màn hình đầu, loại CSS thanh admin, Elementor. | DONE |
+| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Priority Images (preload ảnh LCP, `imagesrcset`, theo loại trang, tối đa 4 dòng/trang), công cụ Analyze LCP, preconnect cho CDN và Google Fonts. | DONE |
 | 7 | Heartbeat control | Không đụng DB. | TODO |
-| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Mở rộng `class-bepluspb-recommendations.php`. | TODO |
-| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | | TODO |
-| 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
+| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | 4 profile, xem trước thay đổi, hoàn tác (`Restore Previous Settings`), ghi đè riêng cho Elementor, tên option dễ đọc. | DONE |
+| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | Đã có: admin luôn thấy trang gốc, `?bepluspb-nodelay` (chỉ Delay JS). **Còn thiếu:** `?bepluspb_off=1` tắt mọi tối ưu cho một request, và chế độ "bật thử cho admin" có công tắc trong giao diện. | PARTIAL |
+| 10 | Tự exclude theo plugin/theme phổ biến | Đã có danh sách tĩnh cho Delay JS và lazy load. **Còn thiếu:** Minify CSS/JS và Remove Unused CSS. | PARTIAL |
 
 ## 1.4.0 — Mở rộng và hoàn thiện
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
 | 11 | Dọn dẹp Database | **Làm cuối, review bảo mật riêng.** `$wpdb->prepare()`, xem trước, xác nhận, nonce trước capability. Bản đầu chỉ "xem trước số lượng". | TODO |
-| 12 | Tự chuyển ảnh sang WebP/AVIF | Kiểm tra GD/Imagick, validate path theo Hard Rule #3. | TODO |
+| 12 | Tự chuyển ảnh sang WebP/AVIF | **Quyết định 2026-11-18: không làm trong bản miễn phí hiện tại, để cho bản Pro.** Phần đổi URL sang file WebP/AVIF đã có sẵn (CDN, từ 1.0.9) vẫn giữ nguyên trong bản miễn phí; chỉ phần *chuyển đổi ảnh* (GD/Imagick, xử lý hàng loạt) thuộc Pro. | PRO |
 | 13 | Cloudflare: purge theo URL khi sửa bài | Chỉ chạy khi admin kích hoạt. | TODO |
 | 14 | Dashboard hiệu năng | Sau khi có page cache. | TODO |
-| 15 | Multisite + WP-CLI | | TODO |
+| 15 | Multisite + WP-CLI | **Quyết định 2026-11-18: không làm trong bản miễn phí hiện tại, để cho bản Pro.** Code hiện có (kiểm tra quyền khi multisite) giữ nguyên. | PRO |
 
 ## Checklist cho mỗi tính năng/bản phát hành
 
@@ -47,6 +47,8 @@ Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên 
 - [ ] File/thư mục dev-only mới ở thư mục gốc đã thêm vào exclude của `rsync` trong `docs/RELEASE.md`
 
 ## Quyết định đã chốt
+
+- **2026-11-18:** #12 (tự chuyển ảnh sang WebP/AVIF) và #15 (Multisite + WP-CLI) **không làm trong bản miễn phí ở giai đoạn này; để cho bản Pro**. Không thêm code mới cho hai mục này vào plugin trên WordPress.org. Tính năng đã phát hành (đổi URL sang file WebP/AVIF có sẵn) không bị gỡ.
 
 - Page cache #1–#3 đã được gộp vào 1.1.14 (opt-in, mặc định tắt) thay vì chờ 1.2.0. Mốc **1.2.0** = #4 preload + smoke test xong + #1–#3 chuyển `DONE`.
 - Vẫn chia 1.2.0 → 1.3.0 → 1.4.0. _Chưa xác nhận với chủ dự án; nếu muốn gộp thì nhảy thẳng 1.4.0._
@@ -123,6 +125,7 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-11-06 | Rà soát #1–#4, xử lý 3 điểm: TTL tối đa 24h (nonce), preload tự warm lại sau TTL, rate limit 1 lượt/10 phút. Thêm smoke test #29–#30. |
 | 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
+| 2026-11-18 | Phát hành 1.2.1 → 1.3.4 (trong 6 ngày, phần lớn ngoài roadmap): Critical CSS, Priority Images + Analyze LCP, Google Fonts (Optimize/Self-host), Remove Unused CSS học qua nhiều lượt, Inline All CSS, Non-Render-Blocking CSS, lazy load kiểu viết lại HTML (iframe, slider, ảnh nền, giữ tỉ lệ ảnh, `lazyloaded`), Delay JS (loại trừ sẵn, sửa form, animation Elementor, preset, `?bepluspb-nodelay`), sửa Minify JS làm hỏng Contact Form 7. Chủ dự án smoke test xong trên WordPress thật; #1–#4 → DONE. Chốt #12 và #15 chỉ cho bản Pro. |
 | 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
 
 ## Việc còn lại từ review lần 3
