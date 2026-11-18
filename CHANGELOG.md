@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-11-18
+
 ### Fixed
 - **Delay JS, Simple mode: scripts that run after the page has loaded missed their `DOMContentLoaded`/`load` listeners.** Contact Form 7 starts with `document.addEventListener("DOMContentLoaded", init)`: loaded late, that handler never fired, the form was not initialised and a submit reloaded the page (`delay.js` already held the submit, but replaying it was a plain reload). While the delayed scripts load, `delay.js` now holds back listeners for events that already happened (document `DOMContentLoaded`/`readystatechange`, window `DOMContentLoaded`/`load`/`pageshow`) and calls them once, in order, after every script has run and before a held form is submitted again; `addEventListener` is restored afterwards. Test: `docs/delay-js-browser-test.js` (it fails on the old `delay.js`).
 - **"Exclude JS Files" now also keeps a script out of Minify JS**, as its description always said (it only affected Delay/Defer).
