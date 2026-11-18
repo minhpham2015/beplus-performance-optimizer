@@ -20,17 +20,19 @@ function apply_filters($t, $v) { return $v; } function is_admin() { return false
 $root = $argv[1];
 require $root . '/includes/class-bepluspb-utils.php'; require $root . '/includes/class-bepluspb-css.php'; require $root . '/includes/class-bepluspb-lazy-html.php';
 $body = '<img id="top1" src="/img/top1.png" width="100" height="100"><img id="top2" src="/img/top2.png" width="100" height="100">'
+  . '<div id="bgtop" style="height:20px;background-image:url(/img/bgtop.png)"></div><div id="bgtop2" style="height:20px;background-image:url(/img/bgtop2.png)"></div>'
   . '<img id="near" src="/img/near.png" width="100" height="100">'
   . '<div style="height:1500px">spacer</div>'
   . '<img id="far" src="/img/far.png" width="100" height="100" srcset="/img/far-1x.png 1x, /img/far-2x.png 2x">'
   . '<div style="height:1500px">spacer</div>'
   . '<picture id="pic"><source type="image/webp" srcset="/img/pic.webp"><img id="picimg" src="/img/pic.png" width="100" height="100"></picture>'
   . '<div style="height:1500px">spacer</div>'
+  . '<div id="bgfar" style="height:100px;color:red;background-image:url(/img/bgfar.png);margin:0"></div>'
   . '<img id="skipme" src="/img/skipme.png" width="100" height="100" class="skip-lazy">'
   . '<div id="later"></div>'
   . '<div class="swiper" id="sw" style="width:300px;overflow:hidden"><div style="display:flex;width:1500px"><img id="s1" src="/img/s1.png" width="300" height="100"><img id="s2" src="/img/s2.png" width="300" height="100"><img id="s3" src="/img/s3.png" width="300" height="100"><img id="s4" src="/img/s4.png" width="300" height="100"></div></div>'
   . '<div style="height:6000px"></div><iframe id="fr" src="/frame/far" width="300" height="100"></iframe><iframe id="tr" src="/frame/track" width="1" height="1"></iframe>';
-echo BEPLUSPB_Lazy_HTML::process('<!doctype html><html><head><meta charset="utf-8"><title>t</title></head><body style="margin:0">' . $body . '</body></html>', array('lazy_html_skip_first' => 2));
+echo BEPLUSPB_Lazy_HTML::process('<!doctype html><html><head><meta charset="utf-8"><title>t</title></head><body style="margin:0">' . $body . '</body></html>', array('lazy_html_skip_first' => 2, 'lazy_html_bg' => 1));
 `);
 const html = execFileSync('php', [phpFile, path.join(__dirname, '..')], { encoding: 'utf8' });
 
@@ -78,11 +80,16 @@ const has = n => requests.some(r => r.includes(n));
   const pic = await page.evaluate(() => { const s = document.querySelector('#pic source'); return [s.hasAttribute('srcset'), s.hasAttribute('data-bpb-srcset')]; });
   ok(pic[0] === true && pic[1] === false, 'the <source> got its srcset back');
 
+  ok(!has('bgfar.png'), 'background: a far inline background image is NOT requested before scrolling');
+  ok(has('bgtop.png') && has('bgtop2.png'), 'background: the first backgrounds (skip count) load at once');
   await page.evaluate(() => {
     const i = document.createElement('img'); i.id = 'dyn'; i.setAttribute('data-bpb-src', '/img/dyn.png'); i.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3C/svg%3E"; i.width = 100; i.height = 100;
     document.getElementById('later').appendChild(i);
   });
   await page.evaluate(() => window.scrollTo(0, 4400)); await page.waitForTimeout(800);
+  ok(has('bgfar.png'), 'background: it loads when the visitor scrolls near it');
+  const bgs = await page.evaluate(() => { const e = document.getElementById('bgfar'); return [e.hasAttribute('data-bpb-bg'), getComputedStyle(e).backgroundImage, e.style.color]; });
+  ok(bgs[0] === false && /bgfar\.png/.test(bgs[1]) && bgs[2] === 'red', 'background: applied through style, attribute removed, other declarations kept (' + bgs[1] + ')');
   ok(has('dyn.png'), 'an image added later by a script is picked up (MutationObserver)');
   ok(['s1', 's2', 's3', 's4'].every(n => has('/' + n + '.png')), 'slider: ALL slides load, including the ones clipped to the right (released when the slider is near the viewport)');
   const frameAttr = await page.evaluate(() => [document.getElementById('fr').getAttribute('loading'), document.getElementById('tr').getAttribute('loading')]);
@@ -100,6 +107,7 @@ const has = n => requests.some(r => r.includes(n));
   await p2.goto(base, { waitUntil: 'load' }); await p2.waitForTimeout(500);
   ok(has('far-1x.png') && has('pic.png'), 'without JavaScript the <noscript> originals load (' + requests.join(',') + ')');
   const hidden = await p2.evaluate(() => { const i = document.getElementById('far'); return i ? getComputedStyle(i).display : 'missing'; });
+  ok(has('bgfar.png'), 'without JavaScript the background comes back through the <noscript> style rule');
   ok(hidden === 'none' || hidden === 'missing', 'without JavaScript the placeholder is hidden (display: ' + hidden + ')');
   await ctx2.close();
 

@@ -495,12 +495,11 @@ trait BEPLUSPB_Admin_Tabs_Status {
 					$row( __( 'JS Delay Mode', 'beplus-performance-booster' ), $delay_mode_label, $badge( ! empty( $opts['js_delay'] ) ? 'ok' : 'error', ! empty( $opts['js_delay'] ) ? $t_on : $t_off ) );
 					if ( ! empty( $opts['js_delay'] ) && isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ) {
 						$rdelay = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0;
-						/* translators: %d: millisecond delay value. */
+
 						$rdelay_label = 0 === $rdelay
+							? __( 'Only after the first interaction', 'beplus-performance-booster' )
 							/* translators: %d: millisecond delay value. */
-							? sprintf( __( '%d ms (wait for DOMContentLoaded)', 'beplus-performance-booster' ), $rdelay )
-							/* translators: %d: millisecond delay value. */
-							: sprintf( __( '%d ms', 'beplus-performance-booster' ), $rdelay );
+							: sprintf( __( '%d ms after the page has loaded', 'beplus-performance-booster' ), $rdelay );
 						$row( __( 'JS Delay rdelay', 'beplus-performance-booster' ), $rdelay_label );
 					}
 					?>

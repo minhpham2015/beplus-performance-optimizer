@@ -36,7 +36,7 @@ $GLOBALS['ctx'] = array();
 $imgs = '<img src="/a.jpg" width="10" height="10"><img src="/b.jpg"><img src="/c.jpg" width="640" height="480" srcset="/c-300.jpg 300w, /c.jpg 640w" sizes="(max-width: 640px) 100vw, 640px" alt="C &amp; D" class="wp-image-3" loading="lazy" decoding="async"><img src=\'/d.jpg\' alt=\'x\'/>';
 $out  = BEPLUSPB_Lazy_HTML::process( $page( $imgs ), $base );
 $t( false !== strpos( $out, '<img src="/a.jpg" width="10" height="10">' ) && false !== strpos( $out, '<img src="/b.jpg">' ), 'the first two images stay eager' );
-$t( 1 === preg_match( '#<img data-bpb-src="/c\.jpg" src="data:image/svg\+xml,%3Csvg%20xmlns=\'http://www\.w3\.org/2000/svg\'%20viewBox=\'0%200%20640%20480\'%3E%3C/svg%3E" width="640" height="480" data-bpb-srcset="/c-300\.jpg 300w, /c\.jpg 640w" data-bpb-sizes="\(max-width: 640px\) 100vw, 640px" alt="C &amp; D" class="wp-image-3" decoding="async">#', $out ), 'img 3: placeholder with its ratio, real src/srcset/sizes moved, loading=lazy removed, other attributes kept' );
+$t( 1 === preg_match( '#<img data-bpb-src="/c\.jpg" src="data:image/svg\+xml,%3Csvg xmlns=\'http://www\.w3\.org/2000/svg\' viewBox=\'0 0 640 480\'%3E%3C/svg%3E" width="640" height="480" data-bpb-srcset="/c-300\.jpg 300w, /c\.jpg 640w" data-bpb-sizes="\(max-width: 640px\) 100vw, 640px" alt="C &amp; D" class="wp-image-3" decoding="async">#', $out ), 'img 3: placeholder with its ratio, real src/srcset/sizes moved, loading=lazy removed, other attributes kept' );
 $t( false !== strpos( $out, '<noscript><img src="/c.jpg" width="640" height="480" srcset="/c-300.jpg 300w, /c.jpg 640w" sizes="(max-width: 640px) 100vw, 640px" alt="C &amp; D" class="wp-image-3" loading="lazy" decoding="async"></noscript>' ), 'the original tag is kept in <noscript>' );
 $t( false !== strpos( $out, '<img data-bpb-src="/d.jpg" src="data:image/svg+xml,' ) && false !== strpos( $out, " alt='x'/>" ), 'single-quoted attributes and a self-closing slash survive' );
 $t( 2 === $count( 'data-bpb-src="', $out ), 'only the two images after the skipped ones are converted' );
@@ -145,5 +145,36 @@ $out = BEPLUSPB_Lazy_HTML::process( $page( '<script>var h=\'<iframe src="/s"></i
 $t( false !== strpos( $out, '<iframe src="/s">' ) && false !== strpos( $out, '<noscript><iframe src="/n"></iframe></noscript>' ) && false !== strpos( $out, '<iframe src="/c">' ) && false !== strpos( $out, '<iframe loading="lazy" src="/real">' ), 'iframes inside script/noscript/comments are never touched' );
 $out = BEPLUSPB_Lazy_HTML::process( $page( '<iframe src="/a"></iframe>', $meta ), $fr );
 $t( false !== strpos( $out, '<iframe loading="lazy" src="/a">' ), 'iframes use native lazy loading even when a CSP blocks the image loader' );
+
+// ---- inline background images (opt-in) ------------------------------------------------------------------------------
+$bgo = array_merge( $base, array( 'lazy_html_bg' => 1, 'lazy_html_skip_first' => 1 ) );
+$body = '<div id="b0" style="background-image:url(/first.jpg)">0</div>'
+	. '<div id="b1" class="hero" style="color:red;background-image:url(\'/img/a.jpg?x=1&amp;y=2\');margin:0">1</div>'
+	. '<section id="b2" style="background-image: url(&quot;/img/b.jpg&quot;)">2</section>'
+	. '<div id="b3" style="background:url(/short.jpg) no-repeat">3</div>'
+	. '<div id="b4" style="background-image:linear-gradient(red,blue),url(/g.jpg)">4</div>'
+	. '<div id="b5" style="background-image:url(data:image/png;base64,AAAA)">5</div>'
+	. '<div id="b6" class="skip-lazy" style="background-image:url(/skip.jpg)">6</div>'
+	. '<div id="b7" style="background-image:url(/x(1).jpg)">7</div>'
+	. '<span id="b8" style="background-image:url(/img/c.jpg)"/>'
+	. '<script>var s=\'<div style="background-image:url(/in-script.jpg)">\';</script>';
+$out = BEPLUSPB_Lazy_HTML::process( $page( $body ), $bgo );
+$t( false !== strpos( $out, '<div id="b0" style="background-image:url(/first.jpg)">' ), 'bg: the first background (skip count) stays eager' );
+$t( false !== strpos( $out, '<div id="b1" class="hero" style="color:red;margin:0" data-bpb-bg="/img/a.jpg?x=1&amp;y=2">' ), 'bg: the declaration moves to data-bpb-bg, other declarations stay' );
+$t( false !== strpos( $out, '<section id="b2" data-bpb-bg="/img/b.jpg">' ), 'bg: an emptied style attribute is dropped, &quot; quoting understood' );
+$t( false !== strpos( $out, 'style="background:url(/short.jpg) no-repeat"' ) && false !== strpos( $out, 'linear-gradient(red,blue),url(/g.jpg)' ) && false !== strpos( $out, 'url(data:image/png;base64,AAAA)' ), 'bg: shorthand, gradient layers and data: URLs are left alone' );
+$t( false !== strpos( $out, 'class="skip-lazy" style="background-image:url(/skip.jpg)"' ) && false !== strpos( $out, 'url(/x(1).jpg)' ), 'bg: skip-lazy and URLs with unsafe characters are left alone' );
+$t( false !== strpos( $out, '<span id="b8" data-bpb-bg="/img/c.jpg"/>' ), 'bg: a self-closing tag keeps its slash' );
+$t( false !== strpos( $out, '/in-script.jpg' ) && 1 === $count( 'background-image:url(/in-script.jpg)', $out ), 'bg: markup inside a script is untouched' );
+$t( false !== strpos( $out, 'id="bepluspb-lazy-loader"' ) && false !== strpos( $out, "B='data-bpb-bg'" ), 'bg: the loader handles data-bpb-bg' );
+$t( false !== strpos( $out, '<noscript><style id="bepluspb-lazy-nojs">[data-bpb-bg="/img/a.jpg?x=1&y=2"]{background-image:url("/img/a.jpg?x=1&y=2")}' ), 'bg: a no-JavaScript rule per URL puts the background back' );
+$off = BEPLUSPB_Lazy_HTML::process( $page( $body ), array_merge( $bgo, array( 'lazy_html_bg' => 0 ) ) );
+$t( false === strpos( $off, 'data-bpb-bg' ) && false === strpos( $off, "B='data-bpb-bg'" ), 'bg: off by default (no attribute, no loader code)' );
+$none = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg"><img src="/c.jpg">' ), $bgo );
+$t( false === strpos( $none, "B='data-bpb-bg'" ), 'bg: the loader stays lean when the page has no deferred background' );
+$csp = '<meta http-equiv="Content-Security-Policy" content="script-src \'self\'">';
+$out = BEPLUSPB_Lazy_HTML::process( $page( $body, $csp ), $bgo );
+$t( false === strpos( $out, 'data-bpb-bg' ), 'bg: with a CSP blocking the loader, backgrounds are left alone' );
+$GLOBALS['skip_filter'] = null;
 
 echo "OK ($n assertions)\n";

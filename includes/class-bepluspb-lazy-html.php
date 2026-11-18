@@ -17,6 +17,7 @@
  *  - images inside a slider/carousel are released when the slider comes into view
  *    (the slides are clipped, so they would otherwise stay blank until they slide in);
  *  - iframes get the browser's native loading="lazy" (no JS needed).
+ *  - opt-in: inline `background-image:url()` styles move to data-bpb-bg and are applied by the same loader.
  *
  * It fails open: scripts/styles/comments/noscript/templates are never touched,
  * partial or non-HTML output is returned as is, and when a Content-Security-Policy
@@ -35,6 +36,7 @@ class BEPLUSPB_Lazy_HTML {
 	const ATTR_SRC    = 'data-bpb-src';
 	const ATTR_SRCSET = 'data-bpb-srcset';
 	const ATTR_SIZES  = 'data-bpb-sizes';
+	const ATTR_BG     = 'data-bpb-bg';
 
 	/**
 	 * Register the buffer when this engine is selected.
@@ -96,7 +98,7 @@ class BEPLUSPB_Lazy_HTML {
 		if ( ! is_string( $html ) || '' === $html ) {
 			return $html;
 		}
-		if ( ( false === stripos( $html, '<img' ) && false === stripos( $html, '<iframe' ) ) || false === stripos( $html, '</body>' ) || ! preg_match( '/<html\b/i', $html ) ) {
+		if ( ( false === stripos( $html, '<img' ) && false === stripos( $html, '<iframe' ) && ( empty( $opts['lazy_html_bg'] ) || false === stripos( $html, 'background' ) ) ) || false === stripos( $html, '</body>' ) || ! preg_match( '/<html\b/i', $html ) ) {
 			return $html;
 		}
 		if ( false !== strpos( $html, "\x1a" ) ) {
@@ -140,6 +142,7 @@ class BEPLUSPB_Lazy_HTML {
 		$cfg   = array(
 			'js'        => $use_js,
 			'iframes'   => ! isset( $opts['lazy_html_iframes'] ) || ! empty( $opts['lazy_html_iframes'] ),
+			'bg'        => ! empty( $opts['lazy_html_bg'] ),
 			'threshold' => isset( $opts['lazy_html_threshold'] ) ? max( 0, min( 2000, (int) $opts['lazy_html_threshold'] ) ) : 300,
 			'skip'      => isset( $opts['lazy_html_skip_first'] ) ? max( 0, min( 10, (int) $opts['lazy_html_skip_first'] ) ) : 2,
 			'ex_class'  => self::parse_list( isset( $opts['lazy_exclude_class'] ) ? $opts['lazy_exclude_class'] : '' ),
@@ -178,16 +181,37 @@ class BEPLUSPB_Lazy_HTML {
 			}
 		}
 
+		$bg_urls = array();
+		if ( $cfg['bg'] && $use_js ) {
+			$with_bg = preg_replace_callback(
+				'#<(?!img\b|picture\b|iframe\b|body\b|html\b)[a-z][a-z0-9-]*+\b(?:[^>"\']++|"[^"]*+"|\'[^\']*+\')*+>#i',
+				function ( $m ) use ( &$state, &$bg_urls, $cfg ) {
+					return false === stripos( $m[0], 'url(' ) ? $m[0] : self::convert_background( $m[0], $state, $bg_urls, $cfg );
+				},
+				$safe
+			);
+			if ( null !== $with_bg ) {
+				$safe = $with_bg;
+			}
+		}
+
 		$rest = strtr( $safe, $map );
 
-		if ( $use_js && $state['converted'] > 0 ) {
+		if ( $use_js && ( $state['converted'] > 0 || $bg_urls ) ) {
 			$end = strripos( $rest, '</body>' );
 			if ( false !== $end ) {
-				$rest = substr( $rest, 0, $end ) . self::loader_script( $cfg['threshold'] ) . substr( $rest, $end );
+				$rest = substr( $rest, 0, $end ) . self::loader_script( $cfg['threshold'], (bool) $bg_urls ) . substr( $rest, $end );
 			}
 			$close = stripos( $head, '</head>' );
 			if ( false !== $close ) {
-				$head = substr( $head, 0, $close ) . '<noscript><style id="bepluspb-lazy-nojs">img[' . self::ATTR_SRC . ']{display:none!important}</style></noscript>' . substr( $head, $close );
+				$nojs = '';
+				if ( $state['converted'] > 0 ) {
+					$nojs .= 'img[' . self::ATTR_SRC . ']{display:none!important}';
+				}
+				foreach ( array_keys( $bg_urls ) as $url ) { // Without JavaScript the backgrounds are put back by CSS.
+					$nojs .= '[' . self::ATTR_BG . '="' . $url . '"]{background-image:url("' . $url . '")}';
+				}
+				$head = substr( $head, 0, $close ) . '<noscript><style id="bepluspb-lazy-nojs">' . $nojs . '</style></noscript>' . substr( $head, $close );
 			}
 		}
 
@@ -298,7 +322,7 @@ class BEPLUSPB_Lazy_HTML {
 		if ( isset( $attrs['height'] ) && preg_match( '/^\s*(\d{1,5})\s*$/', $attrs['height']['value'], $mh ) ) {
 			$h = (int) $mh[1];
 		}
-		$placeholder = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20" . $w . '%20' . $h . "'%3E%3C/svg%3E";
+		$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " . $w . ' ' . $h . "'%3E%3C/svg%3E";
 
 		$edits[] = array( $attrs['src']['pos'], strlen( $attrs['src']['raw'] ), ' src="' . $placeholder . '"' );
 		foreach ( array(
@@ -314,6 +338,61 @@ class BEPLUSPB_Lazy_HTML {
 
 		++$state['converted'];
 		return $new . '<noscript>' . $tag . '</noscript>';
+	}
+
+	/**
+	 * Move an inline `background-image:url(...)` to data-bpb-bg so the loader applies it near the viewport.
+	 *
+	 * Only a declaration that is exactly one plain url() is handled (not the `background` shorthand, not
+	 * gradients or several layers, not !important), and only for URLs made of safe characters, so the value can
+	 * be put back through the CSSOM and repeated in the no-JavaScript style rule without escaping.
+	 *
+	 * @param  string $tag     Opening tag.
+	 * @param  array  $state   Counters (by reference).
+	 * @param  array  $bg_urls Decoded URL => true, for the no-JavaScript rules (by reference).
+	 * @param  array  $cfg     Settings.
+	 * @return string
+	 */
+	private static function convert_background( $tag, &$state, &$bg_urls, $cfg ) {
+		$attrs = self::parse_attrs( $tag, 1 + strcspn( $tag, " \t\r\n>/", 1 ) );
+		if ( ! isset( $attrs['style'] ) || isset( $attrs[ self::ATTR_BG ] ) ) {
+			return $tag;
+		}
+		$style = $attrs['style']['value'];
+		if ( ! preg_match( '/(?:^|;)\s*background-image\s*:\s*url\(\s*(?:&quot;|&#0?34;|"|\'|)([^\s"\'()\\<>&;]*+(?:&amp;[^\s"\'()\\<>&;]*+)*+)(?:&quot;|&#0?34;|"|\'|)\s*\)\s*(?=;|$)/i', $style, $m, PREG_OFFSET_CAPTURE ) ) {
+			return $tag;
+		}
+		$raw = $m[1][0];
+		$url = str_replace( '&amp;', '&', $raw );
+		if ( '' === $url || ! preg_match( '#^[A-Za-z0-9\-._~:/?\#\[\]@!$&*+,;=%]+$#D', $url ) || preg_match( '#^(?:data|blob|about|javascript):#i', $url ) ) {
+			return $tag;
+		}
+		if ( self::is_skipped( $attrs, $url, $cfg ) || apply_filters( 'bepluspb_lazy_html_skip_background', false, self::values( $attrs ), $tag ) ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+			return $tag;
+		}
+		if ( ! isset( $state['bg_seen'] ) ) {
+			$state['bg_seen'] = 0;
+		}
+		++$state['bg_seen'];
+		if ( $state['bg_seen'] <= $cfg['skip'] ) {
+			return $tag; // Above the fold: keep eager.
+		}
+
+		// Drop the declaration (and its separator) from the style attribute.
+		$whole = $m[0][0];
+		$rest  = str_replace( $whole, '', $style );
+		$rest  = trim( ltrim( $rest, "; \t\r\n" ) );
+		$edits = array();
+		if ( '' === $rest ) {
+			$edits[] = array( $attrs['style']['pos'], strlen( $attrs['style']['raw'] ), '' );
+		} else {
+			$edits[] = array( $attrs['style']['pos'], strlen( $attrs['style']['raw'] ), ' style=' . self::quoted( $rest ) );
+		}
+		$new = self::apply_edits( $tag, $edits );
+		$new = '/>' === substr( $new, -2 ) ? substr( $new, 0, -2 ) . ' ' . self::ATTR_BG . '="' . $raw . '"/>' : substr( $new, 0, -1 ) . ' ' . self::ATTR_BG . '="' . $raw . '">';
+
+		$bg_urls[ $url ] = true;
+		return $new;
 	}
 
 	/**
@@ -530,19 +609,23 @@ class BEPLUSPB_Lazy_HTML {
 	 * its clip never intersect on their own, so they would stay blank until they slide in.
 	 * The attributes keep it out of other plugins' delay/defer/minify handling.
 	 *
-	 * @param  int $threshold Margin in pixels.
+	 * @param  int  $threshold Margin in pixels.
+	 * @param  bool $bg        Also handle data-bpb-bg (inline background images).
 	 * @return string
 	 */
-	private static function loader_script( $threshold = 300 ) {
-		$js = "(function(w,d){var S='data-bpb-src',Q='data-bpb-srcset',Z='data-bpb-sizes',T=" . (int) $threshold . ','
+	private static function loader_script( $threshold = 300, $bg = false ) {
+		// Selector of everything the loader releases: images, plus (opt-in) elements with a deferred background.
+		$sel = $bg ? "'img['+S+'],['+B+']'" : "'img['+S+']'";
+		$js  = "(function(w,d){var S='data-bpb-src',Q='data-bpb-srcset',Z='data-bpb-sizes'," . ( $bg ? "B='data-bpb-bg'," : '' ) . 'T=' . (int) $threshold . ','
 			. "H='.swiper,.swiper-container,.slick-slider,.owl-carousel,.flickity-viewport,.splide,.tns-slider,.glide,.elementor-image-carousel-wrapper',io,t;"
 			. 'function mv(e,a,b){var v=e.getAttribute(a);if(v!==null){e.removeAttribute(a);e.setAttribute(b,v);}}'
-			. 'function go(i){if(!i.hasAttribute(S))return;var p=i.parentNode;'
+			. ( $bg ? "function bg(e){var v=e.getAttribute(B);e.removeAttribute(B);if(v)e.style.backgroundImage='url('+JSON.stringify(v)+')';}" : '' )
+			. 'function go(i){' . ( $bg ? 'if(i.hasAttribute(B)){bg(i);return;}' : '' ) . 'if(!i.hasAttribute(S))return;var p=i.parentNode;'
 			. "if(p&&p.nodeName==='PICTURE'){var c=p.getElementsByTagName('source');for(var k=0;k<c.length;k++){mv(c[k],Q,'srcset');mv(c[k],Z,'sizes');}}"
 			. "mv(i,Z,'sizes');mv(i,Q,'srcset');mv(i,S,'src');}"
-			. "function all(){var n=d.querySelectorAll('img['+S+']');for(var k=0;k<n.length;k++)go(n[k]);}"
-			. "function run(e){if(e.hasAttribute(S)){go(e);return;}var n=e.querySelectorAll('img['+S+']');for(var k=0;k<n.length;k++)go(n[k]);}"
-			. "function scan(){var n=d.querySelectorAll('img['+S+']');if(!('IntersectionObserver' in w)){all();return;}"
+			. 'function all(){var n=d.querySelectorAll(' . $sel . ');for(var k=0;k<n.length;k++)go(n[k]);}'
+			. 'function run(e){if(e.hasAttribute(S)' . ( $bg ? '||e.hasAttribute(B)' : '' ) . '){go(e);return;}var n=e.querySelectorAll(' . $sel . ');for(var k=0;k<n.length;k++)go(n[k]);}'
+			. 'function scan(){var n=d.querySelectorAll(' . $sel . ");if(!('IntersectionObserver' in w)){all();return;}"
 			. "if(!io){var c=w.navigator&&w.navigator.connection,m=T*(c&&/(^|-)[23]g\$/.test(c.effectiveType||'')?2:1);"
 			. "io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting||e.intersectionRatio>0){io.unobserve(e.target);run(e.target);}});},{rootMargin:m+'px 0px'});}"
 			. 'for(var k=0;k<n.length;k++){var h=n[k].closest?n[k].closest(H):null;io.observe(h||n[k]);}}'

@@ -258,6 +258,7 @@ class BEPLUSPB_Admin {
 			// Lazy load.
 			'lazy_load',
 			'lazy_html_iframes',
+			'lazy_html_bg',
 			// Cleanup.
 			'remove_emoji',
 			'remove_embed',
@@ -310,7 +311,7 @@ class BEPLUSPB_Admin {
 			: 'simple';
 
 		$sanitized['js_delay_rdelay'] = isset( $input['js_delay_rdelay'] )
-			? absint( $input['js_delay_rdelay'] )
+			? min( 10000, absint( $input['js_delay_rdelay'] ) )
 			: 0;
 
 		$sanitized['css_exclude'] = isset( $input['css_exclude'] )

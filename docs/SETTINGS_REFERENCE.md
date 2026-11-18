@@ -30,9 +30,20 @@ whichever comes first.
   MutationObserver. Replays `DOMContentLoaded` and `window.load` event queues in
   correct order. Test thoroughly before enabling on production.
 
-*JS Release Delay (ms)* — fallback timer (ms) that releases delayed scripts after
-above-fold images and fonts finish loading, without requiring user interaction.
-`0` = disabled — only user interaction releases delayed scripts.
+*JS Release Delay* (Advanced mode) — when delayed scripts are released without waiting
+for the visitor. Presets: *Only after the first interaction* (value `0`, best Lighthouse
+score), *Soon after the page has loaded* (100 ms), *2 seconds* / *5 seconds after the
+page has loaded* (counted from the moment above-fold images and fonts have finished
+loading), or a custom value in ms (up to 10000). With `0`, anything that has to run for
+a visitor who only reads (analytics, tag manager, chat widgets, ads) starts at the first
+scroll, click or key press, so visitors who leave without touching the page are not
+counted: pick a timed release if you rely on that.
+
+*Switching Delay JS off for one request* — add `?bepluspb-nodelay` to a URL to load that
+page with Delay JS off (compare before/after, or find out whether it breaks something).
+Pages with this parameter are never page-cached. To switch it off for whole pages, return
+`false` from the `bepluspb_delay_js_enabled` filter (for example
+`add_filter( 'bepluspb_delay_js_enabled', fn( $on ) => is_page( 'checkout' ) ? false : $on );`).
 
 **Defer Non-Critical JS**
 Default: off
@@ -240,6 +251,19 @@ Only for "Rewrite the page HTML": embeds (YouTube, Google Maps, forms) get the
 browser's native `loading="lazy"`. Left alone: iframes that already set `loading`,
 hidden or tracking frames (0x0, 1x1, `display:none`), `srcdoc`/`about:blank` frames,
 the class `skip-lazy` / `no-lazy`, and other lazy loaders' markers.
+
+**Lazy Load Background Images**
+Default: off
+
+Only for "Rewrite the page HTML": an element with an inline
+`style="background-image:url(...)"` gets the image only when it comes near the screen
+(same margin as images). Only a plain `background-image` declaration with one URL of
+ordinary characters is handled (not the `background` shorthand, gradients, several
+layers, `!important` or backgrounds set in CSS files; Elementor lazy loads its own).
+The first N set in *Skip the First Images* stay normal, and `skip-lazy` / `no-lazy` /
+`data-no-lazy` are honoured. Without JavaScript a `<noscript>` rule puts them back.
+Off by default because a hero banner that appears late is worse than a slow one:
+test the top of your pages first. Filter: `bepluspb_lazy_html_skip_background`.
 
 **Load Images Early (px)**
 Default: 300

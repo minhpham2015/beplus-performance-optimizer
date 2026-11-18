@@ -54,7 +54,7 @@ class BEPLUSPB_JS {
 			add_filter( 'script_loader_tag', array( __CLASS__, 'defer_scripts' ), 10, 3 );
 		}
 
-		if ( $opts['js_delay'] ) {
+		if ( $opts['js_delay'] && ! self::delay_disabled_for_request() ) {
 			$mode = isset( $opts['js_delay_mode'] ) ? $opts['js_delay_mode'] : 'simple';
 
 			if ( 'advanced' === $mode ) {
@@ -69,6 +69,21 @@ class BEPLUSPB_JS {
 		if ( ! empty( $opts['remove_js_handles'] ) ) {
 			add_action( 'wp_enqueue_scripts', array( __CLASS__, 'dequeue_js_handles' ), 100 );
 		}
+	}
+
+	/**
+	 * Whether Delay JS is switched off for this request: `?bepluspb-nodelay` in the URL (to compare a page with and
+	 * without it, or to find out whether Delay JS breaks something), or the `bepluspb_delay_js_enabled` filter
+	 * (per page, e.g. `is_page( 'checkout' )`). Read-only switch that only turns an optimisation OFF; the page cache
+	 * never stores or serves a URL with this parameter.
+	 *
+	 * @return bool
+	 */
+	public static function delay_disabled_for_request() {
+		if ( isset( $_GET['bepluspb-nodelay'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only switch, nothing is stored.
+			return true;
+		}
+		return function_exists( 'apply_filters' ) && ! apply_filters( 'bepluspb_delay_js_enabled', true ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
 	}
 
 	// =========================================================================

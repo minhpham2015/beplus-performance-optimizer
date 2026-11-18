@@ -561,16 +561,24 @@ else :
 				<!-- JS Release Delay (rdelay) — Advanced mode only -->
 				<div class="bepluspb-form-row" id="bepluspb-rdelay-row" style="<?php echo $opts['js_delay'] ? '' : 'display:none;'; ?>">
 					<div class="bepluspb-form-row-label">
-						<label for="bepluspb_js_delay_rdelay"><?php esc_html_e( 'JS Release Delay (ms)', 'beplus-performance-booster' ); ?></label>
+						<label for="bepluspb_js_delay_rdelay_preset"><?php esc_html_e( 'JS Release Delay', 'beplus-performance-booster' ); ?></label>
 						<p class="bepluspb-row-desc"><?php esc_html_e( 'Advanced mode only.', 'beplus-performance-booster' ); ?></p>
 					</div>
 					<div class="bepluspb-form-row-field">
+						<?php $rdelay_now = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0; ?>
+						<select id="bepluspb_js_delay_rdelay_preset" class="bepluspb-select">
+							<option value="0" <?php selected( 0 === $rdelay_now ); ?>><?php esc_html_e( 'Only after the first visitor interaction (fastest scores)', 'beplus-performance-booster' ); ?></option>
+							<option value="100" <?php selected( 100 === $rdelay_now ); ?>><?php esc_html_e( 'Soon after the page has loaded (0.1 s)', 'beplus-performance-booster' ); ?></option>
+							<option value="2000" <?php selected( 2000 === $rdelay_now ); ?>><?php esc_html_e( '2 seconds after the page has loaded', 'beplus-performance-booster' ); ?></option>
+							<option value="5000" <?php selected( 5000 === $rdelay_now ); ?>><?php esc_html_e( '5 seconds after the page has loaded', 'beplus-performance-booster' ); ?></option>
+							<option value="custom" <?php selected( ! in_array( $rdelay_now, array( 0, 100, 2000, 5000 ), true ) ); ?>><?php esc_html_e( 'Custom (ms)', 'beplus-performance-booster' ); ?></option>
+						</select>
 						<input type="number" id="bepluspb_js_delay_rdelay"
 							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[js_delay_rdelay]"
-							value="<?php echo esc_attr( isset( $opts['js_delay_rdelay'] ) ? $opts['js_delay_rdelay'] : 0 ); ?>"
+							value="<?php echo esc_attr( $rdelay_now ); ?>"
 							min="0" max="10000" step="100" class="small-text">
 						<p class="description">
-							<?php esc_html_e( 'Fallback timer (ms) that releases delayed scripts after above-fold images and fonts finish loading, without requiring user interaction. 0 = disabled — only user interaction releases delayed scripts.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'When delayed scripts are released without waiting for the visitor: this long after above-fold images and fonts have finished loading. "Only after the first interaction" gives the best Lighthouse score, but anything that must run for a visitor who only reads (analytics, tag manager, chat widgets, ads, consent tools you did not exclude) then starts at the first scroll, click or key press, so those are missed for visitors who leave without touching the page. Pick a timed release if you rely on them.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
@@ -868,6 +876,24 @@ else :
 						</label>
 						<p class="description">
 							<?php esc_html_e( 'Only for "Rewrite the page HTML". Iframes that already set loading, hidden or tracking frames, and iframes with the class skip-lazy / no-lazy are left alone.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: inline background images -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_bg"><?php esc_html_e( 'Lazy Load Background Images', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_lazy_html_bg"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_bg]" value="1"
+								<?php checked( ! empty( $opts['lazy_html_bg'] ), true ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Also load inline style="background-image:url(...)" images only when they come near the screen.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". Handles a plain background-image declaration on any element (not the background shorthand, gradients or CSS-file backgrounds; Elementor already lazy loads its own). The first images set in "Skip the First Images" count here too. Off by default: check that a hero banner with a background image does not appear late.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>

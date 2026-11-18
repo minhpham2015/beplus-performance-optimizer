@@ -104,6 +104,7 @@ function bepluspb_default_options() {
 		'lazy_engine'                        => 'core', // 'core' (WordPress loading=lazy) or 'html' (rewrite the page HTML: works with page builders).
 		'lazy_html_skip_first'               => 2,   // HTML engine: leave the first N eligible images eager (above the fold).
 		'lazy_html_iframes'                  => 1,   // HTML engine: also give iframes the native loading="lazy".
+		'lazy_html_bg'                       => 0,   // HTML engine: also lazy load inline background-image:url() (opt-in).
 		'lazy_html_threshold'                => 300, // HTML engine: load an image this many px before it is seen (doubled on slow connections).
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
