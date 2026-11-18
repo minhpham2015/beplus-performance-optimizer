@@ -530,6 +530,16 @@ class BEPLUSPB_JS {
 			'v'          => BEPLUSPB_VERSION,
 		);
 
+		// Elementor starts entrance animations from its own (delayed) script, so first-screen elements would stay
+		// hidden until the first interaction: the runtime plays them on load instead (WP Meteor does the same).
+		$elementor = defined( 'ELEMENTOR_VERSION' );
+		if ( function_exists( 'apply_filters' ) ) {
+			$elementor = (bool) apply_filters( 'bepluspb_delay_js_elementor_animations', $elementor );
+		}
+		if ( $elementor ) {
+			$config['elementor-animations'] = true;
+		}
+
 		$config_script  = '<script data-bepluspb-nooptimize="true">var _bepluspb=' . wp_json_encode( $config ) . ';</script>';
 		$runtime_script = '<script data-bepluspb-nooptimize="true">' . $runtime_js . '</script>';
 		$inject         = $config_script . $runtime_script;

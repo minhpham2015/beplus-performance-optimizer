@@ -41,6 +41,8 @@ accidentally break the admin panel or your own editing experience.
 
 Full settings reference (every option, default, and what it does) has moved out of this readme to keep the Description section within WordPress.org's import limits: https://github.com/minhpham2015/beplus-performance-optimizer/blob/master/docs/SETTINGS_REFERENCE.md
 
+Credits: the Advanced "Delay JS" runtime (`assets/js/delay-advanced.js`) is derived from WP Meteor by Aleksandr Guidrevitch (https://wordpress.org/plugins/wp-meteor/), licensed GPLv3 or later, and modified for this plugin. Because of it the plugin as a whole is distributed under GPLv3 or later terms (GPLv2-or-later code may be combined with GPLv3-or-later code).
+
 == Installation ==
 
 1. Upload the `beplus-performance-booster` folder to `/wp-content/plugins/`.

@@ -97,6 +97,14 @@ $out = $page( '<script>var site-specific = 1;</script><script>var other = 1;</sc
 t_ok( ! $blocked( $out, 'var site-specific' ) && $blocked( $out, 'var other' ), 'advanced: the bepluspb_delay_js_exclude filter extends the list' );
 $GLOBALS['filter_extra'] = null;
 
+// ---- Elementor entrance animations (config handed to the runtime) --------------------------------------------------
+$out = $page( '<script>var a = 1;</script>' );
+t_ok( false === strpos( $out, 'elementor-animations"' ) || false !== strpos( $out, 'if(!C||!C["elementor-animations"])' ), 'without Elementor the config does not enable the animations' );
+t_ok( 0 === preg_match( '/var _bepluspb=\{[^}]*elementor-animations/', $out ), 'without Elementor: config has no elementor-animations flag' );
+define( 'ELEMENTOR_VERSION', '3.30.0' );
+$out = $page( '<script>var a = 1;</script>' );
+t_ok( 1 === preg_match( '/var _bepluspb=\{[^}]*"elementor-animations":true/', $out ), 'with Elementor active the config enables the animations' );
+
 // ---- Simple mode ---------------------------------------------------------------------------------------------------------------
 $tag = function ( $src, $extra = '' ) { return "<script src=\"$src\"$extra></script>\n"; };
 $simple = function ( $src, $handle, $extra = '' ) use ( $tag ) { return BEPLUSPB_JS::delay_scripts( $tag( $src, $extra ), $handle, $src ); };

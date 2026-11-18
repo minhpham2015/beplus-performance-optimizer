@@ -4,6 +4,9 @@
  *  1. SIMPLE mode (assets/js/delay.js): a delayed script that registers DOMContentLoaded / load listeners (as Contact
  *     Form 7 does) must still get them called once, in order, and a form submitted before the scripts ran must be
  *     handled by the form's own JS, not sent as a page-reload POST.
+ *  3. ADVANCED mode, Elementor entrance animations: a first-screen ".elementor-invisible" element is revealed (and its
+ *     animation class added) on load, without waiting for the first interaction; one far below the fold is left alone.
+ *
  *  2. ADVANCED mode (PHP rewriter + runtime): the built-in never-delay rules (Elementor's lazy-background script,
  *     "no-js" togglers, consent banners, data-no-optimize / data-cfasync="false") run at once, everything else waits
  *     for the first interaction and then runs.
@@ -19,6 +22,7 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'bepluspb-delay-'));
 const phpFile = path.join(work, 'render.php');
 fs.writeFileSync(phpFile, `<?php
 define('ABSPATH', 1); define('BEPLUSPB_PLUGIN_DIR', $argv[1] . '/'); define('BEPLUSPB_VERSION', 't');
+function apply_filters($t, $v) { return $v; } define('ELEMENTOR_VERSION', '3.30.0');
 function wp_json_encode($v) { return json_encode($v); } function wp_generate_password($n = 12, $s = true) { return substr(bin2hex(random_bytes(16)), 0, $n); }
 function bepluspb_get_options() { return array('js_exclude' => '', 'js_delay_rdelay' => 0); } function bepluspb_parse_exclude_list($t) { return array(); }
 require $argv[1] . '/includes/class-bepluspb-utils.php'; require $argv[1] . '/includes/class-bepluspb-js.php';
@@ -40,6 +44,9 @@ const simplePage = `<!doctype html><html><head><meta charset="utf-8"><title>simp
 </body></html>`;
 const advancedSource = `<!doctype html><html><head><meta charset="utf-8"><title>adv</title></head><body>
 <p>content</p>
+<h2 id="hero" class="elementor-invisible" data-settings='{"_animation":"fadeInUp","_animation_delay":50}'>Hero</h2>
+<div style="height:3000px"></div>
+<h2 id="far" class="elementor-invisible" data-settings='{"_animation":"fadeIn"}'>Far</h2>
 <script>const lazyloadRunObserver = () => {}; window.__elementorLazy = true;</script>
 <script>document.body.classList.remove("no-js"); window.__noJs = true;</script>
 <script src="/s/cookie-notice/js/front.min.js"></script>
@@ -110,6 +117,16 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) { faile
   await p.keyboard.press('Tab'); await p.waitForTimeout(1200);
   r = await p.evaluate(() => ({ normalInline: !!window.__normalInline, normalSrc: !!window.__normalSrc }));
   ok(r.normalInline && r.normalSrc, 'advanced: ordinary scripts run after the first interaction');
+  await ctx.close();
+
+  // ---- 3. Advanced mode: Elementor entrance animations ------------------------------------------------------------
+  ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }); p = await ctx.newPage(); await p.addInitScript(quiet);
+  await p.goto(base + '/advanced', { waitUntil: 'load' }); await p.waitForTimeout(600);
+  r = await p.evaluate(() => ({ hero: document.getElementById('hero').className, far: document.getElementById('far').className, heroSettings: document.getElementById('hero').getAttribute('data-settings'), inter: !!window.__normalSrc }));
+  ok(!/elementor-invisible/.test(r.hero) && /\banimated\b/.test(r.hero) && /\bfadeInUp\b/.test(r.hero), 'elementor: the first-screen element is revealed and animated on load (' + r.hero + ')');
+  ok(!/"_animation"\s*:/.test(r.heroSettings), 'elementor: its animation settings are removed so Elementor will not run it twice');
+  ok(/elementor-invisible/.test(r.far), 'elementor: an element far below the first screen is left for Elementor');
+  ok(!r.inter, 'elementor: ordinary scripts are still delayed');
   await ctx.close();
 
   await browser.close(); server.close();
