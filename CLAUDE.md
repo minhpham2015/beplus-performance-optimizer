@@ -58,6 +58,20 @@ checking whether it would break the SVN slug binding).
   Sites keep the OLD file in `wp-content` until the admin reinstalls it, so any
   plugin-side code must stay safe next to an outdated drop-in
   (`is_outdated_dropin_installed()`).
+- `includes/class-bepluspb-images.php` / `includes/class-bepluspb-lazy-html.php` — two lazy-load engines chosen by
+  `lazy_engine`. `core` (default) never rewrites HTML: it only adjusts the attributes WordPress Core generates.
+  `html` (opt-in) rewrites the final page HTML for images (placeholder + `data-bpb-*` + `<noscript>` + one inline
+  IntersectionObserver loader). Keep it fail-open: only complete HTML documents, never inside script/style/
+  noscript/template/textarea/comments or the `<head>`, native `loading="lazy"` when a CSP blocks inline scripts, and
+  leave the first N images, eager/high-priority/no-lazy images and other lazy loaders' markers alone. Iframes only get
+  the native `loading="lazy"` (never a JS placeholder); images inside sliders are released when the SLIDER is near
+  the viewport (clipped slides never intersect on their own).
+- `includes/class-bepluspb-js.php` + `assets/js/delay.js` / `delay-advanced.js` — Delay JS. Never delay what must run
+  at once: `is_builtin_excluded()` (consent banners, Elementor's `lazyloadRunObserver`, `no-js` togglers, other lazy
+  loaders) and the opt-out attributes (`has_opt_out_attr()`: `data-no-optimize`, `data-cfasync="false"`…). `delay.js`
+  (Simple) replays `DOMContentLoaded`/`load` listeners for scripts that run after the page loaded (Contact Form 7
+  needs it). `delay-advanced.js` is derived from WP Meteor (GPLv3+): keep its attribution if you touch it.
+  Browser tests: `docs/delay-js-browser-test.js`.
 - `includes/class-bepluspb-minify.php`, `-css.php`, `-js.php`, `-html.php`,
   `-ucss.php` — asset processing pipeline; `url_to_path()` in minify.php
   resolves enqueued URLs to filesystem paths and is shared by css.php/ucss.php.

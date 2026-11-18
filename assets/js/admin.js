@@ -147,6 +147,21 @@
 		jsDelayCheckbox.addEventListener('change', toggleDelaySubRows);
 	}
 
+	// Release-delay presets: the select fills the number field; "Custom" shows it.
+	var rdelayPreset = document.getElementById('bepluspb_js_delay_rdelay_preset');
+	var rdelayInput  = document.getElementById('bepluspb_js_delay_rdelay');
+
+	function syncRdelayPreset() {
+		if (!rdelayPreset || !rdelayInput) { return; }
+		if (rdelayPreset.value !== 'custom') { rdelayInput.value = rdelayPreset.value; }
+		rdelayInput.style.display = rdelayPreset.value === 'custom' ? '' : 'none';
+	}
+
+	if (rdelayPreset && rdelayInput) {
+		rdelayPreset.addEventListener('change', syncRdelayPreset);
+		rdelayInput.style.display = rdelayPreset.value === 'custom' ? '' : 'none';
+	}
+
 	// Confirm destructive purge forms and prevent accidental double submission.
 	document.querySelectorAll('form.bepluspb-purge-form').forEach(function (form) {
 		form.addEventListener('submit', function (event) {

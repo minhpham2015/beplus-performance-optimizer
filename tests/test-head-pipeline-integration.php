@@ -19,6 +19,7 @@ $GLOBALS['db'] = array(); $GLOBALS['cron'] = array(); $GLOBALS['hooks'] = array(
 function __( $s ) { return $s; }
 function get_option( $k, $d = false ) { return $GLOBALS['db'][ $k ] ?? $d; } function update_option( $k, $v, $a = null ) { $GLOBALS['db'][ $k ] = $v; return true; } function delete_option( $k ) { unset( $GLOBALS['db'][ $k ] ); return true; }
 function add_action( $t, $cb, $p = 10 ) { $GLOBALS['hooks'][ $t ][] = array( $cb, $p ); }
+function add_filter( $t, $cb, $p = 10, $a = 1 ) { $GLOBALS['hooks'][ $t ][] = array( $cb, $p ); }
 function wp_next_scheduled( $h ) { return $GLOBALS['cron'][ $h ] ?? false; } function wp_schedule_single_event( $ts, $h ) { $GLOBALS['cron'][ $h ] = $ts; return true; }
 function is_rtl() { return false; } function is_front_page() { return ! empty( $GLOBALS['page_q']['front'] ); } function is_home() { return false; } function is_singular() { return false; } function get_post_type() { return 'post'; } function is_search() { return false; } function is_archive() { return false; }
 function sanitize_key( $k ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $k ) ); }

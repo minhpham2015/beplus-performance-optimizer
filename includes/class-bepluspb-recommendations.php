@@ -15,6 +15,63 @@ class BEPLUSPB_Recommendations {
 	public static function allowlist() {
 		return array( 'cache_enabled', 'lazy_load', 'minify_css_files', 'minify_js_files', 'js_defer', 'css_minify', 'remove_emoji', 'remove_embed', 'html_minify', 'cache_headers', 'predictive_navigation_enabled', 'predictive_navigation_mode', 'remove_woo_scripts', 'js_delay', 'css_remove_unused', 'css_inline_all', 'css_non_blocking' );
 	}
+	/**
+	 * Option names as the settings screens show them (key => label), so the preview never prints raw keys.
+	 *
+	 * @return array
+	 */
+	public static function labels() {
+		return array(
+			'cache_enabled'                 => __( 'Cache Optimizations', 'beplus-performance-booster' ),
+			'lazy_load'                     => __( 'Enable Lazy Loading', 'beplus-performance-booster' ),
+			'minify_css_files'              => __( 'Minify CSS Files', 'beplus-performance-booster' ),
+			'minify_js_files'               => __( 'Minify JS Files', 'beplus-performance-booster' ),
+			'js_defer'                      => __( 'Defer Non-Critical JS', 'beplus-performance-booster' ),
+			'css_minify'                    => __( 'Minify Inline CSS', 'beplus-performance-booster' ),
+			'remove_emoji'                  => __( 'Remove Emoji Scripts', 'beplus-performance-booster' ),
+			'remove_embed'                  => __( 'Remove oEmbed / wp-embed', 'beplus-performance-booster' ),
+			'html_minify'                   => __( 'Minify HTML Output', 'beplus-performance-booster' ),
+			'cache_headers'                 => __( 'Enable Browser Caching', 'beplus-performance-booster' ),
+			'predictive_navigation_enabled' => __( 'Enable Predictive Navigation', 'beplus-performance-booster' ),
+			'predictive_navigation_mode'    => __( 'Predictive Navigation mode', 'beplus-performance-booster' ),
+			'remove_woo_scripts'            => __( 'Disable WooCommerce Assets on Non-Shop Pages', 'beplus-performance-booster' ),
+			'js_delay'                      => __( 'Delay JS Execution', 'beplus-performance-booster' ),
+			'css_remove_unused'             => __( 'Remove Unused CSS', 'beplus-performance-booster' ),
+			'css_inline_all'                => __( 'Inline All CSS', 'beplus-performance-booster' ),
+			'css_non_blocking'              => __( 'Non-Render-Blocking CSS', 'beplus-performance-booster' ),
+		);
+	}
+
+	/**
+	 * The label of an option key (the key itself when it has none).
+	 *
+	 * @param  string $key Option key.
+	 * @return string
+	 */
+	public static function label( $key ) {
+		$labels = self::labels();
+		return isset( $labels[ $key ] ) ? $labels[ $key ] : (string) $key;
+	}
+
+	/**
+	 * A non-boolean value as the settings screen names it (the Predictive Navigation modes), or null.
+	 *
+	 * @param  string $key   Option key.
+	 * @param  mixed  $value Value.
+	 * @return string|null
+	 */
+	public static function value_label( $key, $value ) {
+		if ( 'predictive_navigation_mode' !== $key ) {
+			return null;
+		}
+		$modes = array(
+			'safe'     => __( 'Safe', 'beplus-performance-booster' ),
+			'balanced' => __( 'Balanced', 'beplus-performance-booster' ),
+			'fast'     => __( 'Fast', 'beplus-performance-booster' ),
+		);
+		return isset( $modes[ $value ] ) ? $modes[ $value ] : null;
+	}
+
 	/** Return valid profile identifiers. */
 	public static function profiles() {
 		return array( 'blog_business', 'woocommerce', 'membership_lms', 'high_traffic' ); }

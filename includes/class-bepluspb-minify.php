@@ -131,6 +131,16 @@ class BEPLUSPB_Minify {
 	 * @return string Possibly replaced URL pointing to the cached/minified file.
 	 */
 	public static function maybe_minify_js( $src, $handle ) {
+		// "Exclude JS Files" (keywords in the URL) also keeps a script out of minify, as the setting says.
+		if ( function_exists( 'bepluspb_get_options' ) && function_exists( 'bepluspb_parse_exclude_list' ) ) {
+			$opts = bepluspb_get_options();
+			foreach ( bepluspb_parse_exclude_list( isset( $opts['js_exclude'] ) ? $opts['js_exclude'] : '' ) as $keyword ) {
+				if ( '' !== $keyword && false !== strpos( (string) $src, $keyword ) ) {
+					return $src;
+				}
+			}
+		}
+
 		if ( self::is_page_excluded() ) {
 			return $src;
 		}
@@ -191,7 +201,7 @@ class BEPLUSPB_Minify {
 		}
 
 		$prefix     = sanitize_file_name( $handle ) . '-';
-		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size . '|' . ( 'css' === $ext ? 'u2' : '' ) ), 0, 12 );
+		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size . '|' . ( 'css' === $ext ? 'u2' : 'j2' ) ), 0, 12 );
 		$cache_name = $prefix . $hash . '.' . $ext;
 		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
 
@@ -612,6 +622,11 @@ class BEPLUSPB_Minify {
 	 * @return string Minified JavaScript.
 	 */
 	public static function minify_js( $js ) {
+		// Bundler output (webpack/terser: one very long line) is already minified, whatever its file
+		// name: leave it alone. Rewriting it gains nothing and one wrong guess corrupts the file.
+		if ( strlen( $js ) > 1000 && substr_count( $js, "\n" ) * 500 < strlen( $js ) ) {
+			return $js;
+		}
 		$js = self::strip_js_comments( $js );
 		$js = preg_replace( '/^[ \t]+/m', '', $js );
 		$js = preg_replace( '/[ \t]+$/m', '', $js );

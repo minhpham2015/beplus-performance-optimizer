@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.3.2
+Stable tag: 1.3.4
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -40,6 +40,8 @@ accidentally break the admin panel or your own editing experience.
 * Google Fonts: font-display and preconnect, or download the fonts once and serve them from your own site
 
 Full settings reference (every option, default, and what it does) has moved out of this readme to keep the Description section within WordPress.org's import limits: https://github.com/minhpham2015/beplus-performance-optimizer/blob/master/docs/SETTINGS_REFERENCE.md
+
+Credits: the Advanced "Delay JS" runtime (`assets/js/delay-advanced.js`) is derived from WP Meteor by Aleksandr Guidrevitch (https://wordpress.org/plugins/wp-meteor/), licensed GPLv3 or later, and modified for this plugin. Because of it the plugin as a whole is distributed under GPLv3 or later terms (GPLv2-or-later code may be combined with GPLv3-or-later code).
 
 == Installation ==
 
@@ -112,6 +114,23 @@ The optional Page Cache Preload only requests your own site's pages.
 8. **Object Cache tab** — Redis/Memcached connection settings, persistent connections, and global cache groups.
 
 == Changelog ==
+
+= 1.3.4 =
+* Fix: Delay JS (Simple mode) now replays `DOMContentLoaded` and `load` for scripts that run late, so Contact Form 7 and similar forms work instead of reloading the page on submit.
+* New: Delay JS never delays cookie/consent banners, Elementor's lazy-background script, "no-js" class switches or other lazy-load scripts, and respects `data-no-optimize`, `data-no-defer`, `data-no-delay` and `data-cfasync="false"`. "Exclude JS Files" now also keeps a script out of Minify JS.
+* New: Delay JS (Advanced) plays Elementor entrance animations of the first screen on load instead of after the first interaction.
+* New: JS Release Delay presets, and `?bepluspb-nodelay` in a URL loads that page with Delay JS off for comparing or debugging.
+* New: HTML lazy load handles iframes (native lazy loading), loads every slide of a slider/carousel, has a "Load Images Early (px)" margin, and can lazy load inline background images (off by default).
+* New: images without width/height keep their real proportions in the lazy-load placeholder (no page jump), loaded images get the class `lazyloaded` and fire a `lazyloaded` event, and a notice appears when another lazy-load plugin is active.
+* Fix: HTML lazy load no longer breaks an `<img>` written inside an attribute value, and Delay JS (Advanced) leaves scripts inside `<noscript>`, `<template>`, `<textarea>` and comments alone.
+* New: Priority Images can be set per page type (single, single-post, archive, blog, search). The list may hold up to 100 lines; one page preloads at most its first 4 matching lines.
+* Change: Recommended Settings and the Status tab show option names as the settings screens do.
+* Credits: the Advanced Delay JS runtime is derived from WP Meteor (GPLv3 or later).
+
+= 1.3.3 =
+* Fix: "Minify JS Files" no longer corrupts scripts that contain a regular expression ending in `\//` (for example Contact Form 7's `index.js`: the form stopped working and the page reloaded on submit). Already-minified one-line bundles are now left alone. Press "Purge ALL Cache" once after updating so the broken copies are rebuilt.
+* New: "Lazy Load Method" in the Media settings. "Rewrite the page HTML" lazy-loads every image on the page, including images printed by Elementor and other page builders and `<picture>` sources, with a tiny placeholder and a small script that loads each image about 300 px before it is seen. The first images, eager/high-priority images and the `skip-lazy` / `no-lazy` classes are skipped, and it falls back to the browser's native loading when a Content-Security-Policy blocks inline scripts. The default stays "WordPress Core". Turn off other lazy-load plugins when you use it.
+* Change: Elementor Pro's popup stylesheet (printed at the end of the page) no longer blocks rendering when Non-Render-Blocking CSS is on, or Critical CSS is on and the page has an entry.
 
 = 1.3.2 =
 * Fix: the Critical CSS Generator no longer saves the admin toolbar's page offset (an empty 32px band above the page for visitors). If you generated Critical CSS with 1.3.0 or 1.3.1, generate it again and save.
@@ -338,6 +357,12 @@ The optional Page Cache Preload only requests your own site's pages.
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.3.4 =
+Delay JS now keeps consent banners and Elementor's background script running at once, fixes forms that reloaded the page in Simple mode, and plays Elementor entrance animations on load. HTML lazy load covers iframes and sliders.
+
+= 1.3.3 =
+Fixes "Minify JS Files" breaking scripts such as Contact Form 7 (press "Purge ALL Cache" once after updating) and adds an optional HTML lazy-load method that works with Elementor.
 
 = 1.3.2 =
 Fixes an empty band above the page caused by Critical CSS generated while logged in. If you use Critical CSS, generate it again and save after updating.

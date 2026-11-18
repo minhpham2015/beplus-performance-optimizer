@@ -16,6 +16,12 @@ define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
 $GLOBALS['ctx'] = array( 'admin' => false, 'bar' => true, 'can' => true, 'nonce_ok' => true, 'front' => true );
 $GLOBALS['log'] = array();
 $GLOBALS['opts'] = array( 'priority_images' => '', 'priority_images_hints' => array() );
+function is_singular() { return true; }
+function is_search() { return false; }
+function is_home() { return false; }
+function is_archive() { return false; }
+function get_post_type() { return 'post'; }
+function sanitize_key( $k ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $k ) ); }
 function __( $s ) { return $s; }
 function add_action() {} function add_filter() {}
 function is_admin() { return $GLOBALS['ctx']['admin']; }
@@ -52,7 +58,7 @@ function call_handler() { try { BEPLUSPB_Admin::handle_ajax_lcp_apply(); } catch
 reset_ctx(); BEPLUSPB_Admin::enqueue_lcp_analyzer();
 t_ok( 'bepluspb-lcp-analyzer' === $GLOBALS['enqueued'][0] && 'https://ex.com/wp-content/plugins/beplus/assets/js/lcp-analyzer.js' === $GLOBALS['enqueued'][1] && true === $GLOBALS['enqueued'][4], 'administrator on a front-end page: script enqueued in the footer' );
 $c = $GLOBALS['localized'][2];
-t_ok( 'bepluspbLcp' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_lcp_apply' === $c['nonce'] && true === $c['isHome'] && '/about-us/' === $c['path'] && 4 === $c['maxEntries'] && false === $c['optimized'], 'config: nonce for the apply action, home flag, normalised path, limit, optimisation flag' );
+t_ok( 'bepluspbLcp' === $GLOBALS['localized'][1] && 'nonce-for-bepluspb_lcp_apply' === $c['nonce'] && true === $c['isHome'] && '/about-us/' === $c['path'] && BEPLUSPB_Priority_Images::MAX_ENTRIES === $c['maxEntries'] && false === $c['optimized'], 'config: nonce for the apply action, home flag, normalised path, limit, optimisation flag' );
 t_ok( ! empty( $c['i18n']['popupBlocked'] ) && ! empty( $c['i18n']['apply'] ) && ! empty( $c['i18n']['kindBg'] ), 'texts are provided for the panel' );
 reset_ctx( array( 'admin' => true ) ); BEPLUSPB_Admin::enqueue_lcp_analyzer();
 t_ok( null === $GLOBALS['enqueued'], 'never in wp-admin' );
@@ -89,7 +95,7 @@ reset_ctx(); $_POST['entries'] = array( 'x' ); $e = call_handler();
 t_ok( 400 === $e->status && null === $GLOBALS['saved'], 'an array instead of a JSON string is refused' );
 reset_ctx(); $_POST['entries'] = json_encode( array( array( 'url' => 'javascript:alert(1)//x.jpg', 'scope' => 'home' ) ) ); $e = call_handler();
 t_ok( 400 === $e->status && null === $GLOBALS['saved'], 'an invalid image is refused, nothing saved' );
-reset_ctx(); $GLOBALS['opts']['priority_images'] = "/a.jpg | /a/\n/b.jpg | /b/\n/c.jpg | /c/\n/d.jpg | /d/"; $_POST['entries'] = json_encode( array( array( 'url' => '/e.jpg', 'scope' => '/e/' ) ) ); $e = call_handler();
+reset_ctx(); $full_list = array(); for ( $i = 0; $i < BEPLUSPB_Priority_Images::MAX_ENTRIES; $i++ ) { $full_list[] = "/f$i.jpg | /p$i/"; } $GLOBALS['opts']['priority_images'] = implode( "\n", $full_list ); $_POST['entries'] = json_encode( array( array( 'url' => '/e.jpg', 'scope' => '/e/' ) ) ); $e = call_handler();
 t_ok( 400 === $e->status && false !== strpos( $e->payload['message'], 'full' ) && null === $GLOBALS['saved'], 'a full list is refused with an explanation, nothing saved' );
 reset_ctx(); $GLOBALS['opts']['priority_images'] = "/a.jpg | /a/\n/old.jpg | home"; $_POST['entries'] = json_encode( array( array( 'url' => '/new.jpg', 'scope' => 'home' ) ) ); $e = call_handler();
 t_ok( "/a.jpg | /a/\n/new.jpg | home" === $GLOBALS['saved'][1]['priority_images'], 're-analysing a page replaces its old line and keeps other pages' );

@@ -257,6 +257,8 @@ class BEPLUSPB_Admin {
 			'css_remove_unused',
 			// Lazy load.
 			'lazy_load',
+			'lazy_html_iframes',
+			'lazy_html_bg',
 			// Cleanup.
 			'remove_emoji',
 			'remove_embed',
@@ -309,7 +311,7 @@ class BEPLUSPB_Admin {
 			: 'simple';
 
 		$sanitized['js_delay_rdelay'] = isset( $input['js_delay_rdelay'] )
-			? absint( $input['js_delay_rdelay'] )
+			? min( 10000, absint( $input['js_delay_rdelay'] ) )
 			: 0;
 
 		$sanitized['css_exclude'] = isset( $input['css_exclude'] )
@@ -396,6 +398,14 @@ class BEPLUSPB_Admin {
 		$sanitized['lazy_core_threshold'] = isset( $input['lazy_core_threshold'] )
 			? min( 20, absint( $input['lazy_core_threshold'] ) )
 			: ( isset( $input['lazy_skip_first_n'] ) ? min( 20, absint( $input['lazy_skip_first_n'] ) ) : 3 );
+
+		$sanitized['lazy_engine']          = isset( $input['lazy_engine'] ) && 'html' === $input['lazy_engine'] ? 'html' : 'core';
+		$sanitized['lazy_html_skip_first'] = isset( $input['lazy_html_skip_first'] )
+			? min( 10, absint( $input['lazy_html_skip_first'] ) )
+			: 2;
+		$sanitized['lazy_html_threshold']  = isset( $input['lazy_html_threshold'] )
+			? min( 2000, absint( $input['lazy_html_threshold'] ) )
+			: 300;
 
 		$sanitized['lazy_exclude_class'] = isset( $input['lazy_exclude_class'] )
 			? sanitize_text_field( $input['lazy_exclude_class'] )

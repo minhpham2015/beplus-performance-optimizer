@@ -484,24 +484,23 @@ trait BEPLUSPB_Admin_Tabs_Status {
 					$row( __( 'Cache Directory', 'beplus-performance-booster' ), BEPLUSPB_CACHE_DIR );
 					$row( __( 'Cache URL', 'beplus-performance-booster' ), $cache_url );
 					$row( __( 'Options Key', 'beplus-performance-booster' ), BEPLUSPB_OPTIONS_KEY );
-					$row( __( 'Master Cache Toggle', 'beplus-performance-booster' ), ! empty( $opts['cache_enabled'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['cache_enabled'] ) ) );
-					$row( __( 'CSS Minification', 'beplus-performance-booster' ), ! empty( $opts['minify_css_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_css_files'] ) ) );
-					$row( __( 'JS Minification', 'beplus-performance-booster' ), ! empty( $opts['minify_js_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_js_files'] ) ) );
-					$row( __( 'Lazy Load', 'beplus-performance-booster' ), ! empty( $opts['lazy_load'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['lazy_load'] ) ) );
-					$row( __( 'JS Defer', 'beplus-performance-booster' ), ! empty( $opts['js_defer'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['js_defer'] ) ) );
+					$row( BEPLUSPB_Recommendations::label( 'cache_enabled' ), ! empty( $opts['cache_enabled'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['cache_enabled'] ) ) );
+					$row( BEPLUSPB_Recommendations::label( 'minify_css_files' ), ! empty( $opts['minify_css_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_css_files'] ) ) );
+					$row( BEPLUSPB_Recommendations::label( 'minify_js_files' ), ! empty( $opts['minify_js_files'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['minify_js_files'] ) ) );
+					$row( BEPLUSPB_Recommendations::label( 'lazy_load' ), ! empty( $opts['lazy_load'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['lazy_load'] ) ) );
+					$row( BEPLUSPB_Recommendations::label( 'js_defer' ), ! empty( $opts['js_defer'] ) ? $t_on : $t_off, $on_off( ! empty( $opts['js_defer'] ) ) );
 					$delay_mode_label = ! empty( $opts['js_delay'] )
 						? ( isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ? __( 'Advanced', 'beplus-performance-booster' ) : __( 'Simple', 'beplus-performance-booster' ) )
 						: $t_off;
-					$row( __( 'JS Delay Mode', 'beplus-performance-booster' ), $delay_mode_label, $badge( ! empty( $opts['js_delay'] ) ? 'ok' : 'error', ! empty( $opts['js_delay'] ) ? $t_on : $t_off ) );
+					$row( BEPLUSPB_Recommendations::label( 'js_delay' ), $delay_mode_label, $badge( ! empty( $opts['js_delay'] ) ? 'ok' : 'error', ! empty( $opts['js_delay'] ) ? $t_on : $t_off ) );
 					if ( ! empty( $opts['js_delay'] ) && isset( $opts['js_delay_mode'] ) && 'advanced' === $opts['js_delay_mode'] ) {
 						$rdelay = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0;
-						/* translators: %d: millisecond delay value. */
+
 						$rdelay_label = 0 === $rdelay
+							? __( 'Only after the first interaction', 'beplus-performance-booster' )
 							/* translators: %d: millisecond delay value. */
-							? sprintf( __( '%d ms (wait for DOMContentLoaded)', 'beplus-performance-booster' ), $rdelay )
-							/* translators: %d: millisecond delay value. */
-							: sprintf( __( '%d ms', 'beplus-performance-booster' ), $rdelay );
-						$row( __( 'JS Delay rdelay', 'beplus-performance-booster' ), $rdelay_label );
+							: sprintf( __( '%d ms after the page has loaded', 'beplus-performance-booster' ), $rdelay );
+						$row( __( 'JS Release Delay', 'beplus-performance-booster' ), $rdelay_label );
 					}
 					?>
 				</div>

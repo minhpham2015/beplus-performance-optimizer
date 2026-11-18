@@ -189,7 +189,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php
 						foreach ( $diff as $key => $change ) :
 							?>
-						<tr><th scope="row"><code><?php echo esc_html( $key ); ?></code></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : self::format_recommendation_value( $change['from'] ) ); ?></td><td><?php echo esc_html( self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<tr><th scope="row"><?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></td><td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
 						<?php
 else :
 	?>
@@ -561,16 +561,24 @@ else :
 				<!-- JS Release Delay (rdelay) — Advanced mode only -->
 				<div class="bepluspb-form-row" id="bepluspb-rdelay-row" style="<?php echo $opts['js_delay'] ? '' : 'display:none;'; ?>">
 					<div class="bepluspb-form-row-label">
-						<label for="bepluspb_js_delay_rdelay"><?php esc_html_e( 'JS Release Delay (ms)', 'beplus-performance-booster' ); ?></label>
+						<label for="bepluspb_js_delay_rdelay_preset"><?php esc_html_e( 'JS Release Delay', 'beplus-performance-booster' ); ?></label>
 						<p class="bepluspb-row-desc"><?php esc_html_e( 'Advanced mode only.', 'beplus-performance-booster' ); ?></p>
 					</div>
 					<div class="bepluspb-form-row-field">
+						<?php $rdelay_now = isset( $opts['js_delay_rdelay'] ) ? (int) $opts['js_delay_rdelay'] : 0; ?>
+						<select id="bepluspb_js_delay_rdelay_preset" class="bepluspb-select">
+							<option value="0" <?php selected( 0 === $rdelay_now ); ?>><?php esc_html_e( 'Only after the first visitor interaction (fastest scores)', 'beplus-performance-booster' ); ?></option>
+							<option value="100" <?php selected( 100 === $rdelay_now ); ?>><?php esc_html_e( 'Soon after the page has loaded (0.1 s)', 'beplus-performance-booster' ); ?></option>
+							<option value="2000" <?php selected( 2000 === $rdelay_now ); ?>><?php esc_html_e( '2 seconds after the page has loaded', 'beplus-performance-booster' ); ?></option>
+							<option value="5000" <?php selected( 5000 === $rdelay_now ); ?>><?php esc_html_e( '5 seconds after the page has loaded', 'beplus-performance-booster' ); ?></option>
+							<option value="custom" <?php selected( ! in_array( $rdelay_now, array( 0, 100, 2000, 5000 ), true ) ); ?>><?php esc_html_e( 'Custom (ms)', 'beplus-performance-booster' ); ?></option>
+						</select>
 						<input type="number" id="bepluspb_js_delay_rdelay"
 							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[js_delay_rdelay]"
-							value="<?php echo esc_attr( isset( $opts['js_delay_rdelay'] ) ? $opts['js_delay_rdelay'] : 0 ); ?>"
+							value="<?php echo esc_attr( $rdelay_now ); ?>"
 							min="0" max="10000" step="100" class="small-text">
 						<p class="description">
-							<?php esc_html_e( 'Fallback timer (ms) that releases delayed scripts after above-fold images and fonts finish loading, without requiring user interaction. 0 = disabled — only user interaction releases delayed scripts.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'When delayed scripts are released without waiting for the visitor: this long after above-fold images and fonts have finished loading. "Only after the first interaction" gives the best Lighthouse score, but anything that must run for a visitor who only reads (analytics, tag manager, chat widgets, ads, consent tools you did not exclude) then starts at the first scroll, click or key press, so those are missed for visitors who leave without touching the page. Pick a timed release if you rely on them.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
@@ -587,7 +595,8 @@ else :
 							rows="4" class="large-text code"><?php echo esc_textarea( $opts['js_exclude'] ); ?></textarea>
 						<p class="description">
 							<?php esc_html_e( 'Scripts whose src contains any of these strings are excluded from delay, defer, and minify.', 'beplus-performance-booster' ); ?><br>
-							<?php esc_html_e( 'Example: jquery, woocommerce, my-critical-script', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Example: jquery, woocommerce, my-critical-script', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Never delayed, whatever you list here: cookie/consent banners, Elementor\'s lazy-background script, scripts that switch the "no-js" class, other lazy-load scripts, and any script marked data-no-optimize, data-no-defer, data-no-delay or data-cfasync="false".', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
@@ -821,6 +830,103 @@ else :
 					</div>
 				</div>
 
+				<!-- Lazy load method -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_engine"><?php esc_html_e( 'Lazy Load Method', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_lazy_engine" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_engine]">
+							<option value="core" <?php selected( $opts['lazy_engine'], 'core' ); ?>><?php esc_html_e( 'WordPress Core (loading="lazy")', 'beplus-performance-booster' ); ?></option>
+							<option value="html" <?php selected( $opts['lazy_engine'], 'html' ); ?>><?php esc_html_e( 'Rewrite the page HTML (works with Elementor and other page builders)', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<?php
+						$other_lazy = ( isset( $opts['lazy_engine'] ) && 'html' === $opts['lazy_engine'] ) ? BEPLUSPB_Lazy_HTML::conflicting_plugins() : array();
+						if ( $other_lazy ) :
+							?>
+							<div class="notice notice-warning bepluspb-notice-warning inline" style="margin:0 0 8px;">
+								<p>
+								<?php
+								/* translators: %s: comma-separated plugin names. */
+								echo esc_html( sprintf( __( 'Another plugin also lazy loads images: %s. Turn its image lazy load off so only one loader handles each image (images it has already marked are left alone, but both loaders would still run on the rest).', 'beplus-performance-booster' ), implode( ', ', $other_lazy ) ) );
+								?>
+								</p>
+							</div>
+						<?php endif; ?>
+						<p class="description">
+							<?php esc_html_e( 'Core only controls images that WordPress itself prints, and browsers load natively lazy images long before they are visible. "Rewrite the page HTML" lazy-loads every image on the page (including page-builder and theme images, and <picture>) with a small script that loads each one about 300 px before it is seen. Turn off other lazy-load plugins (such as Lazy Load by WP Rocket) when you use it. It falls back to Core\'s native loading when a Content-Security-Policy blocks inline scripts. Each loaded image gets the class lazyloaded and fires a lazyloaded event (masonry or gallery scripts can re-measure then). A script that reads an image\'s src as soon as the page starts (some lightboxes) sees the placeholder: give those images the class skip-lazy.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: keep the first images eager -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_skip_first"><?php esc_html_e( 'Skip the First Images', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_lazy_html_skip_first"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_skip_first]"
+							value="<?php echo esc_attr( $opts['lazy_html_skip_first'] ); ?>"
+							min="0" max="10" step="1" class="small-text">
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". The first images of the page (logo, banner) stay normal so the top of the page appears at once. Default: 2. Images marked loading="eager", fetchpriority="high" (Priority Images) or with the class skip-lazy / no-lazy are always skipped.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: iframes -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_iframes"><?php esc_html_e( 'Lazy Load Iframes', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_lazy_html_iframes"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_iframes]" value="1"
+								<?php checked( $opts['lazy_html_iframes'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Also give embeds (YouTube, Google Maps, forms) the browser\'s native loading="lazy".', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". Iframes that already set loading, hidden or tracking frames, and iframes with the class skip-lazy / no-lazy are left alone.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: inline background images -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_bg"><?php esc_html_e( 'Lazy Load Background Images', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_lazy_html_bg"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_bg]" value="1"
+								<?php checked( ! empty( $opts['lazy_html_bg'] ), true ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Also load inline style="background-image:url(...)" images only when they come near the screen.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". Handles a plain background-image declaration on any element (not the background shorthand, gradients or CSS-file backgrounds; Elementor already lazy loads its own). The first images set in "Skip the First Images" count here too. Off by default: check that a hero banner with a background image does not appear late.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: margin -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_threshold"><?php esc_html_e( 'Load Images Early (px)', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_lazy_html_threshold"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_threshold]"
+							value="<?php echo esc_attr( $opts['lazy_html_threshold'] ); ?>"
+							min="0" max="2000" step="50" class="small-text">
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML": an image starts loading this many pixels before it scrolls into view. Default: 300 (doubled on slow 2G/3G connections). Images inside a slider load when the slider comes into view.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 				<!-- WordPress Core threshold -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
@@ -894,7 +1000,7 @@ else :
 							rows="4" class="large-text code"
 							placeholder="<?php echo esc_attr( "/wp-content/uploads/hero.jpg | home\n/wp-content/uploads/hero-mobile.jpg | home | mobile\n/wp-content/uploads/hero-wide.jpg | home | desktop" ); ?>"><?php echo esc_textarea( $opts['priority_images'] ); ?></textarea>
 						<p class="description">
-							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, or a page path such as /about/ (end with * to include everything below it). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. At most 4 lines.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, a page type (single, single-post, single-page, archive, blog, search), or a page path such as /about/ (end with * to include everything below it). A page type only makes sense when all those pages show the same image (a banner in the template). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. The list can be long (one line per page or page type), but a single page preloads at most its first 4 matching lines.', 'beplus-performance-booster' ); ?>
 						</p>
 						<p class="description">
 							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>

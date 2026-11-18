@@ -30,9 +30,20 @@ whichever comes first.
   MutationObserver. Replays `DOMContentLoaded` and `window.load` event queues in
   correct order. Test thoroughly before enabling on production.
 
-*JS Release Delay (ms)* — fallback timer (ms) that releases delayed scripts after
-above-fold images and fonts finish loading, without requiring user interaction.
-`0` = disabled — only user interaction releases delayed scripts.
+*JS Release Delay* (Advanced mode) — when delayed scripts are released without waiting
+for the visitor. Presets: *Only after the first interaction* (value `0`, best Lighthouse
+score), *Soon after the page has loaded* (100 ms), *2 seconds* / *5 seconds after the
+page has loaded* (counted from the moment above-fold images and fonts have finished
+loading), or a custom value in ms (up to 10000). With `0`, anything that has to run for
+a visitor who only reads (analytics, tag manager, chat widgets, ads) starts at the first
+scroll, click or key press, so visitors who leave without touching the page are not
+counted: pick a timed release if you rely on that.
+
+*Switching Delay JS off for one request* — add `?bepluspb-nodelay` to a URL to load that
+page with Delay JS off (compare before/after, or find out whether it breaks something).
+Pages with this parameter are never page-cached. To switch it off for whole pages, return
+`false` from the `bepluspb_delay_js_enabled` filter (for example
+`add_filter( 'bepluspb_delay_js_enabled', fn( $on ) => is_page( 'checkout' ) ? false : $on );`).
 
 **Defer Non-Critical JS**
 Default: off
@@ -45,10 +56,25 @@ jquery-migrate are always protected from deferral.
 Default: empty
 
 One URL keyword per line. Any script whose `src` attribute contains a listed
-keyword is excluded from both Delay and Defer. Use this to protect scripts that
+keyword is excluded from Delay, Defer and Minify JS. Use this to protect scripts that
 must run immediately (e.g. analytics that need to capture the first page view).
 
 Examples: `jquery`, `woocommerce`, `my-critical-script`
+
+**Never delayed (built in)**
+
+Whatever you list above, Delay JS never delays: cookie/consent banners (Complianz,
+Cookie Notice, CookieYes, Cookiebot, OneTrust, Iubenda, Borlabs…), Elementor's
+lazy-background script (without it, container background images stay hidden until
+the first interaction), small scripts that switch the `no-js` class to `js`, other
+lazy-load scripts (Rocket, lazysizes, Smush, Jetpack), and any script carrying
+`data-no-optimize`, `data-no-defer`, `data-no-delay`, `data-cfasync="false"`,
+`data-pagespeed-no-defer` or `nowprocket`. Developers can extend the list with the
+`bepluspb_delay_js_exclude` filter.
+
+In **Simple** mode, scripts that run after the page has loaded still get the
+`DOMContentLoaded` / `load` listeners they register (for example Contact Form 7), called
+once, in order, after every delayed script has run.
 
 ---
 
@@ -157,7 +183,11 @@ Default: empty (Media card)
 The image that is the Largest Contentful Paint of a page (usually the hero banner),
 one per line: `image URL | home, all or /page-path/ | mobile, desktop or all`. The
 browser is told to download it first (preload with high priority) and WordPress stops
-lazy-loading it. At most 4 lines. Use the exact URL the browser downloads for that
+lazy-loading it. The list can hold up to 100 lines (one per page or page type, e.g.
+`/img/banner.jpg | single-post`), but one page preloads at most the first 4 lines that
+match it, because more would compete with the LCP image itself. *Where* can be `home`,
+`all`, a page type (`single`, `single-post`, `single-page`, `single-<post type>`,
+`archive`, `blog`, `search`) or a page path. Use the exact URL the browser downloads for that
 page.
 
 **Analyze LCP (admin bar)**
@@ -198,6 +228,65 @@ Uses WordPress Core's native media loading policy without rewriting HTML or addi
 a JavaScript fallback. On WordPress 6.4 or newer, the threshold and exclusion
 settings below adjust Core-generated loading attributes. WordPress 5.5 through 6.3
 retains its native behavior because Core does not expose that attribute filter.
+
+**Lazy Load Method**
+Default: WordPress Core
+
+"WordPress Core" is described above. "Rewrite the page HTML" lazy-loads every image
+of the page, including the ones printed by Elementor and other page builders, themes
+and widgets, and `<picture>` sources: each image gets a tiny placeholder that keeps
+its size, and a small inline script loads it about 300 px before it is seen. A
+`<noscript>` copy keeps the images visible without JavaScript. Use it instead of
+other lazy-load plugins (turn those off). When a Content-Security-Policy blocks inline
+scripts, the page falls back to the browser's native `loading="lazy"`. CSS
+background images are not changed (inline ones: see *Lazy Load Background Images*).
+
+* An image without `width`/`height` keeps its real proportions in the placeholder
+  (taken from the `-300x200` suffix of WordPress sizes or the file header of a file
+  in the uploads folder), so the page does not jump when it loads. Filter:
+  `bepluspb_lazy_html_image_size`.
+* Each loaded image gets the class `lazyloaded` and fires bubbling `lazyloaded` and
+  `bepluspb-lazyloaded` events, for masonry/gallery scripts that must re-measure.
+* A script that reads an image's `src` as soon as the page starts (some lightboxes)
+  sees the placeholder: give those images the class `skip-lazy`.
+* A notice appears next to the setting when another lazy-load plugin is active
+  (filter `bepluspb_lazy_conflicting_plugins`).
+
+**Skip the First Images**
+Default: 2
+
+Only for "Rewrite the page HTML": the first N images of the page stay normal so the
+top of the page shows at once. Images with `loading="eager"`, `fetchpriority="high"`
+(Priority Images) or the class `skip-lazy` / `no-lazy` are always skipped.
+
+**Lazy Load Iframes**
+Default: on
+
+Only for "Rewrite the page HTML": embeds (YouTube, Google Maps, forms) get the
+browser's native `loading="lazy"`. Left alone: iframes that already set `loading`,
+hidden or tracking frames (0x0, 1x1, `display:none`), `srcdoc`/`about:blank` frames,
+the class `skip-lazy` / `no-lazy`, and other lazy loaders' markers.
+
+**Lazy Load Background Images**
+Default: off
+
+Only for "Rewrite the page HTML": an element with an inline
+`style="background-image:url(...)"` gets the image only when it comes near the screen
+(same margin as images). Only a plain `background-image` declaration with one URL of
+ordinary characters is handled (not the `background` shorthand, gradients, several
+layers, `!important` or backgrounds set in CSS files; Elementor lazy loads its own).
+The first N set in *Skip the First Images* stay normal, and `skip-lazy` / `no-lazy` /
+`data-no-lazy` are honoured. Without JavaScript a `<noscript>` rule puts them back.
+Off by default because a hero banner that appears late is worse than a slow one:
+test the top of your pages first. Filter: `bepluspb_lazy_html_skip_background`.
+
+**Load Images Early (px)**
+Default: 300
+
+Only for "Rewrite the page HTML": an image starts loading this many pixels before it
+scrolls into view (0–2000; doubled on slow 2G/3G connections). Images inside a slider
+or carousel (Swiper, Slick, Owl, Elementor, Splide, Flickity…) load when the slider
+comes into view, so the slides outside its visible frame are not left blank.
 
 **Skip First N Images**
 Default: 1

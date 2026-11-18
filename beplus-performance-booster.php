@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.3.2
+ * Version: 1.3.4
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.3.2' );
+define( 'BEPLUSPB_VERSION', '1.3.4' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -101,6 +101,11 @@ function bepluspb_default_options() {
 		// --- Lazy Load — Advanced options ---
 		'lazy_skip_first_n'                  => 1,   // Legacy (no UI, unused since Lazy Load v2): only seeds lazy_core_threshold when that field is missing. Use "Priority Images" for the hero/LCP image.
 		'lazy_core_threshold'                => 3,   // Core-managed media omission threshold.
+		'lazy_engine'                        => 'core', // 'core' (WordPress loading=lazy) or 'html' (rewrite the page HTML: works with page builders).
+		'lazy_html_skip_first'               => 2,   // HTML engine: leave the first N eligible images eager (above the fold).
+		'lazy_html_iframes'                  => 1,   // HTML engine: also give iframes the native loading="lazy".
+		'lazy_html_bg'                       => 0,   // HTML engine: also lazy load inline background-image:url() (opt-in).
+		'lazy_html_threshold'                => 300, // HTML engine: load an image this many px before it is seen (doubled on slow connections).
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
 		'lazy_exclude_filename'              => '',  // Partial filename strings to exclude (comma-sep).
@@ -250,6 +255,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-lazy-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-critical-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts-local.php';
@@ -397,6 +403,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_CSS::init( $opts );
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
+	BEPLUSPB_Lazy_HTML::init( $opts );
 	BEPLUSPB_Priority_Images::init( $opts );
 	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );

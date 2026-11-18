@@ -356,6 +356,8 @@
 		var scopes = cfg.isHome
 			? [['home', t('scopeHome')], ['all', t('scopeAll')]]
 			: [[cfg.path, t('scopeThis')], ['all', t('scopeAll')]];
+		// Pages of one type that share the LCP image (a banner in the template): offered when the type is known.
+		if (!cfg.isHome && cfg.pageType) { scopes.splice(1, 0, [cfg.pageType, t('scopeType') + ' (' + cfg.pageType + ')']); }
 		var select = el('select', { 'aria-label': t('scopeThis') });
 		scopes.forEach(function (s) { select.appendChild(el('option', { value: s[0], text: s[1] })); });
 		var status = el('p', { class: 'note' });

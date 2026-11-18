@@ -10,7 +10,8 @@
  *
  * Option format (one entry per line): `image URL | where | device`
  *   - image URL: absolute http(s) URL or root-relative path (/wp-content/uploads/hero.jpg).
- *   - where:     `home`, `all`, or a path of this site (`/about/`, `/shop/*` = prefix).
+ *   - where:     `home`, `all`, a page type (`single`, `single-post`, `single-<post type>`, `archive`, `blog`,
+ *                `search`), or a path of this site (`/about/`, `/shop/*` = prefix).
  *   - device:    optional `mobile`, `desktop` or `all` (default). Only sets the preload `media`.
  *
  * @package Beplus_Performance_Booster
@@ -25,8 +26,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BEPLUSPB_Priority_Images {
 
-	/** Preloading more than a handful of images competes with the LCP image itself. */
-	const MAX_ENTRIES = 4;
+	/** Lines in the list (bounds the option size and the work done when saving). */
+	const MAX_ENTRIES = 100;
+
+	/** Preloading more than a handful of images on ONE page competes with the LCP image itself. */
+	const MAX_PER_PAGE = 4;
+
+	/** Rows one LCP analysis may add (desktop + mobile, with room to spare). */
+	const MAX_INCOMING = 8;
 
 	/** Longest accepted image URL. */
 	const MAX_URL_LENGTH = 2048;
@@ -321,7 +328,7 @@ class BEPLUSPB_Priority_Images {
 	 * @return array { text, hints, count } on success, { error } otherwise.
 	 */
 	public static function apply_entries( $current_text, $current_hints, $incoming ) {
-		if ( ! is_array( $incoming ) || array() === $incoming || count( $incoming ) > self::MAX_ENTRIES ) {
+		if ( ! is_array( $incoming ) || array() === $incoming || count( $incoming ) > self::MAX_INCOMING ) {
 			return array( 'error' => __( 'Nothing valid to apply.', 'beplus-performance-booster' ) );
 		}
 
@@ -416,12 +423,15 @@ class BEPLUSPB_Priority_Images {
 	 * Validate the "where" field.
 	 *
 	 * @param  string $value Raw value.
-	 * @return string `home`, `all`, a path, or '' when invalid.
+	 * @return string `home`, `all`, a page type, a path, or '' when invalid.
 	 */
 	private static function clean_scope( $value ) {
 		$lower = strtolower( $value );
 		if ( 'home' === $lower || 'all' === $lower ) {
 			return $lower;
+		}
+		if ( 1 === preg_match( '/^(?:single|blog|archive|search|single-[a-z0-9_-]{1,40})$/D', $lower ) ) {
+			return $lower; // A page type.
 		}
 		if ( 0 !== strpos( $value, '/' ) || strlen( $value ) > self::MAX_SCOPE_LENGTH || preg_match( '/[\x00-\x1f\x7f|"\'<>\\\\`?#]/', $value ) ) {
 			return '';
@@ -448,17 +458,21 @@ class BEPLUSPB_Priority_Images {
 	/**
 	 * Whether a scope applies to the page being rendered.
 	 *
-	 * @param  string $scope  `home`, `all` or a path (optionally ending in `*`).
-	 * @param  string $path   Decoded, lower-cased request path relative to the site root.
-	 * @param  bool   $is_home Whether this is the front page.
+	 * @param  string   $scope   `home`, `all`, a page type or a path (optionally ending in `*`).
+	 * @param  string   $path    Decoded, lower-cased request path relative to the site root.
+	 * @param  bool     $is_home Whether this is the front page.
+	 * @param  string[] $types   Page types of this request (see page_types()).
 	 * @return bool
 	 */
-	public static function scope_matches( $scope, $path, $is_home ) {
+	public static function scope_matches( $scope, $path, $is_home, $types = array() ) {
 		if ( 'all' === $scope ) {
 			return true;
 		}
 		if ( 'home' === $scope ) {
 			return $is_home;
+		}
+		if ( 0 !== strpos( $scope, '/' ) ) {
+			return in_array( $scope, $types, true ); // A page type: never compared with the path.
 		}
 		$wanted = strtolower( rawurldecode( $scope ) );
 		if ( '*' === substr( $wanted, -1 ) ) {
@@ -466,6 +480,40 @@ class BEPLUSPB_Priority_Images {
 			return '' === $prefix || 0 === strpos( $path, $prefix );
 		}
 		return untrailingslashit( $path ) === untrailingslashit( $wanted );
+	}
+
+	/**
+	 * Page types the request being rendered belongs to, for the "where" field: `single` and `single-<post type>`
+	 * for a post/page/custom post type, `blog` (the posts page when it is not the front page), `archive`, `search`.
+	 *
+	 * @return string[]
+	 */
+	public static function page_types() {
+		$types = array();
+		if ( is_singular() ) {
+			$types[] = 'single';
+			$type    = sanitize_key( (string) get_post_type() );
+			if ( '' !== $type ) {
+				$types[] = 'single-' . substr( $type, 0, 40 );
+			}
+		} elseif ( is_search() ) {
+			$types[] = 'search';
+		} elseif ( is_home() && ! is_front_page() ) {
+			$types[] = 'blog';
+		} elseif ( is_archive() ) {
+			$types[] = 'archive';
+		}
+		return $types;
+	}
+
+	/**
+	 * The most specific page type of this request (what the LCP analyzer offers), or ''.
+	 *
+	 * @return string
+	 */
+	public static function primary_type() {
+		$types = self::page_types();
+		return $types ? (string) end( $types ) : '';
 	}
 
 	/**
@@ -499,11 +547,14 @@ class BEPLUSPB_Priority_Images {
 		}
 		$path    = self::current_path();
 		$is_home = is_front_page();
+		$types   = self::page_types();
 		foreach ( self::$entries as $entry ) {
-			if ( self::scope_matches( $entry['scope'], $path, $is_home ) ) {
+			if ( self::scope_matches( $entry['scope'], $path, $is_home, $types ) ) {
 				self::$active[] = $entry;
 			}
 		}
+		// The list may be long (one line per page or page type), but one page only preloads the first few.
+		self::$active = array_slice( self::$active, 0, self::MAX_PER_PAGE );
 		return self::$active;
 	}
 

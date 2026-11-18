@@ -20,6 +20,13 @@ function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function wp_unslash( $v ) { return $v; }
 function home_url() { return $GLOBALS['home']; }
 function is_front_page() { return $GLOBALS['is_front']; }
+$GLOBALS['qctx'] = array();
+function is_singular() { return ! empty( $GLOBALS['qctx']['singular'] ); }
+function is_search() { return ! empty( $GLOBALS['qctx']['search'] ); }
+function is_home() { return ! empty( $GLOBALS['qctx']['home'] ); }
+function is_archive() { return ! empty( $GLOBALS['qctx']['archive'] ); }
+function get_post_type() { return $GLOBALS['qctx']['type'] ?? 'post'; }
+function sanitize_key( $k ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $k ) ); }
 function untrailingslashit( $s ) { return rtrim( $s, '/\\' ); }
 function esc_url( $u ) { return str_replace( array( '"', "'", '<', '>' ), '', $u ); }
 function esc_attr( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES ); }
@@ -75,9 +82,9 @@ foreach ( $bad as $line => $why ) {
 	t_ok( array() === $r['entries'] && 1 === count( $r['errors'] ), "rejected: $why" );
 }
 $many = '';
-for ( $i = 1; $i <= 7; $i++ ) { $many .= "/i$i.jpg | home\n"; }
+for ( $i = 1; $i <= $P::MAX_ENTRIES + 3; $i++ ) { $many .= "/i$i.jpg | home\n"; }
 $r = $P::parse( $many );
-t_ok( 4 === count( $r['entries'] ) && 3 === count( $r['errors'] ), 'at most 4 entries, the rest reported' );
+t_ok( $P::MAX_ENTRIES === count( $r['entries'] ) && 3 === count( $r['errors'] ), 'at most MAX_ENTRIES lines are kept, the rest reported' );
 t_ok( array( 'entries' => array(), 'errors' => array() ) === $P::parse( '' ) && array( 'entries' => array(), 'errors' => array() ) === $P::parse( array( 'x' ) ), 'empty and non-string input are harmless' );
 
 // ---- match key -------------------------------------------------------------------------
@@ -208,12 +215,15 @@ t_ok( "/m.jpg | home | mobile\n/d.jpg | home | desktop" === $r2['text'], 're-ana
 t_ok( 1 === count( $r2['hints'] ) && ! isset( $r2['hints'][ $P::entry_id( $P::parse( '/h.jpg | home' )['entries'][0] ) ] ), 'the replaced line loses its hint, the new one has one' );
 $r3 = $P::apply_entries( $r2['text'], $r2['hints'], array( array( 'url' => '/about.jpg', 'scope' => '/about/', 'device' => 'all' ) ) );
 t_ok( "/m.jpg | home | mobile\n/d.jpg | home | desktop\n/about.jpg | /about/" === $r3['text'] && 1 === count( $r3['hints'] ), 'another page is added, other pages and their hints are kept' );
-$r4 = $P::apply_entries( $r3['text'], $r3['hints'], array( array( 'url' => '/x.jpg', 'scope' => '/x/', 'device' => 'all' ), array( 'url' => '/y.jpg', 'scope' => '/x/', 'device' => 'mobile' ) ) );
-t_ok( isset( $r4['error'] ), 'a result that would exceed 4 lines is refused, nothing is half-saved' );
+$full = array(); for ( $i = 0; $i < $P::MAX_ENTRIES; $i++ ) { $full[] = "/f$i.jpg | /p$i/"; }
+$r4 = $P::apply_entries( implode( "\n", $full ), array(), array( array( 'url' => '/x.jpg', 'scope' => '/x/', 'device' => 'all' ) ) );
+t_ok( isset( $r4['error'] ) && false !== strpos( $r4['error'], (string) $P::MAX_ENTRIES ), 'a result that would exceed the list limit is refused, nothing is half-saved' );
+$r4b = $P::apply_entries( $r3['text'], $r3['hints'], array( array( 'url' => '/x.jpg', 'scope' => '/x/', 'device' => 'all' ), array( 'url' => '/y.jpg', 'scope' => '/x/', 'device' => 'mobile' ) ) );
+t_ok( ! isset( $r4b['error'] ) && 5 === count( explode( "\n", $r4b['text'] ) ), 'more than 4 lines in total are accepted (the limit is per page, not per list)' );
 t_ok( isset( $P::apply_entries( '', array(), array() )['error'] ) && isset( $P::apply_entries( '', array(), 'x' )['error'] ), 'empty / non-array payload refused' );
 t_ok( isset( $P::apply_entries( '', array(), array( 'x' ) )['error'] ), 'non-array row refused' );
-$many = array(); for ( $i = 0; $i < 5; $i++ ) { $many[] = array( 'url' => "/i$i.jpg", 'scope' => 'all', 'device' => 'all' ); }
-t_ok( isset( $P::apply_entries( '', array(), $many )['error'] ), 'more than 4 incoming rows refused' );
+$many = array(); for ( $i = 0; $i <= $P::MAX_INCOMING; $i++ ) { $many[] = array( 'url' => "/i$i.jpg", 'scope' => 'all', 'device' => 'all' ); }
+t_ok( isset( $P::apply_entries( '', array(), $many )['error'] ), 'more incoming rows than one analysis can produce are refused' );
 $bad_rows = array(
 	'newline in url'   => array( 'url' => "/a.jpg\n/evil.jpg", 'scope' => 'home' ),
 	'pipe in url'      => array( 'url' => '/a.jpg | all', 'scope' => 'home' ),
@@ -237,5 +247,37 @@ $res = $P::apply_entries( '/keep.jpg | /Keep/', array(), array( array( 'url' => 
 t_ok( '/n.jpg | /keep/' === $res['text'], 'scopes are compared case-insensitively when replacing' );
 $_SERVER['REQUEST_URI'] = '/Shop/Hats/?x=1';
 t_ok( '/shop/hats/' === $P::current_path(), 'current_path() is public: decoded, lower-cased, without the query' );
+
+// ---- page types in the "where" field ---------------------------------------------------------------------------------
+$q = function ( $ctx ) { $GLOBALS['qctx'] = $ctx; $GLOBALS['is_front'] = ! empty( $ctx['front'] ); };
+$q( array( 'singular' => 1, 'type' => 'post' ) );
+t_ok( array( 'single', 'single-post' ) === $P::page_types() && 'single-post' === $P::primary_type(), 'types: a post is single and single-post, the specific one is primary' );
+t_ok( $P::scope_matches( 'single', '/x/', false, $P::page_types() ) && $P::scope_matches( 'single-post', '/x/', false, $P::page_types() ) && ! $P::scope_matches( 'single-page', '/x/', false, $P::page_types() ) && ! $P::scope_matches( 'archive', '/x/', false, $P::page_types() ), 'types: scopes match their own type only' );
+$q( array( 'singular' => 1, 'type' => 'page' ) );
+t_ok( $P::scope_matches( 'single-page', '/x/', false, $P::page_types() ) && ! $P::scope_matches( 'single-post', '/x/', false, $P::page_types() ), 'types: a page is single-page, not single-post' );
+$q( array( 'singular' => 1, 'type' => 'Product' ) );
+t_ok( array( 'single', 'single-product' ) === $P::page_types(), 'types: custom post types are lower-cased (single-product)' );
+$q( array( 'archive' => 1 ) );
+t_ok( array( 'archive' ) === $P::page_types() && 'archive' === $P::primary_type(), 'types: archives' );
+$q( array( 'search' => 1 ) );
+t_ok( array( 'search' ) === $P::page_types(), 'types: search' );
+$q( array( 'home' => 1 ) );
+t_ok( array( 'blog' ) === $P::page_types(), 'types: the posts page is blog' );
+$q( array( 'home' => 1, 'front' => 1 ) );
+t_ok( array() === $P::page_types() && '' === $P::primary_type(), 'types: a posts page that is the front page is just home, not blog' );
+$q( array() );
+t_ok( array() === $P::page_types() && ! $P::scope_matches( 'single', '/x/', false, array() ), 'types: other pages (404...) have no type' );
+t_ok( $P::scope_matches( '/single/', '/single/', false, array() ) && ! $P::scope_matches( '/single/', '/other/', false, array( 'single' ) ), 'types: a path called /single/ is still a path' );
+$parsed = $P::parse( "/wp-content/uploads/a.jpg | single-post | mobile\n/wp-content/uploads/b.jpg | archive\n/wp-content/uploads/c.jpg | single-bad name\n/wp-content/uploads/d.jpg | SINGLE\n/wp-content/uploads/e.jpg | single-" );
+$scopes = array_map( function ( $e ) { return $e['scope']; }, $parsed['entries'] ?? $parsed );
+t_ok( array( 'single-post', 'archive', 'single' ) === array_values( $scopes ), 'types: accepted in the option (case ignored), malformed types are dropped (' . implode( ',', $scopes ) . ')' );
+$q( array( 'singular' => 1, 'type' => 'post' ) );
+
+// ---- one page preloads at most MAX_PER_PAGE lines -------------------------------------------------------------------------
+$lines = array(); for ( $i = 0; $i < 7; $i++ ) { $lines[] = "/wp-content/uploads/many$i.jpg | all"; }
+$lines[] = '/wp-content/uploads/other.jpg | /elsewhere/';
+$P::init( array( 'priority_images' => implode( "\n", $lines ) ) );
+ob_start(); $P::output_preload(); $html = ob_get_clean();
+t_ok( 4 === substr_count( $html, 'rel="preload"' ) && false !== strpos( $html, 'many3.jpg' ) && false === strpos( $html, 'many4.jpg' ), 'a page preloads only its first 4 matching lines, in list order' );
 
 echo "OK ($n assertions)\n";
