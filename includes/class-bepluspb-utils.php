@@ -57,7 +57,7 @@ class BEPLUSPB_Utils {
 		}
 		$p = $tail[ strlen( $tail ) - 1 ];
 		if ( ( '+' === $p || '-' === $p ) && strlen( $tail ) > 1 && $tail[ strlen( $tail ) - 2 ] === $p ) {
-			return false; // a++ / b
+			return false; // For example: a++ / b.
 		}
 		if ( false !== strpos( '(,=:[!&|?{};+-*%<>~^', $p ) ) {
 			return true;

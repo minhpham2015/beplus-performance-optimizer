@@ -135,11 +135,11 @@ class BEPLUSPB_Lazy_HTML {
 		}
 
 		$cfg   = array(
-			'js'         => $use_js,
-			'skip'       => isset( $opts['lazy_html_skip_first'] ) ? max( 0, min( 10, (int) $opts['lazy_html_skip_first'] ) ) : 2,
-			'ex_class'   => self::parse_list( isset( $opts['lazy_exclude_class'] ) ? $opts['lazy_exclude_class'] : '' ),
-			'ex_id'      => self::parse_list( isset( $opts['lazy_exclude_id'] ) ? $opts['lazy_exclude_id'] : '' ),
-			'ex_file'    => self::parse_list( isset( $opts['lazy_exclude_filename'] ) ? $opts['lazy_exclude_filename'] : '' ),
+			'js'       => $use_js,
+			'skip'     => isset( $opts['lazy_html_skip_first'] ) ? max( 0, min( 10, (int) $opts['lazy_html_skip_first'] ) ) : 2,
+			'ex_class' => self::parse_list( isset( $opts['lazy_exclude_class'] ) ? $opts['lazy_exclude_class'] : '' ),
+			'ex_id'    => self::parse_list( isset( $opts['lazy_exclude_id'] ) ? $opts['lazy_exclude_id'] : '' ),
+			'ex_file'  => self::parse_list( isset( $opts['lazy_exclude_filename'] ) ? $opts['lazy_exclude_filename'] : '' ),
 		);
 		$state = array(
 			'seen'      => 0,
