@@ -55,7 +55,7 @@ ok(isset($GLOBALS['hooks']['wp_lazy_loading_enabled']) && !isset($GLOBALS['hooks
 $GLOBALS['hooks']=array(); $GLOBALS['wp_version']='5.0'; BEPLUSPB_Images::init($GLOBALS['opts']); ok(array()===$GLOBALS['hooks'],'WP 5.0-5.4 fail open');
 require_once __DIR__ . '/helpers/admin-source.php'; // phpcs:ignore
 $admin=bepluspb_admin_source();
-$readme=file_get_contents(dirname(__DIR__).'/readme.txt');
+$readme=file_get_contents(dirname(__DIR__).'/readme.txt').file_get_contents(dirname(__DIR__).'/docs/SETTINGS_REFERENCE.md'); // the settings reference moved out of readme.txt
 $ci=file_get_contents(dirname(__DIR__).'/.github/workflows/ci.yml');
 ok(false!==strpos($admin,'WordPress 6.4 or newer'),'admin UI identifies the configurable compatibility floor');
 ok(false!==strpos($admin,'WordPress 5.5 through 6.3 retains its native behavior'),'admin UI honestly describes the legacy path');
