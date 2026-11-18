@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Delay JS, Simple mode: scripts that run after the page has loaded missed their `DOMContentLoaded`/`load` listeners.** Contact Form 7 starts with `document.addEventListener("DOMContentLoaded", init)`: loaded late, that handler never fired, the form was not initialised and a submit reloaded the page (`delay.js` already held the submit, but replaying it was a plain reload). While the delayed scripts load, `delay.js` now holds back listeners for events that already happened (document `DOMContentLoaded`/`readystatechange`, window `DOMContentLoaded`/`load`/`pageshow`) and calls them once, in order, after every script has run and before a held form is submitted again; `addEventListener` is restored afterwards. Test: `docs/delay-js-browser-test.js` (it fails on the old `delay.js`).
+- **"Exclude JS Files" now also keeps a script out of Minify JS**, as its description always said (it only affected Delay/Defer).
+
+### Added
+- **Delay JS never delays what must run at once (both modes).** Built-in rules (`BEPLUSPB_JS::is_builtin_excluded()`, filter `bepluspb_delay_js_exclude`): consent/cookie banners (Complianz, Cookie Notice, CookieYes, Cookiebot, OneTrust, Iubenda, Borlabs, Usercentrics, Didomi…), Elementor's lazy-background script `lazyloadRunObserver` (its `.e-con:not(.e-lazyloaded){background-image:none!important}` rule hides container backgrounds until the script runs, i.e. until the first interaction when delayed), scripts that swap `no-js` for `js` (Divi, Avada, WooCommerce, WordPress themes), other lazy-load scripts (Rocket, lazysizes, Smush, Jetpack, Swift), New Relic. Matched against an inline script's content, a script URL, an id and (Simple mode) a handle. Scripts carrying the conventional opt-out attributes are left alone too: `data-no-optimize`, `data-no-defer`, `data-no-delay`, `data-cfasync="false"`, `data-pagespeed-no-defer`, `nowprocket`, `data-wpmeteor-nooptimize`. Tests: `tests/test-delay-js-builtin-excludes.php`, `docs/delay-js-browser-test.js`.
+- **HTML lazy load: iframes** (`lazy_html_iframes`, default on): `loading="lazy"` on embeds, skipping iframes that already set `loading`, other lazy loaders' markers, `skip-lazy`/`no-lazy`, 0x0/1x1/hidden frames, `srcdoc`, blank/data frames, Gravity Forms/reCAPTCHA/GTM frames and the class/ID/filename exclusions. Works even when a CSP blocks the image loader (no JS involved).
+- **HTML lazy load: sliders.** The loader observes the slider/carousel (Swiper, Slick, Owl, Flickity, Splide, Tiny Slider, Glide, Elementor image carousel) instead of its clipped slides, so all slides load when the slider is near the viewport (slides outside the clip never intersect on their own and stayed blank until they slid in). Test: `docs/lazy-html-browser-test.js` (fails without it).
+- **HTML lazy load: configurable margin** (`lazy_html_threshold`, default 300 px, 0-2000), doubled on 2G/3G connections.
+
 ## [1.3.3] - 2026-11-18
 
 ### Fixed

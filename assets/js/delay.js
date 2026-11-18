@@ -16,6 +16,69 @@
 	var _bepluspbPendingForms = [];
 	var _bepluspbRemaining = 0;
 
+	// Scripts loaded after the page finished loading miss the events that already fired. Contact Form 7,
+	// for example, starts with document.addEventListener( 'DOMContentLoaded', init ): when it runs late
+	// that handler never fires, the form is not initialised and a submit reloads the page. While the
+	// delayed scripts load, listeners for the events that have already happened are held back and called
+	// once, in order, after every script has run (the same idea as WP Meteor's event queue).
+	var _bepluspbLate = false;
+	var _bepluspbLateQueue = [];
+	var _bepluspbLateRank = { DOMContentLoaded: 0, readystatechange: 1, load: 2, pageshow: 3 };
+
+	function _bepluspbAlreadyFired( type ) {
+		if ( type === 'DOMContentLoaded' ) return document.readyState !== 'loading';
+		return document.readyState === 'complete'; // readystatechange (complete), load, pageshow.
+	}
+
+	function _bepluspbHoldLate( target, types ) {
+		var original = target.addEventListener;
+		target.addEventListener = function ( type, listener ) {
+			if ( _bepluspbLate && listener && types.indexOf( type ) !== -1 && _bepluspbAlreadyFired( type ) ) {
+				_bepluspbLateQueue.push( { target: target, type: type, listener: listener, order: _bepluspbLateQueue.length } );
+				return;
+			}
+			return original.apply( this, arguments );
+		};
+	}
+
+	function _bepluspbLateEvent( item ) {
+		var event;
+		try {
+			event = item.type === 'pageshow' && typeof PageTransitionEvent === 'function'
+				? new PageTransitionEvent( 'pageshow', { persisted: false } )
+				: new Event( item.type, { bubbles: item.type === 'DOMContentLoaded' } );
+			Object.defineProperty( event, 'target', { value: item.target } );
+			Object.defineProperty( event, 'currentTarget', { value: item.target } );
+		} catch ( err ) {
+			event = { type: item.type, target: item.target, currentTarget: item.target };
+		}
+		return event;
+	}
+
+	function _bepluspbReplayLate() {
+		if ( ! _bepluspbLate ) return;
+		_bepluspbLate = false;
+		delete document.addEventListener;
+		delete window.addEventListener;
+		var queue = _bepluspbLateQueue;
+		_bepluspbLateQueue = [];
+		queue.sort( function ( a, b ) {
+			return ( _bepluspbLateRank[ a.type ] - _bepluspbLateRank[ b.type ] ) || ( a.order - b.order );
+		} );
+		queue.forEach( function ( item ) {
+			try {
+				var event = _bepluspbLateEvent( item );
+				if ( typeof item.listener === 'function' ) {
+					item.listener.call( item.target, event );
+				} else if ( item.listener && typeof item.listener.handleEvent === 'function' ) {
+					item.listener.handleEvent( event );
+				}
+			} catch ( err ) {
+				if ( window.console && console.error ) console.error( err );
+			}
+		} );
+	}
+
 	function _bepluspbIsExcluded( src ) {
 		for ( var i = 0; i < _bepluspbExclude.length; i++ ) {
 			if ( _bepluspbExclude[ i ] && src.indexOf( _bepluspbExclude[ i ] ) !== -1 ) return true;
@@ -38,6 +101,7 @@
 	function _bepluspbFlushForms() {
 		if ( _bepluspbReady ) return;
 		_bepluspbReady = true;
+		_bepluspbReplayLate(); // Before any held form is submitted again, so the form's own JS is ready.
 		var forms = _bepluspbPendingForms;
 		_bepluspbPendingForms = [];
 		forms.forEach( function ( item ) {
@@ -86,6 +150,10 @@
 	function _bepluspbLoadAll() {
 		if ( _bepluspbLoaded ) return;
 		_bepluspbLoaded = true;
+
+		_bepluspbLate = true;
+		_bepluspbHoldLate( document, [ 'DOMContentLoaded', 'readystatechange' ] );
+		_bepluspbHoldLate( window, [ 'DOMContentLoaded', 'load', 'pageshow' ] );
 
 		var delayed = document.querySelectorAll( 'script[data-bepluspb-delay="1"]' );
 		delayed.forEach( function ( placeholder ) {

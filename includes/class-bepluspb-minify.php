@@ -131,6 +131,16 @@ class BEPLUSPB_Minify {
 	 * @return string Possibly replaced URL pointing to the cached/minified file.
 	 */
 	public static function maybe_minify_js( $src, $handle ) {
+		// "Exclude JS Files" (keywords in the URL) also keeps a script out of minify, as the setting says.
+		if ( function_exists( 'bepluspb_get_options' ) && function_exists( 'bepluspb_parse_exclude_list' ) ) {
+			$opts = bepluspb_get_options();
+			foreach ( bepluspb_parse_exclude_list( isset( $opts['js_exclude'] ) ? $opts['js_exclude'] : '' ) as $keyword ) {
+				if ( '' !== $keyword && false !== strpos( (string) $src, $keyword ) ) {
+					return $src;
+				}
+			}
+		}
+
 		if ( self::is_page_excluded() ) {
 			return $src;
 		}

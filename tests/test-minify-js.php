@@ -48,6 +48,13 @@ t_ok( $bundle === BEPLUSPB_Minify::minify_js( $bundle ), 'a single-line (already
 $normal = "/* c */\nfunction a() {\n\t// x\n\treturn 1;\n}\n";
 t_ok( false === strpos( BEPLUSPB_Minify::minify_js( $normal ), 'x' ) && false !== strpos( BEPLUSPB_Minify::minify_js( $normal ), 'return 1;' ), 'ordinary source is still minified' );
 
+// ---- "Exclude JS Files" also keeps a script out of minify -------------------------------------------------------------------
+function bepluspb_get_options() { return array( 'js_exclude' => "contact-form-7\nmy-critical" ); }
+function bepluspb_parse_exclude_list( $t ) { return array_values( array_filter( array_map( 'trim', explode( "\n", (string) $t ) ) ) ); }
+foreach ( array( 'https://ex.com/wp-content/plugins/contact-form-7/includes/js/index.js?ver=6', 'https://ex.com/js/my-critical.js' ) as $url ) {
+	t_ok( $url === BEPLUSPB_Minify::maybe_minify_js( $url, 'h' ), 'excluded script is returned untouched by minify: ' . $url );
+}
+
 // ---- real code through node ---------------------------------------------------------------------------------------------
 if ( $has_node ) {
 	$sample = "'use strict';\n/* license */\nconst a = (s) => s.replace(/^\\//, '').replace(/\\/\$/, ''); // trim\nconst b = 10 / 2 / 5; // math\nconst c = /[/*]+/.test('x') ? 1 : 2;\nmodule.exports = { a, b, c };\n";

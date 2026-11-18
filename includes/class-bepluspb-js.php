@@ -140,6 +140,131 @@ class BEPLUSPB_JS {
 	}
 
 	// =========================================================================
+	// Built-in exclusions and opt-out attributes (both delay modes)
+	// =========================================================================
+
+	/**
+	 * Patterns (PCRE fragments, case-insensitive) for scripts that must never be delayed: matched
+	 * against an inline script's content, a script URL, an id and (Simple mode) a handle.
+	 *
+	 * Delaying these makes a page flash, hides content until the first interaction, or breaks the
+	 * consent banner. Same idea as WP Meteor's compatibility/GDPR lists; the Elementor entry is ours.
+	 *
+	 * @return string[]
+	 */
+	private static function builtin_exclude_fragments() {
+		return array(
+			// Elementor: puts .e-lazyloaded on containers; until it runs their background images stay hidden.
+			'lazyloadRunObserver',
+			// Scripts that swap "no-js" for "js": delayed, the page keeps its no-JS layout until the first touch.
+			'classList\.(?:remove|replace|add)\(\s*["\'][^"\']*no-js',
+			'\.replace\([^)]{0,40}no-js',
+			'className\s*=\s*["\']js["\']',
+			'woocommerce-no-js',
+			'function et_core_page_resource_fallback\(',
+			'fusionNavIsCollapsed',
+			'window\.\$us === undefined',
+			// Other lazy loaders and their configuration.
+			'lazyLoadOptions',
+			'lazySizesConfig',
+			'lazyLoadThumb',
+			'eio_lazy_vars',
+			'ewww_webp_supported',
+			'lazysizes(?:\.min)?\.js',
+			'lazyload(?:\.min)?\.js',
+			'wp-rocket/assets/js/lazyload',
+			'rocket-lazy-load',
+			'smush-lazy-load(?:-native)?(?:\.min)?\.js',
+			'jetpack-lazy-images',
+			'lazy-images\.js',
+			'data-swift-image-lazyload',
+			'js-agent\.newrelic\.com',
+			// Cookie / consent banners: they must appear at once (consent is legally required first).
+			'ap\.legalblink\.it',
+			'cmplz-cookiebanner',
+			'complianz',
+			'cookie-notice',
+			'\bcnArgs\b',
+			'cookie-law-info',
+			'cli_cookiebar',
+			'cookieyes',
+			'cookiebot',
+			'cookielaw\.org',
+			'onetrust',
+			'optanon',
+			'iubenda',
+			'termly',
+			'borlabs-cookie',
+			'cookie-script\.com',
+			'usercentrics',
+			'cookie-information',
+			'consentmanager',
+			'cookieconsent',
+			'moove_gdpr',
+			'gdpr-cookie-compliance',
+			'real-cookie-banner',
+			'cookiehub',
+			'didomi',
+			'axeptio',
+			'trustarc',
+			'osano',
+		);
+	}
+
+	/**
+	 * Whether a script (its content, URL, id or handle) is on the built-in never-delay list.
+	 *
+	 * @param  string $haystack Inline content, URL, id or handle.
+	 * @return bool
+	 */
+	public static function is_builtin_excluded( $haystack ) {
+		static $regex = null;
+
+		$haystack = (string) $haystack;
+		if ( '' === $haystack ) {
+			return false;
+		}
+		if ( null === $regex ) {
+			$regex = '#(?:' . implode( '|', array_map( array( __CLASS__, 'escape_hash' ), self::builtin_exclude_fragments() ) ) . ')#i';
+		}
+		$hit = 1 === preg_match( $regex, $haystack );
+		if ( function_exists( 'apply_filters' ) ) {
+			/**
+			 * Filters whether a script is left out of Delay JS by the built-in rules.
+			 *
+			 * @param bool   $hit      Whether the built-in list matched.
+			 * @param string $haystack Inline content, URL, id or handle.
+			 */
+			$hit = (bool) apply_filters( 'bepluspb_delay_js_exclude', $hit, $haystack ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		}
+		return $hit;
+	}
+
+	/**
+	 * Escape the regex delimiter.
+	 *
+	 * @param  string $fragment PCRE fragment.
+	 * @return string
+	 */
+	private static function escape_hash( $fragment ) {
+		return str_replace( '#', '\\#', $fragment );
+	}
+
+	/**
+	 * Whether a <script> tag carries one of the conventional "do not optimise" attributes that other
+	 * performance plugins use (WP Rocket, Autoptimize, Cloudflare, WP Meteor, SG Optimizer...).
+	 *
+	 * @param  string $tag Opening <script ...> tag.
+	 * @return bool
+	 */
+	public static function has_opt_out_attr( $tag ) {
+		return 1 === preg_match(
+			'/\s(?:(?:data-no-optimize|data-no-defer|data-no-delay|data-pagespeed-no-defer|data-wpmeteor-nooptimize|nowprocket)(?=[\s=>\/])|data-cfasync\s*=\s*["\']?false\b)/i',
+			(string) $tag
+		);
+	}
+
+	// =========================================================================
 	// Simple delay (existing behaviour)
 	// =========================================================================
 
@@ -162,6 +287,10 @@ class BEPLUSPB_JS {
 		}
 
 		if ( false !== strpos( $tag, 'data-bepluspb-delay' ) ) {
+			return $tag;
+		}
+
+		if ( self::has_opt_out_attr( $tag ) || self::is_builtin_excluded( $src ) || self::is_builtin_excluded( $handle ) ) {
 			return $tag;
 		}
 
@@ -451,6 +580,12 @@ class BEPLUSPB_JS {
 				$content_length = $end_matches[0][1] - $content_start;
 				$content        = substr( $buffer, $content_start, $content_length );
 
+				// Conventional opt-out attributes and the built-in never-delay list.
+				if ( ! $is_nooptimize && ( self::has_opt_out_attr( $tag_str ) || self::is_builtin_excluded( $content ) ) ) {
+					$tag_str       = preg_replace( '/^<script/i', '<script data-bepluspb-nooptimize="true"', $tag_str );
+					$is_nooptimize = true;
+				}
+
 				// If not already marked nooptimize, check if content matches an exclusion.
 				if ( ! $is_nooptimize ) {
 					foreach ( $exclude as $keyword ) {
@@ -492,6 +627,14 @@ class BEPLUSPB_JS {
 					return $tag;
 				}
 
+				// Other plugins' opt-out attributes, and a built-in never-delay id (consent banners...).
+				if ( self::has_opt_out_attr( $tag ) ) {
+					return $tag;
+				}
+				if ( preg_match( '/\sid=([\'"])(.*?)\1/i', $tag, $idm ) && self::is_builtin_excluded( $idm[2] ) ) {
+					return $tag;
+				}
+
 				// Detect type attribute and whether it is JS.
 				$has_type   = (bool) preg_match( '/\s+type=/i', $tag );
 				$is_js_type = ! $has_type
@@ -516,6 +659,9 @@ class BEPLUSPB_JS {
 						if ( ! empty( $keyword ) && false !== strpos( $src, $keyword ) ) {
 							return $tag;
 						}
+					}
+					if ( self::is_builtin_excluded( $src ) ) {
+						return $tag;
 					}
 					// Rename src → data-bepluspb-src.
 					$tag = preg_replace( '/(\s+)src=/i', '$1data-bepluspb-src=', $tag );

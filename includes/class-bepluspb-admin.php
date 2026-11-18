@@ -257,6 +257,7 @@ class BEPLUSPB_Admin {
 			'css_remove_unused',
 			// Lazy load.
 			'lazy_load',
+			'lazy_html_iframes',
 			// Cleanup.
 			'remove_emoji',
 			'remove_embed',
@@ -401,6 +402,9 @@ class BEPLUSPB_Admin {
 		$sanitized['lazy_html_skip_first'] = isset( $input['lazy_html_skip_first'] )
 			? min( 10, absint( $input['lazy_html_skip_first'] ) )
 			: 2;
+		$sanitized['lazy_html_threshold']  = isset( $input['lazy_html_threshold'] )
+			? min( 2000, absint( $input['lazy_html_threshold'] ) )
+			: 300;
 
 		$sanitized['lazy_exclude_class'] = isset( $input['lazy_exclude_class'] )
 			? sanitize_text_field( $input['lazy_exclude_class'] )

@@ -27,7 +27,9 @@ $body = '<img id="top1" src="/img/top1.png" width="100" height="100"><img id="to
   . '<picture id="pic"><source type="image/webp" srcset="/img/pic.webp"><img id="picimg" src="/img/pic.png" width="100" height="100"></picture>'
   . '<div style="height:1500px">spacer</div>'
   . '<img id="skipme" src="/img/skipme.png" width="100" height="100" class="skip-lazy">'
-  . '<div id="later"></div>';
+  . '<div id="later"></div>'
+  . '<div class="swiper" id="sw" style="width:300px;overflow:hidden"><div style="display:flex;width:1500px"><img id="s1" src="/img/s1.png" width="300" height="100"><img id="s2" src="/img/s2.png" width="300" height="100"><img id="s3" src="/img/s3.png" width="300" height="100"><img id="s4" src="/img/s4.png" width="300" height="100"></div></div>'
+  . '<div style="height:6000px"></div><iframe id="fr" src="/frame/far" width="300" height="100"></iframe><iframe id="tr" src="/frame/track" width="1" height="1"></iframe>';
 echo BEPLUSPB_Lazy_HTML::process('<!doctype html><html><head><meta charset="utf-8"><title>t</title></head><body style="margin:0">' . $body . '</body></html>', array('lazy_html_skip_first' => 2));
 `);
 const html = execFileSync('php', [phpFile, path.join(__dirname, '..')], { encoding: 'utf8' });
@@ -37,6 +39,7 @@ const requests = [];
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
   if (u === '/') { res.setHeader('content-type', 'text/html'); return res.end(html); }
+  if (u.startsWith('/frame/')) { requests.push(u); res.setHeader('content-type', 'text/html'); return res.end('<html><body>frame</body></html>'); }
   if (u.startsWith('/img/')) { requests.push(u); res.setHeader('content-type', u.endsWith('.webp') ? 'image/png' : 'image/png'); return res.end(PNG); }
   res.statusCode = 404; res.end('');
 });
@@ -81,6 +84,12 @@ const has = n => requests.some(r => r.includes(n));
   });
   await page.evaluate(() => window.scrollTo(0, 4400)); await page.waitForTimeout(800);
   ok(has('dyn.png'), 'an image added later by a script is picked up (MutationObserver)');
+  ok(['s1', 's2', 's3', 's4'].every(n => has('/' + n + '.png')), 'slider: ALL slides load, including the ones clipped to the right (released when the slider is near the viewport)');
+  const frameAttr = await page.evaluate(() => [document.getElementById('fr').getAttribute('loading'), document.getElementById('tr').getAttribute('loading')]);
+  ok(frameAttr[0] === 'lazy' && frameAttr[1] === null, 'iframe: the embed got loading="lazy", the 1x1 tracking frame did not');
+  ok(!has('/frame/far'), 'iframe: the far embed is not requested before scrolling near it (Chromium loads lazy frames from about 3000 px away)');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await page.waitForTimeout(900);
+  ok(has('/frame/far'), 'iframe: it loads once the visitor scrolls near it');
   ok(errors.length === 0, 'no page errors' + (errors.length ? ': ' + errors.join('; ') : ''));
   await ctx.close();
 

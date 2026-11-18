@@ -100,7 +100,50 @@ $GLOBALS['skip_filter'] = null;
 $loader = ( new ReflectionMethod( 'BEPLUSPB_Lazy_HTML', 'loader_script' ) );
 $loader->setAccessible( true );
 $js = $loader->invoke( null );
-$t( preg_match( '#^<script id="bepluspb-lazy-loader"[^>]*>(.*)</script>$#s', $js, $jm ) && strlen( $jm[1] ) < 1800 && false !== strpos( $jm[1], 'IntersectionObserver' ) && false !== strpos( $jm[1], "300px 0px" ), 'loader is small and uses IntersectionObserver with a 300 px margin' );
+$t( preg_match( '#^<script id="bepluspb-lazy-loader"[^>]*>(.*)</script>$#s', $js, $jm ) && strlen( $jm[1] ) < 2600 && false !== strpos( $jm[1], 'IntersectionObserver' ) && false !== strpos( $jm[1], 'T=300,' ) && false !== strpos( $jm[1], 'px 0px' ), 'loader is small and uses IntersectionObserver with a 300 px margin' );
+$t( false !== strpos( $jm[1], '.swiper' ) && false !== strpos( $jm[1], '.slick-slider' ) && false !== strpos( $jm[1], '.elementor-image-carousel-wrapper' ), 'loader knows the common sliders (it observes the slider, not the clipped slide)' );
+$js2 = $loader->invoke( null, 650 );
+$t( false !== strpos( $js2, 'T=650,' ), 'the loader margin follows the setting' );
 file_put_contents( sys_get_temp_dir() . '/bpb-lazy-loader.js', $jm[1] );
+
+// ---- configurable margin reaches the page ----------------------------------------------------------------------------------
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg">' ), array_merge( $base, array( 'lazy_html_skip_first' => 0, 'lazy_html_threshold' => 800 ) ) );
+$t( false !== strpos( $out, 'T=800,' ), 'lazy_html_threshold is used by the loader' );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg">' ), array_merge( $base, array( 'lazy_html_skip_first' => 0, 'lazy_html_threshold' => 99999 ) ) );
+$t( false !== strpos( $out, 'T=2000,' ), 'the margin is capped at 2000 px' );
+
+// ---- iframes: native lazy loading ----------------------------------------------------------------------------------------------
+$fr = array_merge( $base, array( 'lazy_html_skip_first' => 0 ) );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<iframe src="https://www.youtube.com/embed/abc" width="560" height="315" allowfullscreen></iframe><iframe src="/map" class="x"></iframe>' ), $fr );
+$t( 2 === $count( '<iframe loading="lazy" src=', $out ) && false === strpos( $out, 'bepluspb-lazy-loader' ), 'iframes get loading="lazy" (and a page with only iframes needs no loader script)' );
+foreach ( array(
+	'<iframe src="/a" loading="eager"></iframe>' => 'already says how to load',
+	'<iframe src="/a" loading="lazy"></iframe>' => 'already lazy',
+	'<iframe src="/a" data-src="/real"></iframe>' => 'another lazy loader',
+	'<iframe src="/a" data-lazy-src="/real"></iframe>' => 'another lazy loader (Rocket)',
+	'<iframe src="/a" class="skip-lazy"></iframe>' => 'skip-lazy class',
+	'<iframe src="/a" data-no-lazy="1"></iframe>' => 'data-no-lazy',
+	'<iframe src="/a" width="0" height="0"></iframe>' => '0x0 tracking frame',
+	'<iframe src="/a" width="1" height="1"></iframe>' => '1x1 tracking frame',
+	'<iframe src="/a" style="display:none"></iframe>' => 'hidden frame',
+	'<iframe src="/a" style="visibility: hidden"></iframe>' => 'hidden frame (visibility)',
+	'<iframe srcdoc="<p>x</p>" src="/a"></iframe>' => 'srcdoc',
+	'<iframe src="about:blank"></iframe>' => 'blank frame',
+	'<iframe></iframe>' => 'no src',
+	'<iframe src="https://example.com/?gform_ajax_frame=1"></iframe>' => 'Gravity Forms ajax frame',
+	'<iframe src="https://www.google.com/recaptcha/api/fallback?k=1"></iframe>' => 'reCAPTCHA fallback',
+	'<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-X"></iframe>' => 'GTM frame',
+	'<iframe src="/a" class="hero-image"></iframe>' => 'excluded class',
+	'<iframe src="/banner.jpg-frame"></iframe>' => 'excluded filename',
+) as $frame => $why ) {
+	$out = BEPLUSPB_Lazy_HTML::process( $page( $frame . '<img src="/z.jpg">' ), $fr );
+	$t( false !== strpos( $out, $frame ), "iframe left alone: $why" );
+}
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<iframe src="/a"></iframe><img src="/z.jpg">' ), array_merge( $fr, array( 'lazy_html_iframes' => 0 ) ) );
+$t( false !== strpos( $out, '<iframe src="/a"></iframe>' ), 'the iframe option can be switched off' );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<script>var h=\'<iframe src="/s"></iframe>\';</script><noscript><iframe src="/n"></iframe></noscript><!-- <iframe src="/c"></iframe> --><iframe src="/real"></iframe>' ), $fr );
+$t( false !== strpos( $out, '<iframe src="/s">' ) && false !== strpos( $out, '<noscript><iframe src="/n"></iframe></noscript>' ) && false !== strpos( $out, '<iframe src="/c">' ) && false !== strpos( $out, '<iframe loading="lazy" src="/real">' ), 'iframes inside script/noscript/comments are never touched' );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<iframe src="/a"></iframe>', $meta ), $fr );
+$t( false !== strpos( $out, '<iframe loading="lazy" src="/a">' ), 'iframes use native lazy loading even when a CSP blocks the image loader' );
 
 echo "OK ($n assertions)\n";

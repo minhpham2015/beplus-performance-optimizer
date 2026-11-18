@@ -13,7 +13,10 @@
  *  - one small inline script (IntersectionObserver, 300 px margin) puts the
  *    attributes back when the image is about to be seen;
  *  - the first N eligible images are left alone (above the fold / LCP), and so
- *    is anything the author marked eager, high priority or no-lazy.
+ *    is anything the author marked eager, high priority or no-lazy;
+ *  - images inside a slider/carousel are released when the slider comes into view
+ *    (the slides are clipped, so they would otherwise stay blank until they slide in);
+ *  - iframes get the browser's native loading="lazy" (no JS needed).
  *
  * It fails open: scripts/styles/comments/noscript/templates are never touched,
  * partial or non-HTML output is returned as is, and when a Content-Security-Policy
@@ -93,7 +96,7 @@ class BEPLUSPB_Lazy_HTML {
 		if ( ! is_string( $html ) || '' === $html ) {
 			return $html;
 		}
-		if ( false === stripos( $html, '<img' ) || false === stripos( $html, '</body>' ) || ! preg_match( '/<html\b/i', $html ) ) {
+		if ( ( false === stripos( $html, '<img' ) && false === stripos( $html, '<iframe' ) ) || false === stripos( $html, '</body>' ) || ! preg_match( '/<html\b/i', $html ) ) {
 			return $html;
 		}
 		if ( false !== strpos( $html, "\x1a" ) ) {
@@ -135,11 +138,13 @@ class BEPLUSPB_Lazy_HTML {
 		}
 
 		$cfg   = array(
-			'js'       => $use_js,
-			'skip'     => isset( $opts['lazy_html_skip_first'] ) ? max( 0, min( 10, (int) $opts['lazy_html_skip_first'] ) ) : 2,
-			'ex_class' => self::parse_list( isset( $opts['lazy_exclude_class'] ) ? $opts['lazy_exclude_class'] : '' ),
-			'ex_id'    => self::parse_list( isset( $opts['lazy_exclude_id'] ) ? $opts['lazy_exclude_id'] : '' ),
-			'ex_file'  => self::parse_list( isset( $opts['lazy_exclude_filename'] ) ? $opts['lazy_exclude_filename'] : '' ),
+			'js'        => $use_js,
+			'iframes'   => ! isset( $opts['lazy_html_iframes'] ) || ! empty( $opts['lazy_html_iframes'] ),
+			'threshold' => isset( $opts['lazy_html_threshold'] ) ? max( 0, min( 2000, (int) $opts['lazy_html_threshold'] ) ) : 300,
+			'skip'      => isset( $opts['lazy_html_skip_first'] ) ? max( 0, min( 10, (int) $opts['lazy_html_skip_first'] ) ) : 2,
+			'ex_class'  => self::parse_list( isset( $opts['lazy_exclude_class'] ) ? $opts['lazy_exclude_class'] : '' ),
+			'ex_id'     => self::parse_list( isset( $opts['lazy_exclude_id'] ) ? $opts['lazy_exclude_id'] : '' ),
+			'ex_file'   => self::parse_list( isset( $opts['lazy_exclude_filename'] ) ? $opts['lazy_exclude_filename'] : '' ),
 		);
 		$state = array(
 			'seen'      => 0,
@@ -160,12 +165,25 @@ class BEPLUSPB_Lazy_HTML {
 			return $html;
 		}
 
+		if ( $cfg['iframes'] ) {
+			$with_frames = preg_replace_callback(
+				'#<iframe\b(?:[^>"\']++|"[^"]*+"|\'[^\']*+\')*+>#i',
+				function ( $m ) use ( $cfg ) {
+					return self::convert_iframe( $m[0], $cfg );
+				},
+				$safe
+			);
+			if ( null !== $with_frames ) {
+				$safe = $with_frames;
+			}
+		}
+
 		$rest = strtr( $safe, $map );
 
 		if ( $use_js && $state['converted'] > 0 ) {
 			$end = strripos( $rest, '</body>' );
 			if ( false !== $end ) {
-				$rest = substr( $rest, 0, $end ) . self::loader_script() . substr( $rest, $end );
+				$rest = substr( $rest, 0, $end ) . self::loader_script( $cfg['threshold'] ) . substr( $rest, $end );
 			}
 			$close = stripos( $head, '</head>' );
 			if ( false !== $close ) {
@@ -296,6 +314,57 @@ class BEPLUSPB_Lazy_HTML {
 
 		++$state['converted'];
 		return $new . '<noscript>' . $tag . '</noscript>';
+	}
+
+	/**
+	 * Give an <iframe> the browser's native lazy loading (embeds: YouTube, Maps, forms...).
+	 *
+	 * Left alone: iframes that already say how to load, other lazy loaders' markers, hidden or tracking
+	 * frames, srcdoc/data/blank frames, and the usual exclusions.
+	 *
+	 * @param  string $tag <iframe ...> tag.
+	 * @param  array  $cfg Settings.
+	 * @return string
+	 */
+	private static function convert_iframe( $tag, $cfg ) {
+		$attrs = self::parse_attrs( $tag, 7 );
+		if ( ! isset( $attrs['src'] ) || isset( $attrs['loading'] ) || isset( $attrs['srcdoc'] ) ) {
+			return $tag;
+		}
+		$src = trim( $attrs['src']['value'] );
+		if ( '' === $src || preg_match( '#^(?:data|blob|about|javascript):#i', $src ) ) {
+			return $tag;
+		}
+		foreach ( array( 'data-src', 'data-lazy-src', 'data-lazyload', 'data-rocket-lazyload', 'data-no-lazy', 'data-skip-lazy' ) as $name ) {
+			if ( isset( $attrs[ $name ] ) ) {
+				return $tag;
+			}
+		}
+		foreach ( array( 'width', 'height' ) as $dim ) {
+			if ( isset( $attrs[ $dim ] ) && 1 === preg_match( '/^\s*[01](?:px)?\s*$/', $attrs[ $dim ]['value'] ) ) {
+				return $tag; // 0x0 / 1x1 tracking frames.
+			}
+		}
+		if ( isset( $attrs['style'] ) && 1 === preg_match( '/display\s*:\s*none|visibility\s*:\s*hidden/i', $attrs['style']['value'] ) ) {
+			return $tag;
+		}
+		if ( 1 === preg_match( '#gform_ajax_frame|recaptcha/api/fallback|google_ads_iframe_|googletagmanager\.com/ns\.html|facebook\.com/tr#i', $tag ) ) {
+			return $tag;
+		}
+		$class_attr = isset( $attrs['class'] ) ? $attrs['class']['value'] : '';
+		$classes    = preg_split( '/\s+/', trim( $class_attr ) );
+		if ( in_array( 'skip-lazy', $classes, true ) || in_array( 'no-lazy', $classes, true ) || array_intersect( $cfg['ex_class'], $classes ) ) {
+			return $tag;
+		}
+		if ( isset( $attrs['id'] ) && in_array( trim( $attrs['id']['value'] ), $cfg['ex_id'], true ) ) {
+			return $tag;
+		}
+		foreach ( $cfg['ex_file'] as $part ) {
+			if ( '' !== $part && false !== strpos( $src, $part ) ) {
+				return $tag;
+			}
+		}
+		return '<iframe loading="lazy"' . substr( $tag, 7 );
 	}
 
 	/**
@@ -455,22 +524,28 @@ class BEPLUSPB_Lazy_HTML {
 	}
 
 	/**
-	 * The inline loader: IntersectionObserver with a 300 px margin.
+	 * The inline loader: IntersectionObserver with a configurable margin (doubled on slow connections).
 	 *
+	 * Images inside a slider/carousel are released when the SLIDER comes into view: the slides outside
+	 * its clip never intersect on their own, so they would stay blank until they slide in.
 	 * The attributes keep it out of other plugins' delay/defer/minify handling.
 	 *
+	 * @param  int $threshold Margin in pixels.
 	 * @return string
 	 */
-	private static function loader_script() {
-		$js = "(function(w,d){var S='data-bpb-src',Q='data-bpb-srcset',Z='data-bpb-sizes',io,t;"
+	private static function loader_script( $threshold = 300 ) {
+		$js = "(function(w,d){var S='data-bpb-src',Q='data-bpb-srcset',Z='data-bpb-sizes',T=" . (int) $threshold . ','
+			. "H='.swiper,.swiper-container,.slick-slider,.owl-carousel,.flickity-viewport,.splide,.tns-slider,.glide,.elementor-image-carousel-wrapper',io,t;"
 			. 'function mv(e,a,b){var v=e.getAttribute(a);if(v!==null){e.removeAttribute(a);e.setAttribute(b,v);}}'
 			. 'function go(i){if(!i.hasAttribute(S))return;var p=i.parentNode;'
 			. "if(p&&p.nodeName==='PICTURE'){var c=p.getElementsByTagName('source');for(var k=0;k<c.length;k++){mv(c[k],Q,'srcset');mv(c[k],Z,'sizes');}}"
 			. "mv(i,Z,'sizes');mv(i,Q,'srcset');mv(i,S,'src');}"
 			. "function all(){var n=d.querySelectorAll('img['+S+']');for(var k=0;k<n.length;k++)go(n[k]);}"
+			. "function run(e){if(e.hasAttribute(S)){go(e);return;}var n=e.querySelectorAll('img['+S+']');for(var k=0;k<n.length;k++)go(n[k]);}"
 			. "function scan(){var n=d.querySelectorAll('img['+S+']');if(!('IntersectionObserver' in w)){all();return;}"
-			. 'if(!io)io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting||e.intersectionRatio>0){io.unobserve(e.target);go(e.target);}});},{rootMargin:\'300px 0px\'});'
-			. 'for(var k=0;k<n.length;k++)io.observe(n[k]);}'
+			. "if(!io){var c=w.navigator&&w.navigator.connection,m=T*(c&&/(^|-)[23]g\$/.test(c.effectiveType||'')?2:1);"
+			. "io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting||e.intersectionRatio>0){io.unobserve(e.target);run(e.target);}});},{rootMargin:m+'px 0px'});}"
+			. 'for(var k=0;k<n.length;k++){var h=n[k].closest?n[k].closest(H):null;io.observe(h||n[k]);}}'
 			. "scan();if('MutationObserver' in w)new MutationObserver(function(){clearTimeout(t);t=setTimeout(scan,100);}).observe(d.documentElement,{childList:true,subtree:true});"
 			. "w.addEventListener('beforeprint',all);w.bepluspbLazy={scan:scan,all:all};})(window,document);";
 

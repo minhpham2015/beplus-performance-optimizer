@@ -45,10 +45,25 @@ jquery-migrate are always protected from deferral.
 Default: empty
 
 One URL keyword per line. Any script whose `src` attribute contains a listed
-keyword is excluded from both Delay and Defer. Use this to protect scripts that
+keyword is excluded from Delay, Defer and Minify JS. Use this to protect scripts that
 must run immediately (e.g. analytics that need to capture the first page view).
 
 Examples: `jquery`, `woocommerce`, `my-critical-script`
+
+**Never delayed (built in)**
+
+Whatever you list above, Delay JS never delays: cookie/consent banners (Complianz,
+Cookie Notice, CookieYes, Cookiebot, OneTrust, Iubenda, Borlabs…), Elementor's
+lazy-background script (without it, container background images stay hidden until
+the first interaction), small scripts that switch the `no-js` class to `js`, other
+lazy-load scripts (Rocket, lazysizes, Smush, Jetpack), and any script carrying
+`data-no-optimize`, `data-no-defer`, `data-no-delay`, `data-cfasync="false"`,
+`data-pagespeed-no-defer` or `nowprocket`. Developers can extend the list with the
+`bepluspb_delay_js_exclude` filter.
+
+In **Simple** mode, scripts that run after the page has loaded still get the
+`DOMContentLoaded` / `load` listeners they register (for example Contact Form 7), called
+once, in order, after every delayed script has run.
 
 ---
 
@@ -217,6 +232,22 @@ Default: 2
 Only for "Rewrite the page HTML": the first N images of the page stay normal so the
 top of the page shows at once. Images with `loading="eager"`, `fetchpriority="high"`
 (Priority Images) or the class `skip-lazy` / `no-lazy` are always skipped.
+
+**Lazy Load Iframes**
+Default: on
+
+Only for "Rewrite the page HTML": embeds (YouTube, Google Maps, forms) get the
+browser's native `loading="lazy"`. Left alone: iframes that already set `loading`,
+hidden or tracking frames (0x0, 1x1, `display:none`), `srcdoc`/`about:blank` frames,
+the class `skip-lazy` / `no-lazy`, and other lazy loaders' markers.
+
+**Load Images Early (px)**
+Default: 300
+
+Only for "Rewrite the page HTML": an image starts loading this many pixels before it
+scrolls into view (0–2000; doubled on slow 2G/3G connections). Images inside a slider
+or carousel (Swiper, Slick, Owl, Elementor, Splide, Flickity…) load when the slider
+comes into view, so the slides outside its visible frame are not left blank.
 
 **Skip First N Images**
 Default: 1

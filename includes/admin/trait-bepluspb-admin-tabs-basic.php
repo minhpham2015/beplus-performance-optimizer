@@ -587,7 +587,8 @@ else :
 							rows="4" class="large-text code"><?php echo esc_textarea( $opts['js_exclude'] ); ?></textarea>
 						<p class="description">
 							<?php esc_html_e( 'Scripts whose src contains any of these strings are excluded from delay, defer, and minify.', 'beplus-performance-booster' ); ?><br>
-							<?php esc_html_e( 'Example: jquery, woocommerce, my-critical-script', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Example: jquery, woocommerce, my-critical-script', 'beplus-performance-booster' ); ?><br>
+							<?php esc_html_e( 'Never delayed, whatever you list here: cookie/consent banners, Elementor\'s lazy-background script, scripts that switch the "no-js" class, other lazy-load scripts, and any script marked data-no-optimize, data-no-defer, data-no-delay or data-cfasync="false".', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
@@ -849,6 +850,40 @@ else :
 							min="0" max="10" step="1" class="small-text">
 						<p class="description">
 							<?php esc_html_e( 'Only for "Rewrite the page HTML". The first images of the page (logo, banner) stay normal so the top of the page appears at once. Default: 2. Images marked loading="eager", fetchpriority="high" (Priority Images) or with the class skip-lazy / no-lazy are always skipped.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: iframes -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_iframes"><?php esc_html_e( 'Lazy Load Iframes', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_lazy_html_iframes"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_iframes]" value="1"
+								<?php checked( $opts['lazy_html_iframes'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Also give embeds (YouTube, Google Maps, forms) the browser\'s native loading="lazy".', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". Iframes that already set loading, hidden or tracking frames, and iframes with the class skip-lazy / no-lazy are left alone.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: margin -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_threshold"><?php esc_html_e( 'Load Images Early (px)', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_lazy_html_threshold"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_threshold]"
+							value="<?php echo esc_attr( $opts['lazy_html_threshold'] ); ?>"
+							min="0" max="2000" step="50" class="small-text">
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML": an image starts loading this many pixels before it scrolls into view. Default: 300 (doubled on slow 2G/3G connections). Images inside a slider load when the slider comes into view.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>
