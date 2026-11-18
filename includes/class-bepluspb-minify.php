@@ -191,7 +191,7 @@ class BEPLUSPB_Minify {
 		}
 
 		$prefix     = sanitize_file_name( $handle ) . '-';
-		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size . '|' . ( 'css' === $ext ? 'u2' : '' ) ), 0, 12 );
+		$hash       = substr( md5( $file_path . '|' . $mtime . '|' . $size . '|' . ( 'css' === $ext ? 'u2' : 'j2' ) ), 0, 12 );
 		$cache_name = $prefix . $hash . '.' . $ext;
 		$cache_file = BEPLUSPB_CACHE_DIR . $cache_name;
 
@@ -612,6 +612,11 @@ class BEPLUSPB_Minify {
 	 * @return string Minified JavaScript.
 	 */
 	public static function minify_js( $js ) {
+		// Bundler output (webpack/terser: one very long line) is already minified, whatever its file
+		// name: leave it alone. Rewriting it gains nothing and one wrong guess corrupts the file.
+		if ( strlen( $js ) > 1000 && substr_count( $js, "\n" ) * 500 < strlen( $js ) ) {
+			return $js;
+		}
 		$js = self::strip_js_comments( $js );
 		$js = preg_replace( '/^[ \t]+/m', '', $js );
 		$js = preg_replace( '/[ \t]+$/m', '', $js );

@@ -101,6 +101,8 @@ function bepluspb_default_options() {
 		// --- Lazy Load — Advanced options ---
 		'lazy_skip_first_n'                  => 1,   // Legacy (no UI, unused since Lazy Load v2): only seeds lazy_core_threshold when that field is missing. Use "Priority Images" for the hero/LCP image.
 		'lazy_core_threshold'                => 3,   // Core-managed media omission threshold.
+		'lazy_engine'                        => 'core', // 'core' (WordPress loading=lazy) or 'html' (rewrite the page HTML: works with page builders).
+		'lazy_html_skip_first'               => 2,   // HTML engine: leave the first N eligible images eager (above the fold).
 		'lazy_exclude_class'                 => '',  // CSS class names to exclude (comma-separated).
 		'lazy_exclude_id'                    => '',  // Element IDs to exclude (comma-separated).
 		'lazy_exclude_filename'              => '',  // Partial filename strings to exclude (comma-sep).
@@ -250,6 +252,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-lazy-html.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-priority-images.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-critical-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-google-fonts-local.php';
@@ -397,6 +400,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_CSS::init( $opts );
 	BEPLUSPB_UCSS::init( $opts );
 	BEPLUSPB_Images::init( $opts );
+	BEPLUSPB_Lazy_HTML::init( $opts );
 	BEPLUSPB_Priority_Images::init( $opts );
 	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );

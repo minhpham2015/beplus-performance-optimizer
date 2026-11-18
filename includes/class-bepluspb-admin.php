@@ -397,6 +397,11 @@ class BEPLUSPB_Admin {
 			? min( 20, absint( $input['lazy_core_threshold'] ) )
 			: ( isset( $input['lazy_skip_first_n'] ) ? min( 20, absint( $input['lazy_skip_first_n'] ) ) : 3 );
 
+		$sanitized['lazy_engine']          = isset( $input['lazy_engine'] ) && 'html' === $input['lazy_engine'] ? 'html' : 'core';
+		$sanitized['lazy_html_skip_first'] = isset( $input['lazy_html_skip_first'] )
+			? min( 10, absint( $input['lazy_html_skip_first'] ) )
+			: 2;
+
 		$sanitized['lazy_exclude_class'] = isset( $input['lazy_exclude_class'] )
 			? sanitize_text_field( $input['lazy_exclude_class'] )
 			: '';

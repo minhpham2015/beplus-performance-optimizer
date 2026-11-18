@@ -31,6 +31,14 @@ class BEPLUSPB_CSS {
 	private static $buffer_level = null;
 
 	/**
+	 * Whether a Content-Security-Policy seen in the buffered head blocks inline event handlers
+	 * (null until the head buffer ran). Late stylesheets follow the same decision.
+	 *
+	 * @var bool|null
+	 */
+	private static $head_csp_blocks = null;
+
+	/**
 	 * Register wp_head output-buffer hooks when at least one CSS feature is enabled.
 	 *
 	 * @param array $opts Result of bepluspb_get_options().
@@ -48,6 +56,48 @@ class BEPLUSPB_CSS {
 			add_action( 'wp_head', array( __CLASS__, 'buffer_start' ), 1 );
 			add_action( 'wp_head', array( __CLASS__, 'buffer_end' ), 9999 );
 		}
+
+		if ( ! empty( $opts['css_non_blocking'] ) || ! empty( $opts['critical_css_enabled'] ) ) {
+			add_filter( 'style_loader_tag', array( __CLASS__, 'defer_late_style' ), 10, 4 );
+		}
+	}
+
+	/**
+	 * Defer a stylesheet WordPress prints AFTER wp_head (footer/body), where the head buffer cannot reach.
+	 *
+	 * Only handles that the first paint never needs, by default Elementor Pro's popup stylesheet (`e-popup`,
+	 * printed after the popup markup at the end of the page). Same swap as the head: preload + onload.
+	 * Active when Non-Render-Blocking CSS is on, or Critical CSS is on and this page has an entry.
+	 *
+	 * @param  string $tag    The <link> tag.
+	 * @param  string $handle Style handle.
+	 * @param  string $href   Stylesheet URL (unused).
+	 * @param  string $media  Media attribute (unused).
+	 * @return string
+	 */
+	public static function defer_late_style( $tag, $handle, $href = '', $media = 'all' ) {
+		unset( $href, $media );
+		// Styles printed by wp_head are handled by the head buffer.
+		if ( ! did_action( 'wp_head' ) || doing_action( 'wp_head' ) ) {
+			return $tag;
+		}
+		/**
+		 * Handles of stylesheets printed after wp_head that may load after the first paint.
+		 *
+		 * @param string[] $handles Default: array( 'e-popup' ).
+		 */
+		$handles = (array) apply_filters( 'bepluspb_late_css_defer_handles', array( 'e-popup' ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		if ( ! in_array( $handle, $handles, true ) ) {
+			return $tag;
+		}
+		$opts = bepluspb_get_options();
+		if ( ! empty( $opts['css_inline_all'] ) || true === self::$head_csp_blocks || BEPLUSPB_Utils::is_buffer_excluded_request() ) {
+			return $tag;
+		}
+		if ( empty( $opts['css_non_blocking'] ) && ( empty( $opts['critical_css_enabled'] ) || '' === BEPLUSPB_Critical_CSS::css_for_request() ) ) {
+			return $tag; // Critical CSS only: pages without an entry stay untouched.
+		}
+		return BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $tag, bepluspb_parse_exclude_list( $opts['css_exclude'] ), true ), $tag );
 	}
 
 	// -------------------------------------------------------------------------
@@ -130,6 +180,8 @@ class BEPLUSPB_CSS {
 		if ( false === $html ) {
 			return;
 		}
+
+		self::$head_csp_blocks = self::csp_blocks_inline_handlers( self::collect_csp_policies( $html ) );
 
 		$opts = bepluspb_get_options();
 
@@ -489,7 +541,7 @@ class BEPLUSPB_CSS {
 	 * @param  string $html Buffered wp_head output.
 	 * @return string[]
 	 */
-	private static function collect_csp_policies( $html ) {
+	public static function collect_csp_policies( $html ) {
 		$policies = array();
 		if ( function_exists( 'headers_list' ) ) {
 			foreach ( headers_list() as $header ) {

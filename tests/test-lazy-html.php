@@ -1,0 +1,106 @@
+<?php
+/**
+ * Standalone test of the opt-in HTML lazy-load engine.
+ *
+ * @package Beplus_Performance_Booster
+ */
+
+// phpcs:disable
+if ( ! defined( 'ABSPATH' ) ) { define( 'ABSPATH', __DIR__ ); }
+$GLOBALS['hooks'] = array(); $GLOBALS['ctx'] = array(); $GLOBALS['skip_filter'] = null;
+function add_action( $h, $cb = null, $p = 10 ) { $GLOBALS['hooks'][ $h ][] = array( $cb, $p ); }
+function apply_filters( $tag, $value ) { if ( 'bepluspb_lazy_html_skip_image' === $tag && is_callable( $GLOBALS['skip_filter'] ) ) { return call_user_func( $GLOBALS['skip_filter'], $value, func_get_arg( 2 ), func_get_arg( 3 ) ); } return $value; }
+function is_admin() { return ! empty( $GLOBALS['ctx']['admin'] ); }
+function is_feed() { return ! empty( $GLOBALS['ctx']['feed'] ); }
+function wp_doing_ajax() { return ! empty( $GLOBALS['ctx']['ajax'] ); }
+function wp_is_json_request() { return ! empty( $GLOBALS['ctx']['rest'] ); }
+function is_customize_preview() { return false; }
+function bepluspb_get_options() { return $GLOBALS['opts']; }
+function ok( $c, $m ) { if ( ! $c ) { fwrite( STDERR, "FAIL: $m\n" ); exit( 1 ); } }
+require dirname( __DIR__ ) . '/includes/class-bepluspb-utils.php';
+require dirname( __DIR__ ) . '/includes/class-bepluspb-css.php';
+require dirname( __DIR__ ) . '/includes/class-bepluspb-lazy-html.php';
+
+$base = array( 'lazy_load' => 1, 'lazy_engine' => 'html', 'lazy_html_skip_first' => 2, 'lazy_exclude_class' => 'hero-image', 'lazy_exclude_id' => 'site-logo', 'lazy_exclude_filename' => 'banner.jpg' );
+$page = function ( $body, $head = '' ) { return "<!doctype html><html><head><meta charset=\"utf-8\">$head<title>t</title></head><body>$body</body></html>"; };
+$n = 0; $t = function ( $c, $m ) use ( &$n ) { ++$n; ok( $c, $m ); };
+$count = function ( $needle, $hay ) { return substr_count( $hay, $needle ); };
+
+// ---- registration ---------------------------------------------------------------------------
+$t( true === BEPLUSPB_Lazy_HTML::init( $base ) && 2 === $GLOBALS['hooks']['template_redirect'][0][1], 'html engine opens its buffer at template_redirect 2' );
+foreach ( array( array( 'lazy_load' => 0 ), array( 'lazy_engine' => 'core' ) ) as $over ) { $GLOBALS['hooks'] = array(); $t( false === BEPLUSPB_Lazy_HTML::init( array_merge( $base, $over ) ) && array() === $GLOBALS['hooks'], 'inactive for ' . key( $over ) ); }
+foreach ( array( 'admin', 'feed', 'ajax', 'rest' ) as $gate ) { $GLOBALS['hooks'] = array(); $GLOBALS['ctx'] = array( $gate => 1 ); $t( false === BEPLUSPB_Lazy_HTML::init( $base ) && array() === $GLOBALS['hooks'], "request gate $gate" ); }
+$GLOBALS['ctx'] = array();
+
+// ---- plain conversion --------------------------------------------------------------------------
+$imgs = '<img src="/a.jpg" width="10" height="10"><img src="/b.jpg"><img src="/c.jpg" width="640" height="480" srcset="/c-300.jpg 300w, /c.jpg 640w" sizes="(max-width: 640px) 100vw, 640px" alt="C &amp; D" class="wp-image-3" loading="lazy" decoding="async"><img src=\'/d.jpg\' alt=\'x\'/>';
+$out  = BEPLUSPB_Lazy_HTML::process( $page( $imgs ), $base );
+$t( false !== strpos( $out, '<img src="/a.jpg" width="10" height="10">' ) && false !== strpos( $out, '<img src="/b.jpg">' ), 'the first two images stay eager' );
+$t( 1 === preg_match( '#<img data-bpb-src="/c\.jpg" src="data:image/svg\+xml,%3Csvg%20xmlns=\'http://www\.w3\.org/2000/svg\'%20viewBox=\'0%200%20640%20480\'%3E%3C/svg%3E" width="640" height="480" data-bpb-srcset="/c-300\.jpg 300w, /c\.jpg 640w" data-bpb-sizes="\(max-width: 640px\) 100vw, 640px" alt="C &amp; D" class="wp-image-3" decoding="async">#', $out ), 'img 3: placeholder with its ratio, real src/srcset/sizes moved, loading=lazy removed, other attributes kept' );
+$t( false !== strpos( $out, '<noscript><img src="/c.jpg" width="640" height="480" srcset="/c-300.jpg 300w, /c.jpg 640w" sizes="(max-width: 640px) 100vw, 640px" alt="C &amp; D" class="wp-image-3" loading="lazy" decoding="async"></noscript>' ), 'the original tag is kept in <noscript>' );
+$t( false !== strpos( $out, '<img data-bpb-src="/d.jpg" src="data:image/svg+xml,' ) && false !== strpos( $out, " alt='x'/>" ), 'single-quoted attributes and a self-closing slash survive' );
+$t( 2 === $count( 'data-bpb-src="', $out ), 'only the two images after the skipped ones are converted' );
+$t( 1 === $count( 'id="bepluspb-lazy-loader"', $out ) && 1 === $count( 'id="bepluspb-lazy-nojs"', $out ), 'one loader script and one no-JS rule' );
+$t( strpos( $out, 'bepluspb-lazy-nojs' ) < strpos( $out, '</head>' ) && strpos( $out, 'bepluspb-lazy-loader' ) > strpos( $out, '</noscript>' ) && strrpos( $out, 'bepluspb-lazy-loader' ) < strrpos( $out, '</body>' ), 'no-JS rule ends the head, loader sits before </body>' );
+
+// ---- skipping ----------------------------------------------------------------------------------
+$skip = '<img src="/1.jpg"><img src="/2.jpg">'
+	. '<img src="/eager.jpg" loading="eager"><img src="/hi.jpg" fetchpriority="high"><img src="/nl.jpg" data-no-lazy="1"><img src="/sk.jpg" class="foo skip-lazy">'
+	. '<img src="/hero.jpg" class="a hero-image"><img src="/logo.jpg" id="site-logo"><img src="/img/banner.jpg?v=2"><img src="data:image/gif;base64,R0lGOD"><img alt="no src"><img src="">'
+	. '<img src="/s.jpg" data-src="/real.jpg"><img src="/l.jpg" data-lazy-src="/real.jpg"><img src="/smile.png" class="wp-smiley"><img src="/x/wpcf7_captcha/1.png">'
+	. '<img src="/ok.jpg" alt="a > b">';
+$out  = BEPLUSPB_Lazy_HTML::process( $page( $skip ), $base );
+$t( 1 === $count( 'data-bpb-src="', $out ) && false !== strpos( $out, '<img data-bpb-src="/ok.jpg" src="data:' ), 'only the ordinary image is converted (a ">" inside an attribute does not end the tag)' );
+foreach ( array( '/eager.jpg', '/hi.jpg', '/nl.jpg', '/sk.jpg', '/hero.jpg', '/logo.jpg', 'banner.jpg', 'data:image/gif', '/real.jpg', '/smile.png', 'wpcf7_captcha' ) as $needle ) { $t( false !== strpos( $out, $needle ), "$needle untouched" ); }
+$t( false === strpos( $out, 'data-bpb-src="/s.jpg"' ) && false === strpos( $out, 'data-bpb-src="/l.jpg"' ), 'images another lazy loader already handles are left alone' );
+
+// ---- skip count 0 / bounds -----------------------------------------------------------------------
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg">' ), array_merge( $base, array( 'lazy_html_skip_first' => 0 ) ) );
+$t( 2 === $count( 'data-bpb-src="', $out ), 'skip 0 converts everything' );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg">' ), array_merge( $base, array( 'lazy_html_skip_first' => 99 ) ) );
+$t( false === strpos( $out, 'bepluspb-lazy-loader' ) && $out === $page( '<img src="/a.jpg"><img src="/b.jpg">' ), 'a large skip count leaves a short page untouched (no loader added)' );
+
+// ---- <picture> -----------------------------------------------------------------------------------
+$o2  = array_merge( $base, array( 'lazy_html_skip_first' => 0 ) );
+$pic = '<picture><source type="image/webp" srcset="/p.webp 1x, /p2.webp 2x" sizes="100vw" data-x="1"><source srcset="/p.jpg"><img src="/p.jpg" alt="p"></picture>';
+$out = BEPLUSPB_Lazy_HTML::process( $page( $pic ), $o2 );
+$t( false !== strpos( $out, '<source type="image/webp" data-bpb-srcset="/p.webp 1x, /p2.webp 2x" data-bpb-sizes="100vw" data-x="1">' ) && false !== strpos( $out, '<source data-bpb-srcset="/p.jpg">' ) && false !== strpos( $out, '<img data-bpb-src="/p.jpg" src="data:' ), 'picture: sources and img are converted together' );
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<picture><source srcset="/p.webp"><img src="/p.jpg" loading="eager"></picture><img src="/z.jpg">' ), $o2 );
+$t( false !== strpos( $out, '<picture><source srcset="/p.webp"><img src="/p.jpg" loading="eager"></picture>' ) && 1 === $count( 'data-bpb-src="', $out ), 'an excluded picture image keeps its sources untouched' );
+
+// ---- things that must never be touched --------------------------------------------------------------
+$prot = '<script>var h=\'<img src="/s1.jpg">\';</script><style>.a{background:url(/s2.jpg)}</style><!-- <img src="/s3.jpg"> --><noscript><img src="/s4.jpg"></noscript><template><img src="/s5.jpg"></template><textarea><img src="/s6.jpg"></textarea><img src="/real.jpg">';
+$out  = BEPLUSPB_Lazy_HTML::process( $page( $prot ), $o2 );
+foreach ( array( '<img src="/s1.jpg">', '<img src="/s3.jpg">', '<noscript><img src="/s4.jpg"></noscript>', '<template><img src="/s5.jpg"></template>', '<textarea><img src="/s6.jpg"></textarea>' ) as $keep ) { $t( false !== strpos( $out, $keep ), "$keep untouched" ); }
+$t( 1 === $count( 'data-bpb-src="/real.jpg"', $out ), 'the one real image is converted' );
+$t( false === strpos( $out, "\x1a" ), 'no placeholder byte leaks' );
+$head_img = '<img src="/in-head.jpg">';
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/b.jpg">', $head_img ), $o2 );
+$t( false !== strpos( $out, '<head><meta charset="utf-8">' . $head_img ), 'the <head> is not rewritten' );
+
+// ---- not a document / partial ----------------------------------------------------------------------
+foreach ( array( '<img src="/a.jpg">', '{"a":"<img src=\"/a.jpg\">"}', '<html><body><p>no images</p></body></html>', '' ) as $frag ) { $t( $frag === BEPLUSPB_Lazy_HTML::process( $frag, $o2 ), 'fragment/JSON/imageless left as is' ); }
+$t( true === is_string( BEPLUSPB_Lazy_HTML::buffer_callback( 'x', PHP_OUTPUT_HANDLER_START ) ) && 'x' === BEPLUSPB_Lazy_HTML::buffer_callback( 'x', PHP_OUTPUT_HANDLER_START ), 'a partial flush is returned unchanged' );
+$GLOBALS['opts'] = $o2;
+$whole = BEPLUSPB_Lazy_HTML::buffer_callback( $page( '<img src="/b.jpg">' ), PHP_OUTPUT_HANDLER_START | PHP_OUTPUT_HANDLER_FINAL );
+$t( false !== strpos( $whole, 'data-bpb-src="/b.jpg"' ), 'a whole response is rewritten through the buffer callback' );
+
+// ---- Content-Security-Policy: native fallback ---------------------------------------------------------
+$meta = '<meta http-equiv="Content-Security-Policy" content="script-src \'self\' \'nonce-abc\'">';
+$out  = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg" loading="lazy"><img src="/c.jpg" class="skip-lazy">', $meta ), $o2 );
+$t( false === strpos( $out, 'data-bpb' ) && false === strpos( $out, 'bepluspb-lazy-loader' ) && false !== strpos( $out, '<img loading="lazy" src="/a.jpg">' ) && false !== strpos( $out, '<img src="/b.jpg" loading="lazy">' ) && false !== strpos( $out, '<img src="/c.jpg" class="skip-lazy">' ), 'a CSP blocking inline scripts: native loading="lazy" only, no loader' );
+
+// ---- public filter ---------------------------------------------------------------------------------------
+$GLOBALS['skip_filter'] = function ( $skip, $attrs, $tag ) { return isset( $attrs['alt'] ) && 'keep' === $attrs['alt'] ? true : $skip; };
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg" alt="keep"><img src="/b.jpg">' ), $o2 );
+$t( false !== strpos( $out, '<img src="/a.jpg" alt="keep">' ) && false !== strpos( $out, 'data-bpb-src="/b.jpg"' ), 'bepluspb_lazy_html_skip_image can skip an image' );
+$GLOBALS['skip_filter'] = null;
+
+// ---- the loader itself ------------------------------------------------------------------------------------
+$loader = ( new ReflectionMethod( 'BEPLUSPB_Lazy_HTML', 'loader_script' ) );
+$loader->setAccessible( true );
+$js = $loader->invoke( null );
+$t( preg_match( '#^<script id="bepluspb-lazy-loader"[^>]*>(.*)</script>$#s', $js, $jm ) && strlen( $jm[1] ) < 1800 && false !== strpos( $jm[1], 'IntersectionObserver' ) && false !== strpos( $jm[1], "300px 0px" ), 'loader is small and uses IntersectionObserver with a 300 px margin' );
+file_put_contents( sys_get_temp_dir() . '/bpb-lazy-loader.js', $jm[1] );
+
+echo "OK ($n assertions)\n";
