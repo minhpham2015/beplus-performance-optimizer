@@ -27,5 +27,7 @@ $ok( 'unknown_key' === BEPLUSPB_Recommendations::label( 'unknown_key' ), 'an unk
 $ok( 'Balanced' === BEPLUSPB_Recommendations::value_label( 'predictive_navigation_mode', 'balanced' ) && null === BEPLUSPB_Recommendations::value_label( 'js_delay', 1 ) && null === BEPLUSPB_Recommendations::value_label( 'predictive_navigation_mode', 'x' ), 'predictive modes get their screen names, other values none' );
 $src = file_get_contents( dirname( __DIR__ ) . '/includes/admin/trait-bepluspb-admin-tabs-basic.php' );
 $ok( false === strpos( $src, '<code><?php echo esc_html( $key ); ?></code>' ) && false !== strpos( $src, 'BEPLUSPB_Recommendations::label( $key )' ), 'the preview table prints the label, not the key' );
+$status = file_get_contents( dirname( __DIR__ ) . '/includes/admin/trait-bepluspb-admin-tabs-status.php' );
+$ok( false === strpos( $status, "'JS Delay rdelay'" ) && false !== strpos( $status, "BEPLUSPB_Recommendations::label( 'js_delay' )" ) && false !== strpos( $status, "BEPLUSPB_Recommendations::label( 'cache_enabled' )" ), 'the Status tab uses the same option names as the settings screens' );
 
 echo "OK ($n assertions)\n";
