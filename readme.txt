@@ -232,6 +232,25 @@ a JavaScript fallback. On WordPress 6.4 or newer, the threshold and exclusion
 settings below adjust Core-generated loading attributes. WordPress 5.5 through 6.3
 retains its native behavior because Core does not expose that attribute filter.
 
+**Lazy Load Method**
+Default: WordPress Core
+
+"WordPress Core" is described above. "Rewrite the page HTML" lazy-loads every image
+of the page, including the ones printed by Elementor and other page builders, themes
+and widgets, and `<picture>` sources: each image gets a tiny placeholder that keeps
+its size, and a small inline script loads it about 300 px before it is seen. A
+`<noscript>` copy keeps the images visible without JavaScript. Use it instead of
+other lazy-load plugins (turn those off). When a Content-Security-Policy blocks inline
+scripts, the page falls back to the browser's native `loading="lazy"`. CSS and
+inline-style background images are not changed.
+
+**Skip the First Images**
+Default: 2
+
+Only for "Rewrite the page HTML": the first N images of the page stay normal so the
+top of the page shows at once. Images with `loading="eager"`, `fetchpriority="high"`
+(Priority Images) or the class `skip-lazy` / `no-lazy` are always skipped.
+
 **Skip First N Images**
 Default: 1
 

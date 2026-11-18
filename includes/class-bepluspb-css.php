@@ -489,7 +489,7 @@ class BEPLUSPB_CSS {
 	 * @param  string $html Buffered wp_head output.
 	 * @return string[]
 	 */
-	private static function collect_csp_policies( $html ) {
+	public static function collect_csp_policies( $html ) {
 		$policies = array();
 		if ( function_exists( 'headers_list' ) ) {
 			foreach ( headers_list() as $header ) {

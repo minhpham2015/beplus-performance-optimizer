@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Lazy Load Method: "Rewrite the page HTML"** (`lazy_engine = html`, default stays `core`). The Core engine only adjusts what WordPress prints, so Elementor/theme images were never lazy-loaded and browsers fetch natively lazy images 1250-2500 px early. The new opt-in engine (`includes/class-bepluspb-lazy-html.php`, like "Lazy Load by WP Rocket", but written from scratch) works on the final HTML: every eligible `<img>` and `<picture>` gets an SVG placeholder with its width/height ratio, its URL moves to `data-bpb-src/-srcset/-sizes`, a `<noscript>` copy stays, and one small inline IntersectionObserver script (300 px margin) restores them. The first N eligible images (`lazy_html_skip_first`, default 2) and anything `loading="eager"`, `fetchpriority="high"`, `data-no-lazy`, `skip-lazy`/`no-lazy`, already handled by another lazy loader (`data-src`, `data-lazy-src`...) or matching the class/ID/filename exclusions are left alone. Never touched: `<script>`, `<style>`, `<noscript>`, `<template>`, `<textarea>`, comments and the `<head>`. Fails open: partial/non-HTML output is returned as is, a Content-Security-Policy blocking inline scripts degrades to native `loading="lazy"`, and the loader carries the usual `data-no-optimize`/`data-cfasync`/`data-wpmeteor-nooptimize` attributes. The buffer opens at `template_redirect` priority 2 (inside the CDN/HTML-minify buffers, outside Delay JS). Filter `bepluspb_lazy_html_skip_image`. Background images are intentionally not changed (Elementor lazy-loads its own). Tests: `tests/test-lazy-html.php`, `docs/lazy-html-browser-test.js`.
+
 ## [1.3.2] - 2026-11-17
 
 ### Fixed

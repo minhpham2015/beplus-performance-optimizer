@@ -821,6 +821,38 @@ else :
 					</div>
 				</div>
 
+				<!-- Lazy load method -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_engine"><?php esc_html_e( 'Lazy Load Method', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<select id="bepluspb_lazy_engine" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_engine]">
+							<option value="core" <?php selected( $opts['lazy_engine'], 'core' ); ?>><?php esc_html_e( 'WordPress Core (loading="lazy")', 'beplus-performance-booster' ); ?></option>
+							<option value="html" <?php selected( $opts['lazy_engine'], 'html' ); ?>><?php esc_html_e( 'Rewrite the page HTML (works with Elementor and other page builders)', 'beplus-performance-booster' ); ?></option>
+						</select>
+						<p class="description">
+							<?php esc_html_e( 'Core only controls images that WordPress itself prints, and browsers load natively lazy images long before they are visible. "Rewrite the page HTML" lazy-loads every image on the page (including page-builder and theme images, and <picture>) with a small script that loads each one about 300 px before it is seen. Turn off other lazy-load plugins (such as Lazy Load by WP Rocket) when you use it. It falls back to Core\'s native loading when a Content-Security-Policy blocks inline scripts. Background images are not changed.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<!-- HTML engine: keep the first images eager -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_lazy_html_skip_first"><?php esc_html_e( 'Skip the First Images', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_lazy_html_skip_first"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[lazy_html_skip_first]"
+							value="<?php echo esc_attr( $opts['lazy_html_skip_first'] ); ?>"
+							min="0" max="10" step="1" class="small-text">
+						<p class="description">
+							<?php esc_html_e( 'Only for "Rewrite the page HTML". The first images of the page (logo, banner) stay normal so the top of the page appears at once. Default: 2. Images marked loading="eager", fetchpriority="high" (Priority Images) or with the class skip-lazy / no-lazy are always skipped.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
 				<!-- WordPress Core threshold -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">

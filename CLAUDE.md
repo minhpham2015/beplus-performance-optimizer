@@ -58,6 +58,12 @@ checking whether it would break the SVN slug binding).
   Sites keep the OLD file in `wp-content` until the admin reinstalls it, so any
   plugin-side code must stay safe next to an outdated drop-in
   (`is_outdated_dropin_installed()`).
+- `includes/class-bepluspb-images.php` / `includes/class-bepluspb-lazy-html.php` — two lazy-load engines chosen by
+  `lazy_engine`. `core` (default) never rewrites HTML: it only adjusts the attributes WordPress Core generates.
+  `html` (opt-in) rewrites the final page HTML for images (placeholder + `data-bpb-*` + `<noscript>` + one inline
+  IntersectionObserver loader). Keep it fail-open: only complete HTML documents, never inside script/style/
+  noscript/template/textarea/comments or the `<head>`, native `loading="lazy"` when a CSP blocks inline scripts, and
+  leave the first N images, eager/high-priority/no-lazy images and other lazy loaders' markers alone.
 - `includes/class-bepluspb-minify.php`, `-css.php`, `-js.php`, `-html.php`,
   `-ucss.php` — asset processing pipeline; `url_to_path()` in minify.php
   resolves enqueued URLs to filesystem paths and is shared by css.php/ucss.php.
