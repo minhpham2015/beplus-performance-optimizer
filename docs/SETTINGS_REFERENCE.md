@@ -183,7 +183,11 @@ Default: empty (Media card)
 The image that is the Largest Contentful Paint of a page (usually the hero banner),
 one per line: `image URL | home, all or /page-path/ | mobile, desktop or all`. The
 browser is told to download it first (preload with high priority) and WordPress stops
-lazy-loading it. At most 4 lines. Use the exact URL the browser downloads for that
+lazy-loading it. The list can hold up to 100 lines (one per page or page type, e.g.
+`/img/banner.jpg | single-post`), but one page preloads at most the first 4 lines that
+match it, because more would compete with the LCP image itself. *Where* can be `home`,
+`all`, a page type (`single`, `single-post`, `single-page`, `single-<post type>`,
+`archive`, `blog`, `search`) or a page path. Use the exact URL the browser downloads for that
 page.
 
 **Analyze LCP (admin bar)**

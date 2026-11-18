@@ -42,6 +42,7 @@ trait BEPLUSPB_Admin_Ajax_Lcp {
 				'nonce'       => wp_create_nonce( 'bepluspb_lcp_apply' ),
 				'isHome'      => (bool) is_front_page(),
 				'path'        => BEPLUSPB_Priority_Images::current_path(),
+				'pageType'    => BEPLUSPB_Priority_Images::primary_type(),
 				'settingsUrl' => admin_url( 'options-general.php?page=beplus-performance-booster' ),
 				// Administrators normally see the page WITHOUT the plugin's optimisations.
 				'optimized'   => (bool) apply_filters( 'bepluspb_optimize_for_admins', false ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
@@ -122,6 +123,7 @@ trait BEPLUSPB_Admin_Ajax_Lcp {
 			'noImage'           => __( 'There is no image to prioritize.', 'beplus-performance-booster' ),
 			'scopeThis'         => __( 'This page only', 'beplus-performance-booster' ),
 			'scopeHome'         => __( 'Home page only', 'beplus-performance-booster' ),
+			'scopeType'         => __( 'Every page of this type', 'beplus-performance-booster' ),
 			'scopeAll'          => __( 'Whole site', 'beplus-performance-booster' ),
 			'apply'             => __( 'Add to Priority Images', 'beplus-performance-booster' ),
 			'applying'          => __( 'Saving…', 'beplus-performance-booster' ),

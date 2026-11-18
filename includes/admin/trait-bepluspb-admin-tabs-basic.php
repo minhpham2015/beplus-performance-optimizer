@@ -1000,7 +1000,7 @@ else :
 							rows="4" class="large-text code"
 							placeholder="<?php echo esc_attr( "/wp-content/uploads/hero.jpg | home\n/wp-content/uploads/hero-mobile.jpg | home | mobile\n/wp-content/uploads/hero-wide.jpg | home | desktop" ); ?>"><?php echo esc_textarea( $opts['priority_images'] ); ?></textarea>
 						<p class="description">
-							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, or a page path such as /about/ (end with * to include everything below it). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. At most 4 lines.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'The image that is the Largest Contentful Paint of a page (usually the hero banner), one per line: image URL | where | device. Where: home, all, a page type (single, single-post, single-page, archive, blog, search), or a page path such as /about/ (end with * to include everything below it). A page type only makes sense when all those pages show the same image (a banner in the template). Device is optional: mobile, desktop or all. The browser is told to download it first (preload with high priority) and WordPress stops lazy-loading it. The list can be long (one line per page or page type), but a single page preloads at most its first 4 matching lines.', 'beplus-performance-booster' ); ?>
 						</p>
 						<p class="description">
 							<strong><?php esc_html_e( 'Easiest way:', 'beplus-performance-booster' ); ?></strong>

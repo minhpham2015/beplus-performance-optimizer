@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Priority Images: page types in the "where" field** (`single`, `single-post`, `single-page`, `single-<post type>`, `archive`, `blog`, `search`), next to `home`, `all` and paths. For pages of one type that share their LCP image (a banner in the template); `blog` is the posts page when it is not the front page, a path such as `/single/` is still a path. The LCP analyzer offers "Every page of this type (single-post)" as a scope on pages that have a type. `BEPLUSPB_Priority_Images::page_types()`/`primary_type()`; `scope_matches()` takes the types as an optional fourth argument.
+
+### Changed
+- **Priority Images: the 4-line limit became a per-page limit.** The list can hold up to 100 lines (`MAX_ENTRIES`; "Could not save: The Priority Images list is full" at 4 lines was too tight once there is one line per page or page type), but one page preloads at most the first 4 lines that match it (`MAX_PER_PAGE`), because more preloads compete with the LCP image itself. One LCP analysis may add up to 8 rows (`MAX_INCOMING`). Tests: `tests/test-priority-images.php`, `tests/test-lcp-analyzer.php`.
+
 ## [1.3.4] - 2026-11-18
 
 ### Fixed
