@@ -59,6 +59,7 @@ const has = n => requests.some(r => r.includes(n));
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', e => errors.push(String(e)));
+  await page.addInitScript(() => { window.__lazyEvents = []; ['lazyloaded', 'bepluspb-lazyloaded'].forEach(n => document.addEventListener(n, e => window.__lazyEvents.push(n + ':' + e.target.id))); });
   await page.goto(base, { waitUntil: 'load' }); await page.waitForTimeout(500);
   ok(has('top1.png') && has('top2.png'), 'the first two images are requested at once');
   ok(has('near.png'), 'an image close to the first screen is requested at load (300 px margin)');
@@ -71,6 +72,8 @@ const has = n => requests.some(r => r.includes(n));
 
   await page.evaluate(() => window.scrollTo(0, 1100)); await page.waitForTimeout(600);
   ok(has('far-1x.png') || has('far-2x.png') || has('far.png'), 'scrolling near the far image loads it (' + requests.filter(r => r.includes('far')).join(',') + ')');
+  const evs = await page.evaluate(() => { const i = document.getElementById('far'); return [i.classList.contains('lazyloaded'), window.__lazyEvents.slice()]; });
+  ok(evs[0] === true && evs[1].indexOf('lazyloaded:far') >= 0 && evs[1].indexOf('bepluspb-lazyloaded:far') >= 0, 'a loaded image gets the class "lazyloaded" and bubbling lazyloaded events (' + evs[1].join(',') + ')');
   const far = await page.evaluate(() => { const i = document.getElementById('far'); return [i.hasAttribute('data-bpb-src'), i.hasAttribute('data-bpb-srcset'), i.hasAttribute('srcset'), i.naturalWidth > 0]; });
   ok(far[0] === false && far[1] === false && far[2] === true && far[3] === true, 'the far image got its attributes back and decoded');
   ok(!has('pic.'), 'the <picture> is still not requested');

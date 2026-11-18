@@ -840,8 +840,21 @@ else :
 							<option value="core" <?php selected( $opts['lazy_engine'], 'core' ); ?>><?php esc_html_e( 'WordPress Core (loading="lazy")', 'beplus-performance-booster' ); ?></option>
 							<option value="html" <?php selected( $opts['lazy_engine'], 'html' ); ?>><?php esc_html_e( 'Rewrite the page HTML (works with Elementor and other page builders)', 'beplus-performance-booster' ); ?></option>
 						</select>
+						<?php
+						$other_lazy = ( isset( $opts['lazy_engine'] ) && 'html' === $opts['lazy_engine'] ) ? BEPLUSPB_Lazy_HTML::conflicting_plugins() : array();
+						if ( $other_lazy ) :
+							?>
+							<div class="notice notice-warning bepluspb-notice-warning inline" style="margin:0 0 8px;">
+								<p>
+								<?php
+								/* translators: %s: comma-separated plugin names. */
+								echo esc_html( sprintf( __( 'Another plugin also lazy loads images: %s. Turn its image lazy load off so only one loader handles each image (images it has already marked are left alone, but both loaders would still run on the rest).', 'beplus-performance-booster' ), implode( ', ', $other_lazy ) ) );
+								?>
+								</p>
+							</div>
+						<?php endif; ?>
 						<p class="description">
-							<?php esc_html_e( 'Core only controls images that WordPress itself prints, and browsers load natively lazy images long before they are visible. "Rewrite the page HTML" lazy-loads every image on the page (including page-builder and theme images, and <picture>) with a small script that loads each one about 300 px before it is seen. Turn off other lazy-load plugins (such as Lazy Load by WP Rocket) when you use it. It falls back to Core\'s native loading when a Content-Security-Policy blocks inline scripts. Background images are not changed.', 'beplus-performance-booster' ); ?>
+							<?php esc_html_e( 'Core only controls images that WordPress itself prints, and browsers load natively lazy images long before they are visible. "Rewrite the page HTML" lazy-loads every image on the page (including page-builder and theme images, and <picture>) with a small script that loads each one about 300 px before it is seen. Turn off other lazy-load plugins (such as Lazy Load by WP Rocket) when you use it. It falls back to Core\'s native loading when a Content-Security-Policy blocks inline scripts. Each loaded image gets the class lazyloaded and fires a lazyloaded event (masonry or gallery scripts can re-measure then). A script that reads an image\'s src as soon as the page starts (some lightboxes) sees the placeholder: give those images the class skip-lazy.', 'beplus-performance-booster' ); ?>
 						</p>
 					</div>
 				</div>

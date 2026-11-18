@@ -234,8 +234,19 @@ and widgets, and `<picture>` sources: each image gets a tiny placeholder that ke
 its size, and a small inline script loads it about 300 px before it is seen. A
 `<noscript>` copy keeps the images visible without JavaScript. Use it instead of
 other lazy-load plugins (turn those off). When a Content-Security-Policy blocks inline
-scripts, the page falls back to the browser's native `loading="lazy"`. CSS and
-inline-style background images are not changed.
+scripts, the page falls back to the browser's native `loading="lazy"`. CSS
+background images are not changed (inline ones: see *Lazy Load Background Images*).
+
+* An image without `width`/`height` keeps its real proportions in the placeholder
+  (taken from the `-300x200` suffix of WordPress sizes or the file header of a file
+  in the uploads folder), so the page does not jump when it loads. Filter:
+  `bepluspb_lazy_html_image_size`.
+* Each loaded image gets the class `lazyloaded` and fires bubbling `lazyloaded` and
+  `bepluspb-lazyloaded` events, for masonry/gallery scripts that must re-measure.
+* A script that reads an image's `src` as soon as the page starts (some lightboxes)
+  sees the placeholder: give those images the class `skip-lazy`.
+* A notice appears next to the setting when another lazy-load plugin is active
+  (filter `bepluspb_lazy_conflicting_plugins`).
 
 **Skip the First Images**
 Default: 2

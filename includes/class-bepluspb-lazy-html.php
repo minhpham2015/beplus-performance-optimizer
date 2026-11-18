@@ -37,6 +37,7 @@ class BEPLUSPB_Lazy_HTML {
 	const ATTR_SRCSET = 'data-bpb-srcset';
 	const ATTR_SIZES  = 'data-bpb-sizes';
 	const ATTR_BG     = 'data-bpb-bg';
+	const MAX_PROBES  = 40;
 
 	/**
 	 * Register the buffer when this engine is selected.
@@ -341,6 +342,15 @@ class BEPLUSPB_Lazy_HTML {
 		if ( isset( $attrs['height'] ) && preg_match( '/^\s*(\d{1,5})\s*$/', $attrs['height']['value'], $mh ) ) {
 			$h = (int) $mh[1];
 		}
+		if ( $w < 1 || $h < 1 ) {
+			// No usable width/height: reserve the image's real proportions instead, so the page does not jump
+			// when the picture replaces the placeholder. Nothing is added to the <img> itself (a theme without
+			// "height:auto" would stretch it).
+			$known = self::intrinsic_size( $src );
+			if ( $known ) {
+				list( $w, $h ) = $known;
+			}
+		}
 		$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " . $w . ' ' . $h . "'%3E%3C/svg%3E";
 
 		$edits[] = array( $attrs['src']['pos'], strlen( $attrs['src']['raw'] ), ' src="' . $placeholder . '"' );
@@ -412,6 +422,136 @@ class BEPLUSPB_Lazy_HTML {
 
 		$bg_urls[ $url ] = true;
 		return $new;
+	}
+
+	/**
+	 * Width and height of a local image, without touching the database: from the `-300x200` suffix WordPress puts
+	 * on generated sizes, or else from the file header (getimagesize reads a few bytes).
+	 *
+	 * The URL is mapped to a file only inside the uploads folder, through realpath() and a prefix check
+	 * (Hard Rule #3), with an image-extension allowlist, and at most MAX_PROBES files are opened per page.
+	 *
+	 * @param  string $url Image URL as printed (HTML-escaped).
+	 * @return int[]|null array( width, height ) or null.
+	 */
+	private static function intrinsic_size( $url ) {
+		static $cache  = array();
+		static $probes = 0;
+
+		$url = html_entity_decode( $url, ENT_QUOTES );
+		if ( isset( $cache[ $url ] ) || array_key_exists( $url, $cache ) ) {
+			return $cache[ $url ];
+		}
+		$size = null;
+		$path = (string) self::url_part( $url, PHP_URL_PATH );
+		if ( preg_match( '#-(\d{2,5})x(\d{2,5})\.(?:jpe?g|png|gif|webp|avif)$#i', $path, $m ) ) {
+			$size = array( (int) $m[1], (int) $m[2] );
+		} elseif ( $probes < self::MAX_PROBES && preg_match( '#\.(?:jpe?g|png|gif|webp|avif)$#i', $path ) ) {
+			$file = self::upload_file_for( $url );
+			if ( null !== $file ) {
+				++$probes;
+				$info = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- unreadable/corrupt files simply give no size.
+				if ( is_array( $info ) && $info[0] > 0 && $info[1] > 0 ) {
+					$size = array( (int) $info[0], (int) $info[1] );
+				}
+			}
+		}
+		/**
+		 * Filters the proportions used for an image that has no width/height attributes.
+		 *
+		 * @param int[]|null $size array( width, height ) or null.
+		 * @param string     $url  Image URL.
+		 */
+		$size = apply_filters( 'bepluspb_lazy_html_image_size', $size, $url ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+		if ( ! is_array( $size ) || count( $size ) < 2 || (int) $size[0] < 1 || (int) $size[1] < 1 || (int) $size[0] > 20000 || (int) $size[1] > 20000 ) {
+			$size = null;
+		} else {
+			$size = array( (int) $size[0], (int) $size[1] );
+		}
+		$cache[ $url ] = $size;
+		return $size;
+	}
+
+	/**
+	 * Active plugins that lazy load images themselves: running two loaders on the same image wastes work and
+	 * can leave it blank. The engine already leaves alone images other loaders have marked (data-src, data-lazy-src...),
+	 * so this only informs the administrator.
+	 *
+	 * @return string[] Names.
+	 */
+	public static function conflicting_plugins() {
+		$known = array(
+			'rocket-lazy-load/rocket-lazy-load.php' => 'Lazy Load by WP Rocket',
+			'a3-lazy-load/a3-lazy-load.php'         => 'a3 Lazy Load',
+			'bj-lazy-load/bj-lazy-load.php'         => 'BJ Lazy Load',
+			'lazy-load/lazy-load.php'               => 'Lazy Load',
+			'jquery-image-lazy-loading/jquery_image_lazy_loading.php' => 'jQuery Image Lazy Load',
+		);
+		$names = array();
+		if ( function_exists( 'is_plugin_active' ) ) {
+			foreach ( $known as $file => $name ) {
+				if ( is_plugin_active( $file ) ) {
+					$names[] = $name;
+				}
+			}
+		}
+		if ( function_exists( 'get_rocket_option' ) && get_rocket_option( 'lazyload' ) ) {
+			$names[] = 'WP Rocket (Lazyload for images)';
+		}
+		/**
+		 * Filters the names of other plugins that lazy load images (shown in a notice next to the Lazy Load Method).
+		 *
+		 * @param string[] $names Plugin names.
+		 */
+		return array_values( array_filter( (array) apply_filters( 'bepluspb_lazy_conflicting_plugins', $names ) ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+	}
+
+	/**
+	 * One component of a URL (wp_parse_url() when WordPress is loaded).
+	 *
+	 * @param  string $url       URL.
+	 * @param  int    $component PHP_URL_* constant.
+	 * @return string|null
+	 */
+	private static function url_part( $url, $component ) {
+		$part = function_exists( 'wp_parse_url' ) ? wp_parse_url( $url, $component ) : parse_url( $url, $component ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- only used outside WordPress (tests).
+		return is_string( $part ) ? $part : null;
+	}
+
+	/**
+	 * The file behind an uploads URL, or null. Never leaves the uploads folder.
+	 *
+	 * @param  string $url Image URL.
+	 * @return string|null
+	 */
+	private static function upload_file_for( $url ) {
+		if ( ! function_exists( 'wp_upload_dir' ) ) {
+			return null;
+		}
+		$dirs = wp_upload_dir( null, false );
+		if ( ! is_array( $dirs ) || empty( $dirs['baseurl'] ) || empty( $dirs['basedir'] ) ) {
+			return null;
+		}
+		$base_host = (string) self::url_part( $dirs['baseurl'], PHP_URL_HOST );
+		$base_path = rtrim( (string) self::url_part( $dirs['baseurl'], PHP_URL_PATH ), '/' ) . '/';
+		$host      = self::url_part( $url, PHP_URL_HOST );
+		$path      = (string) self::url_part( $url, PHP_URL_PATH );
+		if ( null !== $host && 0 !== strcasecmp( (string) $host, $base_host ) ) {
+			return null; // Another host (a CDN or a third party): not our file.
+		}
+		if ( 0 !== strpos( $path, $base_path ) ) {
+			return null;
+		}
+		$relative = rawurldecode( substr( $path, strlen( $base_path ) ) );
+		if ( '' === $relative || false !== strpos( $relative, "\0" ) || false !== strpos( $relative, '\\' ) || preg_match( '#(?:^|/)\.\.?(?:/|$)#', $relative ) ) {
+			return null;
+		}
+		$root = realpath( $dirs['basedir'] );
+		$file = realpath( $root . '/' . $relative );
+		if ( false === $root || false === $file || 0 !== strpos( $file, $root . DIRECTORY_SEPARATOR ) || ! is_file( $file ) ) {
+			return null;
+		}
+		return $file;
 	}
 
 	/**
@@ -638,8 +778,11 @@ class BEPLUSPB_Lazy_HTML {
 		$js  = "(function(w,d){var S='data-bpb-src',Q='data-bpb-srcset',Z='data-bpb-sizes'," . ( $bg ? "B='data-bpb-bg'," : '' ) . 'T=' . (int) $threshold . ','
 			. "H='.swiper,.swiper-container,.slick-slider,.owl-carousel,.flickity-viewport,.splide,.tns-slider,.glide,.elementor-image-carousel-wrapper',io,t;"
 			. 'function mv(e,a,b){var v=e.getAttribute(a);if(v!==null){e.removeAttribute(a);e.setAttribute(b,v);}}'
-			. ( $bg ? "function bg(e){var v=e.getAttribute(B);e.removeAttribute(B);if(v)e.style.backgroundImage='url('+JSON.stringify(v)+')';}" : '' )
-			. 'function go(i){' . ( $bg ? 'if(i.hasAttribute(B)){bg(i);return;}' : '' ) . 'if(!i.hasAttribute(S))return;var p=i.parentNode;'
+			// Like other lazy loaders: class "lazyloaded" and a bubbling "lazyloaded" event (plus our own name) once the picture is there.
+			. "function ev(t,n){try{t.dispatchEvent(new Event(n,{bubbles:true}));}catch(x){}}function ok(t){if(t.classList)t.classList.add('lazyloaded');ev(t,'lazyloaded');ev(t,'bepluspb-lazyloaded');}"
+			. "function fin(e){var t=e.target;t.removeEventListener('load',fin);ok(t);}"
+			. ( $bg ? "function bg(e){var v=e.getAttribute(B);e.removeAttribute(B);if(v){e.style.backgroundImage='url('+JSON.stringify(v)+')';ok(e);}}" : '' )
+			. 'function go(i){' . ( $bg ? 'if(i.hasAttribute(B)){bg(i);return;}' : '' ) . 'if(!i.hasAttribute(S))return;i.addEventListener(\'load\',fin);var p=i.parentNode;'
 			. "if(p&&p.nodeName==='PICTURE'){var c=p.getElementsByTagName('source');for(var k=0;k<c.length;k++){mv(c[k],Q,'srcset');mv(c[k],Z,'sizes');}}"
 			. "mv(i,Z,'sizes');mv(i,Q,'srcset');mv(i,S,'src');}"
 			. 'function all(){var n=d.querySelectorAll(' . $sel . ');for(var k=0;k<n.length;k++)go(n[k]);}'

@@ -121,6 +121,8 @@ The optional Page Cache Preload only requests your own site's pages.
 * New: Delay JS (Advanced) plays Elementor entrance animations of the first screen on load instead of after the first interaction.
 * New: JS Release Delay presets, and `?bepluspb-nodelay` in a URL loads that page with Delay JS off for comparing or debugging.
 * New: HTML lazy load handles iframes (native lazy loading), loads every slide of a slider/carousel, has a "Load Images Early (px)" margin, and can lazy load inline background images (off by default).
+* New: images without width/height keep their real proportions in the lazy-load placeholder (no page jump), loaded images get the class `lazyloaded` and fire a `lazyloaded` event, and a notice appears when another lazy-load plugin is active.
+* Fix: HTML lazy load no longer breaks an `<img>` written inside an attribute value, and Delay JS (Advanced) leaves scripts inside `<noscript>`, `<template>`, `<textarea>` and comments alone.
 * Change: Recommended Settings and the Status tab show option names as the settings screens do.
 * Credits: the Advanced Delay JS runtime is derived from WP Meteor (GPLv3 or later).
 

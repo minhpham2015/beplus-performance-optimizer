@@ -9,7 +9,9 @@
 if ( ! defined( 'ABSPATH' ) ) { define( 'ABSPATH', __DIR__ ); }
 $GLOBALS['hooks'] = array(); $GLOBALS['ctx'] = array(); $GLOBALS['skip_filter'] = null;
 function add_action( $h, $cb = null, $p = 10 ) { $GLOBALS['hooks'][ $h ][] = array( $cb, $p ); }
-function apply_filters( $tag, $value ) { if ( 'bepluspb_lazy_html_skip_image' === $tag && is_callable( $GLOBALS['skip_filter'] ) ) { return call_user_func( $GLOBALS['skip_filter'], $value, func_get_arg( 2 ), func_get_arg( 3 ) ); } return $value; }
+function apply_filters( $tag, $value ) { if ( 'bepluspb_lazy_html_image_size' === $tag && is_callable( $GLOBALS['size_filter'] ?? null ) ) { return call_user_func( $GLOBALS['size_filter'], $value, func_get_arg( 2 ) ); } if ( 'bepluspb_lazy_html_skip_image' === $tag && is_callable( $GLOBALS['skip_filter'] ) ) { return call_user_func( $GLOBALS['skip_filter'], $value, func_get_arg( 2 ), func_get_arg( 3 ) ); } return $value; }
+$GLOBALS['uploads'] = sys_get_temp_dir() . '/bpb-lazy-' . getmypid();
+function wp_upload_dir( $t = null, $c = true ) { return array( 'basedir' => $GLOBALS['uploads'], 'baseurl' => 'https://example.com/wp-content/uploads' ); }
 function is_admin() { return ! empty( $GLOBALS['ctx']['admin'] ); }
 function is_feed() { return ! empty( $GLOBALS['ctx']['feed'] ); }
 function wp_doing_ajax() { return ! empty( $GLOBALS['ctx']['ajax'] ); }
@@ -182,5 +184,36 @@ $attr = '<div data-content=\'<img src="/in-attr.jpg" width="10" height="10">\' i
 $out  = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg">' . $attr . '<img src="/real.jpg">' ), $base );
 $t( false !== strpos( $out, $attr ), 'an <img> inside an attribute value is left exactly as it was (no broken quotes), comments inside it too' );
 $t( false !== strpos( $out, '<img data-bpb-src="/real.jpg"' ) && false === strpos( $out, "\x1a" ), 'real images after it are still converted and no placeholder token is left behind' );
+
+// ---- images without width/height: the placeholder reserves the real proportions ------------------------------------
+@mkdir( $GLOBALS['uploads'] . '/2026', 0777, true );
+$png = function ( $w, $h ) { return "\x89PNG\r\n\x1a\n" . pack( 'N', 13 ) . 'IHDR' . pack( 'NN', $w, $h ) . "\x08\x06\x00\x00\x00" . "\0\0\0\0" . pack( 'N', 0 ) . 'IEND' . "\0\0\0\0"; };
+file_put_contents( $GLOBALS['uploads'] . '/2026/photo.png', $png( 640, 480 ) );
+file_put_contents( dirname( $GLOBALS['uploads'] ) . '/bpb-secret-' . getmypid() . '.png', $png( 11, 22 ) );
+@symlink( dirname( $GLOBALS['uploads'] ) . '/bpb-secret-' . getmypid() . '.png', $GLOBALS['uploads'] . '/2026/link.png' );
+$view = function ( $src, $attrs = '' ) use ( $page, $base ) {
+	$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg"><img src="' . $src . '"' . $attrs . '>' ), $base );
+	return preg_match( "#<img data-bpb-src=\"[^\"]*\" src=\"data:image/svg\+xml,.*?viewBox='0 0 (\d+) (\d+)'#", substr( $out, strpos( $out, '/b.jpg' ) + 5 ), $m ) ? $m[1] . 'x' . $m[2] : 'none';
+};
+$t( '300x200' === $view( '/wp-content/uploads/2026/x-300x200.jpg' ), 'size: the -WxH suffix WordPress puts on generated sizes is used (no file needed)' );
+$t( '640x480' === $view( '/wp-content/uploads/2026/photo.png' ) && '640x480' === $view( 'https://example.com/wp-content/uploads/2026/photo.png?ver=2' ), 'size: otherwise the file header is read (relative and absolute URL, query ignored)' );
+$t( '50x25' === $view( '/wp-content/uploads/2026/photo.png', ' width="50" height="25"' ), 'size: width/height attributes always win' );
+$t( '0x0' === $view( '/wp-content/uploads/2026/../../bpb-secret-' . getmypid() . '.png' ), 'size: ".." never leaves the uploads folder' );
+$t( '0x0' === $view( '/wp-content/uploads/2026/link.png' ), 'size: a symlink pointing outside the uploads folder is not followed' );
+$t( '0x0' === $view( 'https://other.example.net/wp-content/uploads/2026/photo.png' ), 'size: another host is never mapped to a local file' );
+$t( '0x0' === $view( '/wp-content/themes/t/photo.png' ) && '0x0' === $view( '/wp-content/uploads/2026/missing.png' ), 'size: outside uploads or missing means no size (placeholder as before)' );
+$GLOBALS['size_filter'] = function ( $size, $url ) { return false !== strpos( $url, 'photo.png' ) ? array( 16, 9 ) : $size; };
+$t( '16x9' === $view( '/wp-content/uploads/2026/photo.png?filter=1' ), 'size: the bepluspb_lazy_html_image_size filter can override it' );
+$GLOBALS['size_filter'] = null;
+@unlink( $GLOBALS['uploads'] . '/2026/link.png' ); @unlink( $GLOBALS['uploads'] . '/2026/photo.png' ); @unlink( dirname( $GLOBALS['uploads'] ) . '/bpb-secret-' . getmypid() . '.png' ); @rmdir( $GLOBALS['uploads'] . '/2026' ); @rmdir( $GLOBALS['uploads'] );
+
+// ---- other lazy-load plugins are reported, not fought ------------------------------------------------------------------
+$t( array() === BEPLUSPB_Lazy_HTML::conflicting_plugins(), 'conflicts: none reported when no other lazy-load plugin is active' );
+function is_plugin_active( $file ) { return in_array( $file, $GLOBALS['active_plugins'] ?? array(), true ); }
+$GLOBALS['active_plugins'] = array( 'rocket-lazy-load/rocket-lazy-load.php', 'akismet/akismet.php' );
+$t( array( 'Lazy Load by WP Rocket' ) === BEPLUSPB_Lazy_HTML::conflicting_plugins(), 'conflicts: an active Lazy Load by WP Rocket is reported (and unrelated plugins are not)' );
+$GLOBALS['active_plugins'] = array();
+$out = BEPLUSPB_Lazy_HTML::process( $page( '<img src="/a.jpg"><img src="/b.jpg"><img src="/c.jpg">' ), $base );
+$t( false !== strpos( $out, "function ok(t){if(t.classList)t.classList.add('lazyloaded')" ) && false !== strpos( $out, "ev(t,'bepluspb-lazyloaded')" ), 'loader: adds the class "lazyloaded" and fires lazyloaded / bepluspb-lazyloaded events' );
 
 echo "OK ($n assertions)\n";
