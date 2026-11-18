@@ -123,6 +123,7 @@ The optional Page Cache Preload only requests your own site's pages.
 * New: HTML lazy load handles iframes (native lazy loading), loads every slide of a slider/carousel, has a "Load Images Early (px)" margin, and can lazy load inline background images (off by default).
 * New: images without width/height keep their real proportions in the lazy-load placeholder (no page jump), loaded images get the class `lazyloaded` and fire a `lazyloaded` event, and a notice appears when another lazy-load plugin is active.
 * Fix: HTML lazy load no longer breaks an `<img>` written inside an attribute value, and Delay JS (Advanced) leaves scripts inside `<noscript>`, `<template>`, `<textarea>` and comments alone.
+* New: Priority Images can be set per page type (single, single-post, archive, blog, search). The list may hold up to 100 lines; one page preloads at most its first 4 matching lines.
 * Change: Recommended Settings and the Status tab show option names as the settings screens do.
 * Credits: the Advanced Delay JS runtime is derived from WP Meteor (GPLv3 or later).
 
