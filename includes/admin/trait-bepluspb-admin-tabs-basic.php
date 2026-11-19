@@ -194,7 +194,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php if ( empty( $opts['cache_enabled'] ) ) : ?>
 						<p class="bepluspb-warn"><?php esc_html_e( 'The master Cache switch is off, so none of these changes has an effect yet.', 'beplus-performance-booster' ); ?></p>
 						<?php endif; ?>
-						<p class="description"><?php esc_html_e( 'Use the switch on a row to apply just that change at once, or "Apply Recommended" to apply them all. Only the settings this plan and level want changed are listed.', 'beplus-performance-booster' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Use the switch on a row to apply just that change at once, or "Apply Recommended" to apply them all. Only the settings this plan and level want changed are listed.', 'beplus-performance-booster' ); ?> <span class="bepluspb-rec-js-note"><?php esc_html_e( 'The switches stay greyed out until the page script has loaded; if they never become usable, hard-reload the page (Ctrl+F5) or clear your cache plugin/CDN.', 'beplus-performance-booster' ); ?></span></p>
 						<table class="widefat striped bepluspb-rec-table"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Switch', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
 						<?php
 						$toggle_keys  = BEPLUSPB_Recommendations::toggleable();
@@ -216,7 +216,7 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 								<?php if ( $has_switch ) : ?>
 									<label class="bepluspb-toggle" for="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>">
 										<input type="checkbox" role="switch" id="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>" class="bepluspb-rec-switch"
-											data-option="<?php echo esc_attr( $key ); ?>" aria-label="<?php echo esc_attr( BEPLUSPB_Recommendations::label( $key ) ); ?>" <?php checked( $is_on ); ?>>
+											data-option="<?php echo esc_attr( $key ); ?>" aria-label="<?php echo esc_attr( BEPLUSPB_Recommendations::label( $key ) ); ?>" <?php checked( $is_on ); ?> disabled>
 										<span class="bepluspb-toggle-slider"></span>
 									</label>
 									<span class="bepluspb-rec-toggle-msg description" data-msg-for="<?php echo esc_attr( $key ); ?>" role="status"></span>

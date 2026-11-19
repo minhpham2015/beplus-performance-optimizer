@@ -140,7 +140,7 @@ class BEPLUSPB_Admin {
 			'bepluspb-admin',
 			BEPLUSPB_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			BEPLUSPB_VERSION
+			bepluspb_asset_version( 'assets/css/admin.css' )
 		);
 
 		// Admin bar purge confirmation on every other admin screen (the settings page's admin.js covers itself).
@@ -155,7 +155,7 @@ class BEPLUSPB_Admin {
 				'bepluspb-admin-js',
 				BEPLUSPB_PLUGIN_URL . 'assets/js/admin.js',
 				array(),
-				BEPLUSPB_VERSION,
+				bepluspb_asset_version( 'assets/js/admin.js' ),
 				true // load in footer.
 			);
 			// Pass AJAX URL, nonce, and translated strings for the master cache toggle.
@@ -199,14 +199,14 @@ class BEPLUSPB_Admin {
 			'bepluspb-admin',
 			BEPLUSPB_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			BEPLUSPB_VERSION
+			bepluspb_asset_version( 'assets/css/admin.css' )
 		);
 		self::enqueue_adminbar_script();
 	}
 
 	/** Confirmation dialog for the admin bar purge forms (needs the admin bar to be showing). */
 	private static function enqueue_adminbar_script() {
-		wp_enqueue_script( 'bepluspb-adminbar-js', BEPLUSPB_PLUGIN_URL . 'assets/js/adminbar.js', array(), BEPLUSPB_VERSION, true );
+		wp_enqueue_script( 'bepluspb-adminbar-js', BEPLUSPB_PLUGIN_URL . 'assets/js/adminbar.js', array(), bepluspb_asset_version( 'assets/js/adminbar.js' ), true );
 	}
 
 	// =========================================================================

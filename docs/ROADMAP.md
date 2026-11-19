@@ -131,6 +131,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-19 | Làm #13 (Cloudflare purge theo URL khi sửa bài) ở `[Unreleased]`; cập nhật mô tả `class-bepluspb-cloudflare.php` trong CLAUDE.md (không còn "chỉ admin bấm nút", vẫn không chạy khi khách tải trang). Toàn bộ test pass, 5 đột biến đều bị bắt. Cần smoke test C1–C4 bên dưới. |
 | 2026-11-19 | Tăng version 1.3.5 (header, `BEPLUSPB_VERSION`, readme Stable tag/Changelog/Upgrade Notice, CHANGELOG), merge vào `staging` để smoke test H/S/A/C. Chưa vào `master`/SVN. |
 | 2026-11-19 | Dashboard → Recommended Settings: công tắc Active/Inactive nằm ngay trong bảng "Exact changes before save" (chỉ các option mà plan và level cần đổi) lưu bằng AJAX (`handle_ajax_toggle_recommended`), vào 1.3.5. Test `test-recommended-toggles.php` (66), 5 đột biến đều bị bắt. Cần smoke test T1–T3 bên dưới. |
+| 2026-11-19 | Smoke test T1 phát hiện công tắc không gọi AJAX: nghi `admin.js?ver=1.3.5` bị cache (mọi bản dựng 1.3.5 cùng `ver`). Sửa: `bepluspb_asset_version()` (version + filemtime) cho admin.js/css/adminbar.js; công tắc render `disabled` và chỉ được JS mở khóa. Kiểm tra bằng Chromium + handler PHP thật (script mới chạy, script cũ giữ công tắc khóa). |
 
 ## Việc còn lại từ review lần 3
 

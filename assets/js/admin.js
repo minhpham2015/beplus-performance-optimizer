@@ -218,6 +218,11 @@
 
 	var recSwitches = document.querySelectorAll('.bepluspb-rec-switch');
 
+	// Hide the "greyed out until the script has loaded" hint once the script is running.
+	if (recSwitches.length && typeof bepluspbAdmin !== 'undefined') {
+		Array.prototype.forEach.call(document.querySelectorAll('.bepluspb-rec-js-note'), function (n) { n.style.display = 'none'; });
+	}
+
 	function recSetState(option, on) {
 		var i18n  = (typeof bepluspbAdmin !== 'undefined') ? bepluspbAdmin : {};
 		var cell  = document.querySelector('[data-current-for="' + option + '"]');
@@ -241,6 +246,9 @@
 	}
 
 	Array.prototype.forEach.call(recSwitches, function (input) {
+		// The switches are rendered disabled: they only work once this handler is attached, so a stale or
+		// missing script can never leave a switch that looks usable but saves nothing.
+		if (typeof bepluspbAdmin !== 'undefined') { input.disabled = false; }
 		input.addEventListener('change', function () {
 			if (typeof bepluspbAdmin === 'undefined') { return; }
 			var option  = input.getAttribute('data-option');
