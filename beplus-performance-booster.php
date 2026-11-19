@@ -152,6 +152,9 @@ function bepluspb_default_options() {
 		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
+		// --- Safe testing ---
+		'safe_mode_admins_only'              => 0,   // Only logged-in administrators get the front-end optimisations (and Page Cache is paused): visitors see the site as without the plugin.
+
 		// --- Heartbeat control (WordPress Heartbeat API; works without the master cache toggle) ---
 		'heartbeat_dashboard'                => 'default', // default | reduce | disable (wp-admin pages except the editing screens).
 		'heartbeat_editor'                   => 'default', // default | reduce (post editor, site editor, widgets, Customizer: "disable" is not offered, block editors depend on the script).
@@ -399,9 +402,30 @@ function bepluspb_boot_frontend() {
 		return;
 	}
 
+	// `?bepluspb_off` loads this one request as if the plugin's front-end optimisations were off
+	// (compare a page with and without them, or find out which one breaks something). It only ever
+	// turns things OFF and stores nothing; the page cache never serves or stores a URL with a query
+	// string it does not know, and the response is marked uncacheable for browsers and CDNs.
+	if ( bepluspb_is_bypass_request() ) {
+		if ( ! headers_sent() ) {
+			nocache_headers();
+		}
+		return;
+	}
+
 	$opts = bepluspb_get_options();
 
 	if ( empty( $opts['cache_enabled'] ) ) {
+		return;
+	}
+
+	$is_admin_user = is_user_logged_in() && current_user_can( 'manage_options' );
+
+	// Safe testing: only administrators get the optimisations, visitors see the untouched site.
+	// (The Page Cache is paused as well, see BEPLUSPB_Page_Cache::is_enabled(): a stored page would
+	// otherwise be served to visitors.)
+	$preview = ! empty( $opts['safe_mode_admins_only'] );
+	if ( $preview && ! $is_admin_user ) {
 		return;
 	}
 
@@ -411,9 +435,10 @@ function bepluspb_boot_frontend() {
 	// Administrators see the untouched page so they can edit and debug it: no minified
 	// CSS/JS, no defer/delay, no HTML/CDN rewriting. Every other logged-in user (members,
 	// customers, editors) is optimised exactly like a visitor, since the files are static.
-	// Return true from this filter to preview exactly what visitors get.
-	$optimize_admins = (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
-	if ( ! $optimize_admins && is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+	// Return true from this filter to preview exactly what visitors get. Safe testing is the
+	// opposite: the administrator is the only one who gets the optimised page.
+	$optimize_admins = $preview || (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+	if ( ! $optimize_admins && $is_admin_user ) {
 		return;
 	}
 
@@ -430,4 +455,13 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
+}
+
+/**
+ * Whether this request asked for the front-end optimisations to be skipped (`?bepluspb_off`).
+ *
+ * @return bool
+ */
+function bepluspb_is_bypass_request() {
+	return isset( $_GET['bepluspb_off'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only switch that only turns optimisations off, nothing is stored.
 }

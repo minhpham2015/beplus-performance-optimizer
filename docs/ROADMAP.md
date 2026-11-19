@@ -24,8 +24,8 @@ Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.4 (trên
 | 5 | Critical CSS | Đã phát hành 1.3.0: Generator chạy trong trình duyệt của admin (không chạy trên máy chủ), lưu theo page type, nhập tay được. Cập nhật 1.3.1–1.3.2. | DONE |
 | 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Priority Images + LCP Analyzer (1.3.0), preconnect cho CDN và Google Fonts, và ô Resource Hints (preconnect tối đa 4 / dns-prefetch tối đa 10 origin bên thứ ba, chỉ in `<link>`, không gọi mạng; test `test-resource-hints.php`). Chưa smoke test trên WP thật. | REVIEW |
 | 7 | Heartbeat control | Dashboard / Editor / Front end: giữ mặc định, giảm tần suất (15–120 s) hoặc tắt (editor chỉ giảm, vì block editor phụ thuộc script). Không đụng DB, độc lập công tắc master. Test `test-heartbeat.php`. Chưa smoke test trên WP thật. | REVIEW |
-| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Mở rộng `class-bepluspb-recommendations.php`. | TODO |
-| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | | TODO |
+| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Đã có sẵn profile theo loại site, preview, Apply/Disable và Restore (một lần). Thêm trục mức độ **Safe / Balanced / Strong** (`plan_for(..., $level)`); Balanced = plan cũ; builder overlay (Elementor) vẫn thắng. Test `test-recommended-levels.php`. Chưa smoke test trên WP thật. | REVIEW |
+| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | Option `safe_mode_admins_only` (chỉ admin được tối ưu, khách thấy site gốc, Page Cache tạm dừng + xóa) và `?bepluspb_off=1` (một request không tối ưu, `nocache_headers`, page cache không phục vụ/lưu). Admin bar có "View without optimizations". Không bao phủ `.htaccess`, Object Cache, Cloudflare, Predictive Navigation, Heartbeat. Test `test-safe-testing.php`. Chưa smoke test trên WP thật. | REVIEW |
 | 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
 
 ## 1.4.0 — Mở rộng và hoàn thiện
@@ -126,6 +126,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
 | 2026-11-19 | Smoke test trên WordPress thật xong và đạt: Page Cache #9–#30, Delay JS #31–#32, Object Cache O1–O5, và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images). #1–#5 chuyển `DONE`, #6 `DOING`. Đồng bộ roadmap với 1.3.4. Việc tiếp: xác nhận CI xanh trên `master`, #6 phần còn lại, #7, #8/#9, #10. |
 | 2026-11-19 | Làm #7 Heartbeat control và phần còn lại của #6 (Resource Hints) ở `[Unreleased]` (chưa tăng version, dự kiến 1.3.5). Test mới `test-heartbeat.php` (39) và `test-resource-hints.php` (53), toàn bộ test hiện có vẫn pass. Cần smoke test H1–H6 bên dưới. |
+| 2026-11-19 | Làm #8 (mức độ Safe/Balanced/Strong cho Recommended Settings) và #9 (Safe Testing + `?bepluspb_off=1`) ở `[Unreleased]`. Test mới `test-recommended-levels.php` (60) và `test-safe-testing.php` (37), toàn bộ test hiện có vẫn pass; 5 đột biến đều bị bắt. Cần smoke test S1–S6 bên dưới. |
 
 ## Việc còn lại từ review lần 3
 
@@ -153,3 +154,12 @@ Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy t
 - **H4** Front end = Disable: `view-source` trang chủ khi đăng nhập admin không còn `heartbeat.min.js`; giỏ hàng/form AJAX của site vẫn chạy. Customizer preview vẫn hoạt động.
 - **H5** Bật Heartbeat khi công tắc master (Cache) đang tắt: vẫn có hiệu lực.
 - **H6** Resource Hints: nhập `https://fonts.example.com crossorigin`, một dòng sai (`javascript:x`), 6 dòng dns-prefetch → lưu: có cảnh báo vàng liệt kê dòng bị bỏ, `view-source` (đăng xuất) có đúng các thẻ `<link rel="preconnect"…>`/`dns-prefetch` ngay đầu `<head>`, không trùng với preconnect của Google Fonts/CDN; với Page Cache bật, trang cache sau khi lưu có thẻ mới.
+
+## Smoke test: Safe Testing, `?bepluspb_off` và mức độ Recommended (chưa chạy)
+
+- **S1** Dashboard → Recommended Settings: chọn Safe/Balanced/Strong, bấm Preview: bảng thay đổi khác nhau theo mức; Apply, rồi Restore Previous Settings trả đúng giá trị cũ (kể cả `css_non_blocking`, `js_delay`). Site Elementor: Strong không bật Delay JS / Non-Render-Blocking CSS.
+- **S2** Strong trên site blog thật: duyệt vài trang (menu, slider, form), Console không lỗi, không FOUC. Nếu có, ghi lại để chỉnh mức Strong.
+- **S3** Bật Safe Testing, lưu: `advanced-cache.php` và `.bepluspb_pc.php` biến mất, trang cache bị xóa. Cửa sổ ẩn danh: trang gốc (CSS/JS không minify, không `bepluspb-cache/`). Đăng nhập admin: trang đã tối ưu. Thanh admin có "(Safe Testing)".
+- **S4** Tắt Safe Testing, lưu: Page Cache hoạt động lại (HIT sau lần tải thứ hai), khách thấy trang tối ưu.
+- **S5** `?bepluspb_off=1` (ẩn danh và admin): trang gốc, header không cache (`Cache-Control: no-cache`), không có `X-Beplus-Page-Cache: HIT`; bỏ tham số thì trở lại bản tối ưu/HIT. Nút "View without optimizations" trên admin bar đúng URL, và "Back to the optimized page" quay lại.
+- **S6** Safe Testing + Cloudflare/CDN: xác nhận CDN không viết lại URL cho khách trong lúc kiểm tra.

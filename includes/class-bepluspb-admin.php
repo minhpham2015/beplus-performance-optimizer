@@ -283,6 +283,7 @@ class BEPLUSPB_Admin {
 			// Cloudflare.
 			'cloudflare_enabled',
 			'predictive_navigation_enabled',
+			'safe_mode_admins_only',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -585,6 +586,7 @@ class BEPLUSPB_Admin {
 				<?php settings_fields( 'bepluspb_settings_group' ); ?>
 
 				<div id="bepluspb-tab-cache_files" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_card_safe_mode( $opts ); ?>
 					<?php self::render_section_page_cache( $opts ); ?>
 					<?php self::render_section_cache_files( $opts, $cache_dir_writable ); ?>
 				</div>

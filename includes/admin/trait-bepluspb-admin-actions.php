@@ -117,6 +117,7 @@ trait BEPLUSPB_Admin_Actions {
 		$operation      = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
 		$posted_profile = isset( $_POST['profile'] ) ? sanitize_key( wp_unslash( $_POST['profile'] ) ) : '';
 		$profile        = BEPLUSPB_Recommendations::sanitize_profile( $posted_profile );
+		$level          = BEPLUSPB_Recommendations::sanitize_level( isset( $_POST['level'] ) ? sanitize_key( wp_unslash( $_POST['level'] ) ) : '' );
 		if ( ! in_array( $operation, array( 'apply', 'disable', 'restore' ), true ) ) {
 			wp_die( esc_html__( 'Invalid recommendation action.', 'beplus-performance-booster' ) ); }
 		$saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
@@ -132,8 +133,8 @@ trait BEPLUSPB_Admin_Actions {
 			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, $snapshot, false );
 		} else {
 			// Builder overrides are detected here again, never taken from the request.
-			$plan = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), BEPLUSPB_Recommendations::detect_builders( BEPLUSPB_Recommendations::local_signals() ) );
-			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, BEPLUSPB_Recommendations::snapshot( $saved, $profile, get_current_user_id(), time() ), false );
+			$plan = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), BEPLUSPB_Recommendations::detect_builders( BEPLUSPB_Recommendations::local_signals() ), $level );
+			update_option( BEPLUSPB_Recommendations::SNAPSHOT_OPTION, BEPLUSPB_Recommendations::snapshot( $saved, $profile, get_current_user_id(), time(), $level ), false );
 			$next = 'apply' === $operation ? BEPLUSPB_Recommendations::apply_plan( $saved, $plan ) : BEPLUSPB_Recommendations::disable_plan( $saved, $plan );
 		}
 		update_option( BEPLUSPB_OPTIONS_KEY, $next );
@@ -147,6 +148,7 @@ trait BEPLUSPB_Admin_Actions {
 				array(
 					'page'                         => 'beplus-performance-booster',
 					'bepluspb_profile'             => $profile,
+					'bepluspb_level'               => $level,
 					'bepluspb_recommendation_done' => $operation,
 				),
 				admin_url( 'options-general.php' )

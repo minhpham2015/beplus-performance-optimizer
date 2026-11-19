@@ -269,14 +269,15 @@ class BEPLUSPB_Page_Cache {
 	// =========================================================================
 
 	/**
-	 * Whether the page cache is switched on (master toggle AND its own toggle).
+	 * Whether the page cache is switched on (master toggle AND its own toggle, and not paused by
+	 * safe testing: while only administrators get the optimisations, a stored page would be served to visitors).
 	 *
 	 * @param array|null $opts Options (defaults to the saved ones).
 	 * @return bool
 	 */
 	public static function is_enabled( $opts = null ) {
 		$opts = is_array( $opts ) ? $opts : bepluspb_get_options();
-		return ! empty( $opts['cache_enabled'] ) && ! empty( $opts['page_cache_enabled'] );
+		return ! empty( $opts['cache_enabled'] ) && ! empty( $opts['page_cache_enabled'] ) && empty( $opts['safe_mode_admins_only'] );
 	}
 
 	/**

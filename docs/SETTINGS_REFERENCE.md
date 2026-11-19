@@ -199,6 +199,28 @@ can add the image to Priority Images for you.
 
 ---
 
+= 🧪 Safe Testing (Cache Files tab) =
+
+**Administrators only** — Default: off
+
+* On: only logged-in administrators get the front-end optimizations; visitors and other users see the site as if the
+  plugin did nothing. The Page Cache is paused and emptied while it is on. Untick and save when you are happy.
+* Not covered: `.htaccess` browser-cache rules, Object Cache, Cloudflare, Predictive Navigation, Heartbeat control.
+
+*One request without the optimizations* — add `?bepluspb_off=1` to any front-end URL (or use "View without
+optimizations" in the admin bar). Works for everyone, nothing is saved, the page is never cached.
+
+= 🎚️ Recommended Settings levels (Dashboard) =
+
+Pick the site profile and a level, preview the exact changes, apply. "Restore Previous Settings" undoes the last apply once.
+
+* **Safe**: caching, lazy load, CSS minify, emoji/embed cleanup. No JS minify or defer, no HTML minify.
+* **Balanced** (default): the recommended plan of the profile.
+* **Strong**: Balanced plus Non-Render-Blocking CSS and Delay JS (not on shops and membership sites). Page-builder
+  safety rules (Elementor) still apply at every level.
+
+---
+
 = 💓 Heartbeat Control (Cleanup tab) =
 
 Default: *WordPress default* for every location. Works without the master cache switch.

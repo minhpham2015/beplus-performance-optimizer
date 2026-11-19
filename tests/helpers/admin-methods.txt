@@ -65,3 +65,4 @@ gf_status_payload
 render_google_fonts_local_status
 render_card_heartbeat
 render_card_resource_hints
+render_card_safe_mode
