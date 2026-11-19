@@ -4,7 +4,7 @@ File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file n�
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.4 (trên `master`) · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.5 trên `staging` để test (`master` vẫn 1.3.4) · Nhánh mặc định: `master`
 
 > **Smoke test trên WordPress thật đã xong (2026-11-19):** Page Cache #1–#30, Delay JS #31–#32, Object Cache O1–O5 và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images) đều đạt. Việc tiếp theo: xác nhận CI xanh trên `master`, rồi #7–#10.
 
@@ -129,6 +129,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-19 | Làm #8 (mức độ Safe/Balanced/Strong cho Recommended Settings) và #9 (Safe Testing + `?bepluspb_off=1`) ở `[Unreleased]`. Test mới `test-recommended-levels.php` (60) và `test-safe-testing.php` (37), toàn bộ test hiện có vẫn pass; 5 đột biến đều bị bắt. Cần smoke test S1–S6 bên dưới. |
 | 2026-11-19 | Làm #10 (Automatic Exclusions) ở `[Unreleased]`: class `BEPLUSPB_Compat`, hàm `bepluspb_exclude_list()` thay cho 11 chỗ đọc trực tiếp ô Exclude, card trong tab Advanced. Toàn bộ test pass (8 test cũ thêm `tests/helpers/exclude-list.php`); 5 đột biến đều bị bắt. Cần smoke test A1–A5 bên dưới. |
 | 2026-11-19 | Làm #13 (Cloudflare purge theo URL khi sửa bài) ở `[Unreleased]`; cập nhật mô tả `class-bepluspb-cloudflare.php` trong CLAUDE.md (không còn "chỉ admin bấm nút", vẫn không chạy khi khách tải trang). Toàn bộ test pass, 5 đột biến đều bị bắt. Cần smoke test C1–C4 bên dưới. |
+| 2026-11-19 | Tăng version 1.3.5 (header, `BEPLUSPB_VERSION`, readme Stable tag/Changelog/Upgrade Notice, CHANGELOG), merge vào `staging` để smoke test H/S/A/C. Chưa vào `master`/SVN. |
 
 ## Việc còn lại từ review lần 3
 

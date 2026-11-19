@@ -29,6 +29,8 @@ wp_clear_scheduled_hook( 'bepluspb_gf_fetch' );
 
 // Remove the cache-stats transient (60 s TTL, but clean up explicitly on uninstall).
 delete_transient( 'bepluspb_cache_stats' );
+delete_transient( 'bepluspb_cf_auto_purge' );
+delete_transient( 'bepluspb_cf_auto_purge_lock' );
 
 // ---------------------------------------------------------------------------
 // 2. Remove .htaccess rules
