@@ -34,7 +34,7 @@ Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.4 (trên
 |---|---|---|---|
 | 11 | Dọn dẹp Database | **Làm cuối, review bảo mật riêng.** `$wpdb->prepare()`, xem trước, xác nhận, nonce trước capability. Bản đầu chỉ "xem trước số lượng". | TODO |
 | 12 | Tự chuyển ảnh sang WebP/AVIF | Kiểm tra GD/Imagick, validate path theo Hard Rule #3. | TODO |
-| 13 | Cloudflare: purge theo URL khi sửa bài | Chỉ chạy khi admin kích hoạt. | TODO |
+| 13 | Cloudflare: purge theo URL khi sửa bài | Option `cloudflare_purge_on_edit` (mặc định tắt, cần Cloudflare + zone). Khi lưu bài (wp-admin/REST/cron/WP-CLI, không bao giờ khi khách tải trang): purge đúng URL của bài (+ URL cũ nếu đổi slug, trang chủ, trang bài viết/archive CPT, archive term, tác giả, feed), gom một lần ở `shutdown`, 30 URL/lần; >60 URL thì purge cả zone (tối đa 1 lần/phút). Test `test-cloudflare-purge-urls.php` (40). Chưa smoke test với Cloudflare thật. | REVIEW |
 | 14 | Dashboard hiệu năng | Sau khi có page cache. | TODO |
 | 15 | Multisite + WP-CLI | | TODO |
 
@@ -128,6 +128,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-19 | Làm #7 Heartbeat control và phần còn lại của #6 (Resource Hints) ở `[Unreleased]` (chưa tăng version, dự kiến 1.3.5). Test mới `test-heartbeat.php` (39) và `test-resource-hints.php` (53), toàn bộ test hiện có vẫn pass. Cần smoke test H1–H6 bên dưới. |
 | 2026-11-19 | Làm #8 (mức độ Safe/Balanced/Strong cho Recommended Settings) và #9 (Safe Testing + `?bepluspb_off=1`) ở `[Unreleased]`. Test mới `test-recommended-levels.php` (60) và `test-safe-testing.php` (37), toàn bộ test hiện có vẫn pass; 5 đột biến đều bị bắt. Cần smoke test S1–S6 bên dưới. |
 | 2026-11-19 | Làm #10 (Automatic Exclusions) ở `[Unreleased]`: class `BEPLUSPB_Compat`, hàm `bepluspb_exclude_list()` thay cho 11 chỗ đọc trực tiếp ô Exclude, card trong tab Advanced. Toàn bộ test pass (8 test cũ thêm `tests/helpers/exclude-list.php`); 5 đột biến đều bị bắt. Cần smoke test A1–A5 bên dưới. |
+| 2026-11-19 | Làm #13 (Cloudflare purge theo URL khi sửa bài) ở `[Unreleased]`; cập nhật mô tả `class-bepluspb-cloudflare.php` trong CLAUDE.md (không còn "chỉ admin bấm nút", vẫn không chạy khi khách tải trang). Toàn bộ test pass, 5 đột biến đều bị bắt. Cần smoke test C1–C4 bên dưới. |
 
 ## Việc còn lại từ review lần 3
 
@@ -172,3 +173,10 @@ Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy t
 - **A3** Elementor: CSS `uploads/elementor/css/…` và `elementor/assets/css/…` vẫn render-blocking khi bật Non-Render-Blocking CSS (không FOUC); JS Elementor không bị delay. Divi / Slider Revolution / Gravity Forms: form và slider chạy khi bật Delay + Defer + Minify.
 - **A4** Tab Advanced → Automatic Exclusions: rule đúng "Found, applied" / "Not found"; tick Skip WooCommerce, lưu → script Woo lại bị defer/delay; bỏ tick "Exclude automatically" → mọi rule "Found, not applied". Các ô Exclude JS/CSS/Pages của bạn không bị đổi.
 - **A5** Stripe/PayPal/reCAPTCHA: trang có CAPTCHA hoặc nút thanh toán, bật Delay JS, gửi form ngay sau khi tải trang → CAPTCHA/thanh toán hoạt động.
+
+## Smoke test: Cloudflare purge theo URL (chưa chạy, cần zone Cloudflare thật có Cache Everything)
+
+- **C1** Bật Cloudflare + Test Connection + "Purge Edited Pages", lưu. Sửa và cập nhật một bài đã đăng: `curl -I` URL bài, trang chủ, archive danh mục của bài → `CF-Cache-Status: MISS/EXPIRED` ở lần đầu (đã bị purge), trang khác vẫn `HIT`. Dưới ô tick có dòng "Last automatic purge … succeeded".
+- **C2** Đổi slug bài đã đăng: URL cũ cũng hết cache; chuyển bài vào thùng rác: URL gốc (không có `__trashed`) hết cache.
+- **C3** Sửa nháp, bản nháp tự lưu, bản sửa đổi: không có request nào tới Cloudflare (Network/log của Cloudflare). Bài hẹn giờ đến hạn đăng: được purge (qua WP-Cron).
+- **C4** Sửa hàng loạt >60 bài (Bulk Edit): zone bị purge một lần; làm lần nữa trong vòng 1 phút → dòng "Last automatic purge" báo bị bỏ qua. Token sai: dòng báo failed, không lỗi trang, không lộ token ở đâu.

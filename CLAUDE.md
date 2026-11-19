@@ -120,12 +120,17 @@ checking whether it would break the SVN slug binding).
   URL when the file is already present (produced by WP core 6.5+, a theme
   build step, or another plugin/service).
 - `includes/class-bepluspb-cloudflare.php` — Cloudflare API integration,
-  admin-triggered only (never runs on a regular front-end page load):
-  zone lookup by API Token (`test_connection_and_fetch_zone()`), cache
+  never runs on a regular front-end page load: zone lookup by API Token
+  (`test_connection_and_fetch_zone()`), cache
   purge (`purge_all()`, wired into the existing `handle_clear_cache()` in
   `class-bepluspb-admin.php` when `cloudflare_enabled` is on — no separate
-  purge button needed for the common case), and Development Mode on/off/
-  status. **API Token auth only** (`Authorization: Bearer`), no legacy
+  purge button needed for the common case), Development Mode on/off/
+  status, and the opt-in "Purge Edited Pages" (`cloudflare_purge_on_edit`, v1.4.0
+  work): on a post save (wp-admin, REST, WP-Cron, WP-CLI only — `is_save_context()`)
+  the URLs of that post are queued and purged by URL at `shutdown`. The URL list
+  is derived from the post, never from request data, and `clean_urls()` keeps only
+  this site's own scheme/host/port; more than `MAX_FILES` purges the zone once
+  with a cooldown. Keep it that way: no URL from a form or a query string. **API Token auth only** (`Authorization: Bearer`), no legacy
   Global API Key support. Token/zone are stored as plain `wp_options`
   fields (`cloudflare_api_token`, `cloudflare_zone_id`, `cloudflare_zone_name`)
   — deliberately NOT a separate file like `.bepluspb_oc.php`, since a DB

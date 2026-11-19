@@ -546,14 +546,28 @@ Keep Cloudflare's edge cache in sync with this plugin's own cache, and
 control Cloudflare Development Mode, without leaving wp-admin. This does
 not set up Cloudflare as a CDN/DNS proxy for you — it only talks to a
 Cloudflare zone you have already added your domain to. All Cloudflare API
-calls are admin-triggered only (nonce + capability checked, and rate
-limited); nothing is called automatically on a regular front-end page load.
+calls are admin-triggered (nonce + capability checked, and rate limited),
+except the optional "Purge Edited Pages" below, which runs when a post is saved;
+nothing is called on a regular front-end page load.
 
 **Enable Cloudflare Integration**
 Default: off
 
 When on, the existing "Clear Cache" button also purges Cloudflare's cache
 for the configured zone, in addition to this plugin's own CSS/JS cache.
+
+**Purge Edited Pages**
+Default: off
+
+When a post or page is published, updated, unpublished or trashed, only its
+addresses are purged at Cloudflare: the page itself (and its old address if the
+slug changed), the home page, the posts page or post type archive, its category/tag
+archives, the author archive and the main feed. Runs on saves in wp-admin, over REST,
+from WP-Cron (scheduled posts) and WP-CLI, never on a visitor's page load. A bulk edit
+(more than 60 addresses) purges the whole zone instead, at most once a minute. Page 2+
+of archives and date archives are not purged (they expire with Cloudflare's cache
+lifetime). The last result is shown under the checkbox. Only useful when Cloudflare
+caches your HTML ("Cache Everything" rule).
 
 **API Token**
 Default: empty

@@ -282,6 +282,7 @@ class BEPLUSPB_Admin {
 			'cdn_webp_avif',
 			// Cloudflare.
 			'cloudflare_enabled',
+			'cloudflare_purge_on_edit',
 			'predictive_navigation_enabled',
 			'safe_mode_admins_only',
 			'auto_exclude',

@@ -183,6 +183,7 @@ function bepluspb_default_options() {
 
 		// --- Cloudflare (API-triggered cache purge + development mode) ---
 		'cloudflare_enabled'                 => 0,
+		'cloudflare_purge_on_edit'           => 0,  // Purge the edited post's URLs at Cloudflare when a post is saved (needs the zone from Test Connection).
 		'cloudflare_api_token'               => '',  // Cloudflare API Token (Bearer auth only, no legacy Global API Key support).
 		'cloudflare_zone_id'                 => '',  // Auto-populated by "Test Connection" — never user-editable directly.
 		'cloudflare_zone_name'               => '',  // Matched zone name, shown read-only in the UI.
@@ -361,6 +362,7 @@ register_deactivation_hook(
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Admin', 'init' ) );
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Predictive_Navigation', 'init' ), 20 );
 add_action( 'plugins_loaded', 'bepluspb_boot_heartbeat', 20 );
+add_action( 'plugins_loaded', array( 'BEPLUSPB_Cloudflare', 'register_hooks' ), 20 );
 
 /**
  * Heartbeat control runs in wp-admin and on the front end, so it is set up here instead of in

@@ -198,6 +198,40 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 					</div>
 				</div>
 
+				<!-- Purge by URL on edit -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cloudflare_purge_on_edit"><?php esc_html_e( 'Purge Edited Pages', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_cloudflare_purge_on_edit"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cloudflare_purge_on_edit]" value="1"
+								<?php checked( $opts['cloudflare_purge_on_edit'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'When a post or page is published, updated, unpublished or trashed, purge only its addresses at Cloudflare (the page, the home page, the posts page or post type archive, its category/tag archives, the author archive and the main feed). Needs the zone found by Test Connection.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<?php $bepluspb_cf_last = BEPLUSPB_Cloudflare::last_auto_purge(); ?>
+						<?php if ( $bepluspb_cf_last ) : ?>
+							<p class="description">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: 1: date and time, 2: "succeeded" or "failed", 3: number of addresses. */
+										__( 'Last automatic purge: %1$s, %2$s (%3$d addresses).', 'beplus-performance-booster' ),
+										wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $bepluspb_cf_last['time'] ),
+										$bepluspb_cf_last['success'] ? __( 'succeeded', 'beplus-performance-booster' ) : __( 'failed', 'beplus-performance-booster' ),
+										(int) $bepluspb_cf_last['count']
+									)
+								);
+								?>
+								<?php echo ( ! $bepluspb_cf_last['success'] && '' !== $bepluspb_cf_last['message'] ) ? esc_html( $bepluspb_cf_last['message'] ) : ''; ?>
+								<?php echo 'all' === $bepluspb_cf_last['mode'] ? esc_html__( 'It was a bulk edit, so the whole zone was purged.', 'beplus-performance-booster' ) : ''; ?>
+							</p>
+						<?php endif; ?>
+						<p class="description"><?php esc_html_e( 'Runs when a post is saved in wp-admin, over REST, from WP-Cron or WP-CLI, never on a visitor\'s page load. More than 60 addresses at once (a bulk edit) purge the whole zone instead, at most once a minute. Page 2+ of archives and date archives are not purged: they expire with Cloudflare\'s cache lifetime. Only useful if Cloudflare caches your HTML (a "Cache Everything" rule); otherwise there is nothing to purge.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
 				<!-- API Token -->
 				<div class="bepluspb-form-row">
 					<div class="bepluspb-form-row-label">
