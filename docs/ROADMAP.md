@@ -130,6 +130,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-19 | Làm #10 (Automatic Exclusions) ở `[Unreleased]`: class `BEPLUSPB_Compat`, hàm `bepluspb_exclude_list()` thay cho 11 chỗ đọc trực tiếp ô Exclude, card trong tab Advanced. Toàn bộ test pass (8 test cũ thêm `tests/helpers/exclude-list.php`); 5 đột biến đều bị bắt. Cần smoke test A1–A5 bên dưới. |
 | 2026-11-19 | Làm #13 (Cloudflare purge theo URL khi sửa bài) ở `[Unreleased]`; cập nhật mô tả `class-bepluspb-cloudflare.php` trong CLAUDE.md (không còn "chỉ admin bấm nút", vẫn không chạy khi khách tải trang). Toàn bộ test pass, 5 đột biến đều bị bắt. Cần smoke test C1–C4 bên dưới. |
 | 2026-11-19 | Tăng version 1.3.5 (header, `BEPLUSPB_VERSION`, readme Stable tag/Changelog/Upgrade Notice, CHANGELOG), merge vào `staging` để smoke test H/S/A/C. Chưa vào `master`/SVN. |
+| 2026-11-19 | Dashboard → Recommended Settings: công tắc Active/Inactive cho từng option (15 option) lưu bằng AJAX (`handle_ajax_toggle_recommended`), vào 1.3.5. Test `test-recommended-toggles.php` (66), 5 đột biến đều bị bắt. Cần smoke test T1–T3 bên dưới. |
 
 ## Việc còn lại từ review lần 3
 
@@ -181,3 +182,9 @@ Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy t
 - **C2** Đổi slug bài đã đăng: URL cũ cũng hết cache; chuyển bài vào thùng rác: URL gốc (không có `__trashed`) hết cache.
 - **C3** Sửa nháp, bản nháp tự lưu, bản sửa đổi: không có request nào tới Cloudflare (Network/log của Cloudflare). Bài hẹn giờ đến hạn đăng: được purge (qua WP-Cron).
 - **C4** Sửa hàng loạt >60 bài (Bulk Edit): zone bị purge một lần; làm lần nữa trong vòng 1 phút → dòng "Last automatic purge" báo bị bỏ qua. Token sai: dòng báo failed, không lỗi trang, không lộ token ở đâu.
+
+## Smoke test: công tắc từng option ở Recommended Settings (chưa chạy)
+
+- **T1** Dashboard: bật/tắt vài công tắc (Lazy Load, Minify HTML): nhãn Active/Inactive đổi ngay, hiện "Saved.", F5 vẫn giữ trạng thái; trang Settings của tab tương ứng hiện đúng ô tick. Các option khác không đổi (so sánh `wp option get bepluspb_settings`).
+- **T2** Browser Caching: bật → khối `# BEGIN Beplus…` xuất hiện trong `.htaccess`, tắt → biến mất, phần còn lại của file không bị đụng. Đặt `.htaccess` chỉ đọc → bật báo lỗi và công tắc tự gạt về.
+- **T3** Lỗi mạng (DevTools → Offline) khi bật Delay JS: công tắc gạt lại và hiện lỗi. Với Page Cache bật, bật/tắt một công tắc làm trang cache bị xóa (lần tải sau không HIT).

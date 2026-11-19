@@ -162,6 +162,58 @@ trait BEPLUSPB_Admin_Actions {
 	// =========================================================================
 
 	/**
+	 * Handle wp_ajax_bepluspb_toggle_recommended: flip ONE managed on/off option from the Dashboard.
+	 *
+	 * Same shape as the master toggle: nonce first, then capability. Only the keys returned by
+	 * BEPLUSPB_Recommendations::toggleable() are accepted (never a credential, a text field or the master switch),
+	 * the raw saved row is modified (no defaults merged in) and nothing but that single key changes.
+	 *
+	 * Expects POST fields: nonce, option, enabled (1 or 0). Returns JSON: { option, enabled }.
+	 */
+	public static function handle_ajax_toggle_recommended() {
+		check_ajax_referer( 'bepluspb_toggle_recommended', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ), 403 );
+		}
+
+		$option = isset( $_POST['option'] ) ? sanitize_key( wp_unslash( $_POST['option'] ) ) : '';
+		if ( ! in_array( $option, BEPLUSPB_Recommendations::toggleable(), true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid option key.', 'beplus-performance-booster' ) ), 400 );
+		}
+		$enabled = isset( $_POST['enabled'] ) && absint( wp_unslash( $_POST['enabled'] ) ) ? 1 : 0;
+
+		// The browser-cache rules live in .htaccess: refuse to say "active" when they cannot be written.
+		if ( 'cache_headers' === $option && $enabled && ! BEPLUSPB_Htaccess::is_writable() ) {
+			wp_send_json_error( array( 'message' => __( 'The .htaccess file is missing or not writable, so the browser-cache rules cannot be added.', 'beplus-performance-booster' ) ), 409 );
+		}
+
+		$saved = get_option( BEPLUSPB_OPTIONS_KEY, array() );
+		if ( ! is_array( $saved ) ) {
+			$saved = array();
+		}
+		$saved[ $option ] = $enabled;
+		update_option( BEPLUSPB_OPTIONS_KEY, $saved );
+		bepluspb_flush_options_cache();
+
+		// The Settings API sanitiser does not run on this path, so keep .htaccess in step by hand.
+		if ( 'cache_headers' === $option ) {
+			if ( $enabled ) {
+				BEPLUSPB_Htaccess::add_rules();
+			} else {
+				BEPLUSPB_Htaccess::remove_rules();
+			}
+		}
+
+		wp_send_json_success(
+			array(
+				'option'  => $option,
+				'enabled' => $enabled,
+			)
+		);
+	}
+
+	/**
 	 * Handle wp_ajax_bepluspb_toggle_cache.
 	 *
 	 * Reads the raw saved option directly (not through bepluspb_get_options()) so

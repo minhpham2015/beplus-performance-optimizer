@@ -72,6 +72,32 @@ class BEPLUSPB_Recommendations {
 		return isset( $modes[ $value ] ) ? $modes[ $value ] : null;
 	}
 
+	/**
+	 * The managed options that are plain on/off switches the Dashboard can flip one at a time (AJAX): every managed
+	 * key except the master cache switch (it has its own toggle) and the Predictive Navigation mode (a choice).
+	 *
+	 * @return array
+	 */
+	public static function toggleable() {
+		return array_values( array_diff( self::allowlist(), array( 'cache_enabled', 'predictive_navigation_mode' ) ) ); }
+	/**
+	 * Short warnings shown next to the switches that deserve one (option key => text).
+	 *
+	 * @return array
+	 */
+	public static function toggle_notes() {
+		return array(
+			'minify_js_files'               => __( 'Can break scripts that are not written to be minified. Check the site after switching on.', 'beplus-performance-booster' ),
+			'js_defer'                      => __( 'Can break scripts that expect to run before the page is ready. Check forms, menus and sliders.', 'beplus-performance-booster' ),
+			'js_delay'                      => __( 'Risky: scripts wait for the first interaction. Check forms, carts and sliders; Safe Testing and ?bepluspb_off=1 help.', 'beplus-performance-booster' ),
+			'css_non_blocking'              => __( 'Risky: can flash unstyled content unless Critical CSS covers the page.', 'beplus-performance-booster' ),
+			'css_remove_unused'             => __( 'Risky: removes CSS that is not found in the page HTML; scripts that add classes later may lose styles.', 'beplus-performance-booster' ),
+			'css_inline_all'                => __( 'Makes pages larger and can break relative URLs in the CSS. Check the site after switching on.', 'beplus-performance-booster' ),
+			'html_minify'                   => __( 'Can break pages with inline scripts or pre-formatted text that depend on whitespace.', 'beplus-performance-booster' ),
+			'predictive_navigation_enabled' => __( 'Needs WordPress 6.8 or newer and pretty permalinks.', 'beplus-performance-booster' ),
+			'remove_woo_scripts'            => __( 'Needs WooCommerce. Switch off if a shop widget stops working on non-shop pages.', 'beplus-performance-booster' ),
+			'cache_headers'                 => __( 'Writes browser-cache rules into .htaccess (needs a writable .htaccess on Apache).', 'beplus-performance-booster' ),
+		); }
 	/** Return valid profile identifiers. */
 	public static function profiles() {
 		return array( 'blog_business', 'woocommerce', 'membership_lms', 'high_traffic' ); }

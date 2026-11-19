@@ -212,6 +212,67 @@
 		});
 	}
 
+	// -------------------------------------------------------------------------
+	// Recommended Settings: one switch per option, saved by AJAX
+	// -------------------------------------------------------------------------
+
+	var recSwitches = document.querySelectorAll('.bepluspb-rec-switch');
+	var recStale    = document.getElementById('bepluspb-rec-stale');
+
+	function recSetState(option, on) {
+		var i18n  = (typeof bepluspbAdmin !== 'undefined') ? bepluspbAdmin : {};
+		var label = document.querySelector('[data-status-for="' + option + '"]');
+		if (label) {
+			label.textContent = on ? (i18n.recActive || 'Active') : (i18n.recInactive || 'Inactive');
+			label.className   = 'bepluspb-toggle-status bepluspb-toggle-status--' + (on ? 'on' : 'off');
+		}
+	}
+
+	function recSay(option, text, bad) {
+		var msg = document.querySelector('[data-msg-for="' + option + '"]');
+		if (msg) {
+			msg.textContent = text;
+			msg.style.color = bad ? '#b32d2e' : '';
+		}
+	}
+
+	Array.prototype.forEach.call(recSwitches, function (input) {
+		input.addEventListener('change', function () {
+			if (typeof bepluspbAdmin === 'undefined') { return; }
+			var option  = input.getAttribute('data-option');
+			var enabled = input.checked ? 1 : 0;
+			var revert  = function (text) {
+				input.checked = !input.checked;
+				recSetState(option, input.checked);
+				recSay(option, text || bepluspbAdmin.recError || 'Could not save this change.', true);
+				input.disabled = false;
+			};
+
+			input.disabled = true;
+			recSetState(option, enabled);
+			recSay(option, bepluspbAdmin.recSaving || 'Saving…', false);
+
+			var data = new FormData();
+			data.append('action',  'bepluspb_toggle_recommended');
+			data.append('nonce',   bepluspbAdmin.recToggleNonce);
+			data.append('option',  option);
+			data.append('enabled', enabled);
+
+			fetch(bepluspbAdmin.ajaxUrl, { method: 'POST', body: data })
+				.then(function (r) { return r.json().catch(function () { return { success: false }; }); })
+				.then(function (json) {
+					if (json && json.success) {
+						input.disabled = false;
+						recSay(option, bepluspbAdmin.recSaved || 'Saved.', false);
+						if (recStale) { recStale.style.display = ''; }
+					} else {
+						revert(json && json.data && json.data.message ? String(json.data.message) : '');
+					}
+				})
+				.catch(function () { revert(''); });
+		});
+	});
+
 	/**
 	 * Update the toggle label, warning notice, and clear button to reflect state.
 	 *
