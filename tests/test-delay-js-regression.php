@@ -18,6 +18,7 @@ $GLOBALS['bepluspb_test_options'] = array(
 );
 
 // phpcs:disable Squiz.Commenting.FunctionComment.Missing
+require_once __DIR__ . "/helpers/exclude-list.php";
 // phpcs:disable Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 /**
  * Escape a test exception message.

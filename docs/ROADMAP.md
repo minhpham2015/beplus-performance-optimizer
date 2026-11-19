@@ -4,29 +4,29 @@ File theo dõi tiến trình. Khi hỏi "làm tới đâu rồi", đọc file n�
 
 Trạng thái: `TODO` · `DOING` · `REVIEW` (code + test tự động xong, chờ smoke test trên WordPress thật) · `DONE` · `BLOCKED`
 
-Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên `staging` để test (đã chứa Page Cache #1–#4, opt-in, mặc định tắt) · Nhánh mặc định: `master`
+Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.5 trên `staging` để test (`master` vẫn 1.3.4) · Nhánh mặc định: `master`
 
-> **Rủi ro lớn nhất hiện tại:** #1–#3 đã phát hành trong 1.1.14 nhưng **chưa smoke test trên WordPress thật** (24 mục ở cuối file). Làm việc này trước khi thêm tính năng mới.
+> **Smoke test trên WordPress thật đã xong (2026-11-19):** Page Cache #1–#30, Delay JS #31–#32, Object Cache O1–O5 và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images) đều đạt. Việc tiếp theo: xác nhận CI xanh trên `master`, rồi #7–#10.
 
 ## 1.2.0 — Page cache (lỗ hổng lớn nhất) — code đã nằm trong 1.1.14, còn #4 để đóng mốc 1.2.0
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
-| 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | REVIEW |
-| 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | REVIEW |
-| 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | REVIEW |
-| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Chưa smoke test trên WP thật. | REVIEW |
+| 1 | Page cache HTML tĩnh (`advanced-cache.php`, ghi vào `wp-content/cache/`) | Stub mỏng + `lib/class-bepluspb-page-cache-engine.php`; có fallback serve từ plugin khi không có `WP_CACHE`/drop-in bị plugin khác chiếm. Config có guard, fail-open. | DONE |
+| 2 | Invalidation cho page cache | Hard Rule #7: post/comment/menu/widget/theme/term/plugin/option + mọi lần lưu settings + khi xóa file asset. Đăng ký từ `plugins_loaded`. Đã sửa luôn hook UCSS bị "chết" từ v1.0.6. | DONE |
+| 3 | Loại trừ cache an toàn | Logged-in, cookie giỏ hàng/WooCommerce/comment/password, query string, POST/AJAX/REST, Host lạ, `cache_exclude_pages`, meta box, `DONOTCACHEPAGE`. Mặc định tắt. | DONE |
+| 4 | Cache preload (WP-Cron) | `class-bepluspb-page-cache-preload.php`, option `page_cache_preload` (mặc định tắt). Danh sách URL lấy từ nội dung đã đăng của chính site (không gọi sitemap từ xa), chỉ gọi URL cùng host, không follow redirect, không cookie, dừng sau 5 lần lỗi liên tiếp, giới hạn 1 lượt chạy/10 phút (chống vòng lặp purge), tự warm lại sau mỗi TTL. TTL Page Cache tối đa 24 giờ. Test `test-page-cache-preload.php` (59 assertion). Đã smoke test trên WP thật (2026-11-19). | DONE |
 
 ## 1.3.0 — Tải trang và dễ dùng
 
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
-| 5 | Critical CSS | Dịch vụ ngoài hoặc dán thủ công. Bản chạy trên máy chủ cần review bảo mật riêng. | TODO |
-| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Công sức nhỏ, thấy hiệu quả ngay. | TODO |
-| 7 | Heartbeat control | Không đụng DB. | TODO |
-| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Mở rộng `class-bepluspb-recommendations.php`. | TODO |
-| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | | TODO |
-| 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
+| 5 | Critical CSS | Đã phát hành 1.3.0: Generator chạy trong trình duyệt của admin (không chạy trên máy chủ), lưu theo page type, nhập tay được. Cập nhật 1.3.1–1.3.2. | DONE |
+| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Priority Images + LCP Analyzer (1.3.0), preconnect cho CDN và Google Fonts, và ô Resource Hints (preconnect tối đa 4 / dns-prefetch tối đa 10 origin bên thứ ba, chỉ in `<link>`, không gọi mạng; test `test-resource-hints.php`). Chưa smoke test trên WP thật. | REVIEW |
+| 7 | Heartbeat control | Dashboard / Editor / Front end: giữ mặc định, giảm tần suất (15–120 s) hoặc tắt (editor chỉ giảm, vì block editor phụ thuộc script). Không đụng DB, độc lập công tắc master. Test `test-heartbeat.php`. Chưa smoke test trên WP thật. | REVIEW |
+| 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Đã có sẵn profile theo loại site, preview, Apply/Disable và Restore (một lần). Thêm trục mức độ **Safe / Balanced / Strong** (`plan_for(..., $level)`); Balanced = plan cũ; builder overlay (Elementor) vẫn thắng. Test `test-recommended-levels.php`. Chưa smoke test trên WP thật. | REVIEW |
+| 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | Option `safe_mode_admins_only` (chỉ admin được tối ưu, khách thấy site gốc, Page Cache tạm dừng + xóa) và `?bepluspb_off=1` (một request không tối ưu, `nocache_headers`, page cache không phục vụ/lưu). Admin bar có "View without optimizations". Không bao phủ `.htaccess`, Object Cache, Cloudflare, Predictive Navigation, Heartbeat. Test `test-safe-testing.php`. Chưa smoke test trên WP thật. | REVIEW |
+| 10 | Tự exclude theo plugin/theme phổ biến | `BEPLUSPB_Compat`: danh sách tĩnh (WooCommerce, Elementor, Divi, Slider Revolution, Gravity Forms + script thanh toán/CAPTCHA), không gọi mạng, gộp vào mọi ô Exclude qua `bepluspb_exclude_list()`; có công tắc, nút Skip từng rule và bảng hiển thị trong tab Advanced. Test `test-compat-excludes.php` (135). Chưa smoke test trên WP thật. | REVIEW |
 
 ## 1.4.0 — Mở rộng và hoàn thiện
 
@@ -34,7 +34,7 @@ Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên 
 |---|---|---|---|
 | 11 | Dọn dẹp Database | **Làm cuối, review bảo mật riêng.** `$wpdb->prepare()`, xem trước, xác nhận, nonce trước capability. Bản đầu chỉ "xem trước số lượng". | TODO |
 | 12 | Tự chuyển ảnh sang WebP/AVIF | Kiểm tra GD/Imagick, validate path theo Hard Rule #3. | TODO |
-| 13 | Cloudflare: purge theo URL khi sửa bài | Chỉ chạy khi admin kích hoạt. | TODO |
+| 13 | Cloudflare: purge theo URL khi sửa bài | Option `cloudflare_purge_on_edit` (mặc định tắt, cần Cloudflare + zone). Khi lưu bài (wp-admin/REST/cron/WP-CLI, không bao giờ khi khách tải trang): purge đúng URL của bài (+ URL cũ nếu đổi slug, trang chủ, trang bài viết/archive CPT, archive term, tác giả, feed), gom một lần ở `shutdown`, 30 URL/lần; >60 URL thì purge cả zone (tối đa 1 lần/phút). Test `test-cloudflare-purge-urls.php` (40). Chưa smoke test với Cloudflare thật. | REVIEW |
 | 14 | Dashboard hiệu năng | Sau khi có page cache. | TODO |
 | 15 | Multisite + WP-CLI | | TODO |
 
@@ -48,9 +48,9 @@ Cập nhật lần cuối: 2026-11-12 · Phiên bản hiện tại: 1.2.0 trên 
 
 ## Quyết định đã chốt
 
-- Page cache #1–#3 đã được gộp vào 1.1.14 (opt-in, mặc định tắt) thay vì chờ 1.2.0. Mốc **1.2.0** = #4 preload + smoke test xong + #1–#3 chuyển `DONE`.
+- Page cache #1–#3 đã được gộp vào 1.1.14 (opt-in, mặc định tắt) thay vì chờ 1.2.0. Mốc **1.2.0** = #4 preload + smoke test xong + #1–#3 chuyển `DONE` (đạt 2026-11-19).
 - Vẫn chia 1.2.0 → 1.3.0 → 1.4.0. _Chưa xác nhận với chủ dự án; nếu muốn gộp thì nhảy thẳng 1.4.0._
-- Ưu tiên: smoke test #1–#3 → #4 → #6, #7 (song song) → #8/#9 → #11 để cuối.
+- Ưu tiên: CI xanh → #6 (phần còn lại), #7 (song song) → #8/#9 → #10 → #13/#12/#14/#15 → #11 để cuối.
 
 ## Hạn chế đã biết của Page Cache
 
@@ -65,9 +65,9 @@ Còn lại:
 - Chưa có giới hạn tổng dung lượng/số file (chỉ giới hạn bằng TTL + cron dọn hằng ngày + chặn URL chữ hoa/query string). Cache mobile tách riêng làm số file tăng gần gấp đôi.
 - Chưa chạy được `phpcs`/`phpstan` ở môi trường dev (không cài được composer) — chờ CI. (Đã sửa lỗi CI ở commit `9a11656`; xác nhận lại CI xanh trên `master`.)
 
-## Smoke test thủ công trước khi chuyển #1–#3 sang DONE
+## Smoke test thủ công (ĐÃ CHẠY XONG 2026-11-19 trên WordPress thật, tất cả đạt)
 
-Môi trường dev chưa có WordPress thật (không tải được wordpress.org), nên các mục dưới chưa được chạy:
+Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 
 1. Bật Cache (Dashboard) + Page Cache, lưu. Kiểm tra có `wp-content/advanced-cache.php` (có marker `BEPLUSPB_PAGE_CACHE_DROPIN`) và `wp-content/.bepluspb_pc.php`.
 2. `curl -s http://site/wp-content/.bepluspb_pc.php` → body phải rỗng (không lộ JSON).
@@ -124,6 +124,12 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 | 2026-11-06 | Tăng version 1.2.0 (readme, CHANGELOG, header), merge sang `staging` để smoke test #9–#30. Chưa vào `master`/SVN. |
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 | 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
+| 2026-11-19 | Smoke test trên WordPress thật xong và đạt: Page Cache #9–#30, Delay JS #31–#32, Object Cache O1–O5, và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images). #1–#5 chuyển `DONE`, #6 `DOING`. Đồng bộ roadmap với 1.3.4. Việc tiếp: xác nhận CI xanh trên `master`, #6 phần còn lại, #7, #8/#9, #10. |
+| 2026-11-19 | Làm #7 Heartbeat control và phần còn lại của #6 (Resource Hints) ở `[Unreleased]` (chưa tăng version, dự kiến 1.3.5). Test mới `test-heartbeat.php` (39) và `test-resource-hints.php` (53), toàn bộ test hiện có vẫn pass. Cần smoke test H1–H6 bên dưới. |
+| 2026-11-19 | Làm #8 (mức độ Safe/Balanced/Strong cho Recommended Settings) và #9 (Safe Testing + `?bepluspb_off=1`) ở `[Unreleased]`. Test mới `test-recommended-levels.php` (60) và `test-safe-testing.php` (37), toàn bộ test hiện có vẫn pass; 5 đột biến đều bị bắt. Cần smoke test S1–S6 bên dưới. |
+| 2026-11-19 | Làm #10 (Automatic Exclusions) ở `[Unreleased]`: class `BEPLUSPB_Compat`, hàm `bepluspb_exclude_list()` thay cho 11 chỗ đọc trực tiếp ô Exclude, card trong tab Advanced. Toàn bộ test pass (8 test cũ thêm `tests/helpers/exclude-list.php`); 5 đột biến đều bị bắt. Cần smoke test A1–A5 bên dưới. |
+| 2026-11-19 | Làm #13 (Cloudflare purge theo URL khi sửa bài) ở `[Unreleased]`; cập nhật mô tả `class-bepluspb-cloudflare.php` trong CLAUDE.md (không còn "chỉ admin bấm nút", vẫn không chạy khi khách tải trang). Toàn bộ test pass, 5 đột biến đều bị bắt. Cần smoke test C1–C4 bên dưới. |
+| 2026-11-19 | Tăng version 1.3.5 (header, `BEPLUSPB_VERSION`, readme Stable tag/Changelog/Upgrade Notice, CHANGELOG), merge vào `staging` để smoke test H/S/A/C. Chưa vào `master`/SVN. |
 
 ## Việc còn lại từ review lần 3
 
@@ -131,11 +137,11 @@ Môi trường dev chưa có WordPress thật (không tải được wordpress.o
 
 - Khi HIT, code của plugin khác không chạy: tường lửa/chặn IP, chế độ bảo trì, age-gate, redirect mới thêm, bộ đếm lượt xem server-side. Màn hình cài đặt liệt kê plugin đang bật thuộc nhóm này; chế độ bảo trì và tùy chọn cài đặt khác dùng ô "Extra Settings That Clear the Cache".
 - Quan sát `pre_get_posts` không thấy plugin đọc bài bằng SQL thô (`$wpdb`): chọn "Every cached page". Tên bài láng giềng ở Prev/Next chỉ cập nhật khi hết TTL hoặc khi đăng/gỡ bài.
-- Còn cần **smoke test trên WordPress thật** (xem checklist) — kiểm tra "Compatibility check" trong card Page Cache không báo lỗi.
+- Smoke test trên WordPress thật đã đạt (2026-11-19).
 
-## Smoke test: Object Cache drop-in khi cấu hình tắt/mất (nhánh `claude/fix-oc-dropin-fatal`)
+## Smoke test: Object Cache drop-in khi cấu hình tắt/mất (nhánh `claude/fix-oc-dropin-fatal`) — ĐÃ ĐẠT 2026-11-19
 
-Chưa chạy trên WordPress thật. Test tự động dùng file `cache.php` giả của core.
+Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy trên WordPress thật.
 
 - **O1** Site đang chạy drop-in BẢN CŨ (1.2.0 trước bản sửa): vào tab Object Cache → có cảnh báo vàng "older Beplus build". Bấm Install Drop-in → cảnh báo biến mất, Object Cache vẫn kết nối Redis (`wp_using_ext_object_cache()` = true, có key `bepluspb:*` trong Redis).
 - **O2** Bỏ tick "Enable Object Cache", lưu → site và wp-admin vẫn lên (HTTP 200, `debug.log` không có `Cannot redeclare`). Site Health không còn báo có persistent object cache; transient lại nằm trong bảng options.
@@ -143,3 +149,35 @@ Chưa chạy trên WordPress thật. Test tự động dùng file `cache.php` gi
 - **O4** Drop-in CŨ đang cài, bỏ tick Enable rồi lưu → drop-in cũ tự bị gỡ (file `object-cache.php` biến mất), site không chết. Nếu `wp-content` không ghi được: lưu báo lỗi, config KHÔNG bị ghi thành tắt.
 - **O5** Gỡ plugin (Delete) khi drop-in còn cài → `object-cache.php` và `.bepluspb_oc.php` cùng biến mất; nếu không xóa được drop-in thì config được giữ lại.
 
+## Smoke test: Heartbeat Control và Resource Hints (chưa chạy)
+
+- **H1** Dashboard = Reduce, interval 120: mở `index.php`, DevTools → Network lọc `admin-ajax.php`, mỗi ~120 s một request `action=heartbeat` (mặc định ~60 s).
+- **H2** Dashboard = Disable: không còn request `heartbeat` trên `index.php`, `plugins.php`; Console không có lỗi JS. Mở bài viết trong editor (Gutenberg và Classic): editor vẫn tải, vẫn lưu được, autosave và khóa bài vẫn chạy.
+- **H3** Editor = Reduce: trong editor request heartbeat thưa hơn; Site Editor, Widgets, Customizer vẫn mở bình thường. Ô Editor không có lựa chọn Disable.
+- **H4** Front end = Disable: `view-source` trang chủ khi đăng nhập admin không còn `heartbeat.min.js`; giỏ hàng/form AJAX của site vẫn chạy. Customizer preview vẫn hoạt động.
+- **H5** Bật Heartbeat khi công tắc master (Cache) đang tắt: vẫn có hiệu lực.
+- **H6** Resource Hints: nhập `https://fonts.example.com crossorigin`, một dòng sai (`javascript:x`), 6 dòng dns-prefetch → lưu: có cảnh báo vàng liệt kê dòng bị bỏ, `view-source` (đăng xuất) có đúng các thẻ `<link rel="preconnect"…>`/`dns-prefetch` ngay đầu `<head>`, không trùng với preconnect của Google Fonts/CDN; với Page Cache bật, trang cache sau khi lưu có thẻ mới.
+
+## Smoke test: Safe Testing, `?bepluspb_off` và mức độ Recommended (chưa chạy)
+
+- **S1** Dashboard → Recommended Settings: chọn Safe/Balanced/Strong, bấm Preview: bảng thay đổi khác nhau theo mức; Apply, rồi Restore Previous Settings trả đúng giá trị cũ (kể cả `css_non_blocking`, `js_delay`). Site Elementor: Strong không bật Delay JS / Non-Render-Blocking CSS.
+- **S2** Strong trên site blog thật: duyệt vài trang (menu, slider, form), Console không lỗi, không FOUC. Nếu có, ghi lại để chỉnh mức Strong.
+- **S3** Bật Safe Testing, lưu: `advanced-cache.php` và `.bepluspb_pc.php` biến mất, trang cache bị xóa. Cửa sổ ẩn danh: trang gốc (CSS/JS không minify, không `bepluspb-cache/`). Đăng nhập admin: trang đã tối ưu. Thanh admin có "(Safe Testing)".
+- **S4** Tắt Safe Testing, lưu: Page Cache hoạt động lại (HIT sau lần tải thứ hai), khách thấy trang tối ưu.
+- **S5** `?bepluspb_off=1` (ẩn danh và admin): trang gốc, header không cache (`Cache-Control: no-cache`), không có `X-Beplus-Page-Cache: HIT`; bỏ tham số thì trở lại bản tối ưu/HIT. Nút "View without optimizations" trên admin bar đúng URL, và "Back to the optimized page" quay lại.
+- **S6** Safe Testing + Cloudflare/CDN: xác nhận CDN không viết lại URL cho khách trong lúc kiểm tra.
+
+## Smoke test: Automatic Exclusions (chưa chạy)
+
+- **A1** Site có WooCommerce + Delay JS (Simple và Advanced) + Defer: `view-source` trang sản phẩm: script `woocommerce/assets/js/…` không có `defer`/`data-bepluspb-delay`/placeholder; script khác vẫn bị delay/defer. Thêm vào giỏ, cập nhật giỏ, thanh toán chạy đúng ngay khi vừa tải trang.
+- **A2** WooCommerce với slug trang đã đổi/dịch (vd. `/gio-hang/`): trang giỏ/thanh toán/tài khoản không có `X-Beplus-Page-Cache: HIT` và không có file trong `wp-content/cache/`. Đặt trang Shop làm trang chủ: trang chủ **vẫn** được cache (không bị loại trừ cả site).
+- **A3** Elementor: CSS `uploads/elementor/css/…` và `elementor/assets/css/…` vẫn render-blocking khi bật Non-Render-Blocking CSS (không FOUC); JS Elementor không bị delay. Divi / Slider Revolution / Gravity Forms: form và slider chạy khi bật Delay + Defer + Minify.
+- **A4** Tab Advanced → Automatic Exclusions: rule đúng "Found, applied" / "Not found"; tick Skip WooCommerce, lưu → script Woo lại bị defer/delay; bỏ tick "Exclude automatically" → mọi rule "Found, not applied". Các ô Exclude JS/CSS/Pages của bạn không bị đổi.
+- **A5** Stripe/PayPal/reCAPTCHA: trang có CAPTCHA hoặc nút thanh toán, bật Delay JS, gửi form ngay sau khi tải trang → CAPTCHA/thanh toán hoạt động.
+
+## Smoke test: Cloudflare purge theo URL (chưa chạy, cần zone Cloudflare thật có Cache Everything)
+
+- **C1** Bật Cloudflare + Test Connection + "Purge Edited Pages", lưu. Sửa và cập nhật một bài đã đăng: `curl -I` URL bài, trang chủ, archive danh mục của bài → `CF-Cache-Status: MISS/EXPIRED` ở lần đầu (đã bị purge), trang khác vẫn `HIT`. Dưới ô tick có dòng "Last automatic purge … succeeded".
+- **C2** Đổi slug bài đã đăng: URL cũ cũng hết cache; chuyển bài vào thùng rác: URL gốc (không có `__trashed`) hết cache.
+- **C3** Sửa nháp, bản nháp tự lưu, bản sửa đổi: không có request nào tới Cloudflare (Network/log của Cloudflare). Bài hẹn giờ đến hạn đăng: được purge (qua WP-Cron).
+- **C4** Sửa hàng loạt >60 bài (Bulk Edit): zone bị purge một lần; làm lần nữa trong vòng 1 phút → dòng "Last automatic purge" báo bị bỏ qua. Token sai: dòng báo failed, không lỗi trang, không lộ token ở đâu.

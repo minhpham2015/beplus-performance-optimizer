@@ -199,6 +199,65 @@ can add the image to Priority Images for you.
 
 ---
 
+= 🧩 Automatic Exclusions (Advanced tab) =
+
+**Exclude automatically** — Default: on
+
+When a listed plugin or theme is active, its files are kept out of minify, defer, delay and CSS deferral, and its
+checkout-style pages out of the page cache, as if you had typed them into the Exclude boxes. Your own Exclude boxes
+are never changed. The list ships with the plugin (nothing is downloaded). Rules: WooCommerce, Elementor, Divi / Extra /
+Divi Builder, Slider Revolution, Gravity Forms, and payment/CAPTCHA scripts (Stripe, PayPal, reCAPTCHA, hCaptcha,
+Turnstile; always on). The card shows which rules were found on your site; tick **Skip** on a rule you do not need
+(excluded files load a little slower than optimised ones).
+
+---
+
+= 🧪 Safe Testing (Cache Files tab) =
+
+**Administrators only** — Default: off
+
+* On: only logged-in administrators get the front-end optimizations; visitors and other users see the site as if the
+  plugin did nothing. The Page Cache is paused and emptied while it is on. Untick and save when you are happy.
+* Not covered: `.htaccess` browser-cache rules, Object Cache, Cloudflare, Predictive Navigation, Heartbeat control.
+
+*One request without the optimizations* — add `?bepluspb_off=1` to any front-end URL (or use "View without
+optimizations" in the admin bar). Works for everyone, nothing is saved, the page is never cached.
+
+= 🎚️ Recommended Settings levels (Dashboard) =
+
+Pick the site profile and a level, preview the exact changes, apply. "Restore Previous Settings" undoes the last apply once.
+
+* **Safe**: caching, lazy load, CSS minify, emoji/embed cleanup. No JS minify or defer, no HTML minify.
+* **Balanced** (default): the recommended plan of the profile.
+* **Strong**: Balanced plus Non-Render-Blocking CSS and Delay JS (not on shops and membership sites). Page-builder
+  safety rules (Elementor) still apply at every level.
+
+---
+
+= 💓 Heartbeat Control (Cleanup tab) =
+
+Default: *WordPress default* for every location. Works without the master cache switch.
+
+* **Dashboard**: every wp-admin page except the editing screens. *Reduce frequency* or *Disable*.
+* **Post editor, site editor, widgets and Customizer**: *Reduce frequency* only. These screens use the
+  Heartbeat for autosave, post locking and the session check, and the block editors need the script to load.
+* **Front end**: *Reduce frequency* or *Disable*. Check plugins that show live data (notifications, forms, carts)
+  after disabling.
+* **Interval when reduced**: 15-120 seconds (a limit of WordPress). A longer interval already set elsewhere is kept.
+
+= 🔗 Resource Hints (Advanced tab) =
+
+Default: empty (nothing printed).
+
+* **Preconnect**: up to 4 origins, one per line (`https://cdn.example.com`). Add `crossorigin` after the origin for
+  fonts and other CORS requests. Each open connection costs the visitor bandwidth and battery: list only servers
+  the first screen needs.
+* **DNS-prefetch**: up to 10 origins. Only resolves the name, cheaper than preconnect.
+* Only http(s) origins are kept (path and query are dropped); IP addresses, credentials and single-label hosts are
+  rejected with a notice. The site's own address is skipped. The plugin never contacts these servers itself.
+
+---
+
 = 🔤 Google Fonts (Advanced tab) =
 
 **Optimize Google Fonts**
@@ -487,14 +546,28 @@ Keep Cloudflare's edge cache in sync with this plugin's own cache, and
 control Cloudflare Development Mode, without leaving wp-admin. This does
 not set up Cloudflare as a CDN/DNS proxy for you — it only talks to a
 Cloudflare zone you have already added your domain to. All Cloudflare API
-calls are admin-triggered only (nonce + capability checked, and rate
-limited); nothing is called automatically on a regular front-end page load.
+calls are admin-triggered (nonce + capability checked, and rate limited),
+except the optional "Purge Edited Pages" below, which runs when a post is saved;
+nothing is called on a regular front-end page load.
 
 **Enable Cloudflare Integration**
 Default: off
 
 When on, the existing "Clear Cache" button also purges Cloudflare's cache
 for the configured zone, in addition to this plugin's own CSS/JS cache.
+
+**Purge Edited Pages**
+Default: off
+
+When a post or page is published, updated, unpublished or trashed, only its
+addresses are purged at Cloudflare: the page itself (and its old address if the
+slug changed), the home page, the posts page or post type archive, its category/tag
+archives, the author archive and the main feed. Runs on saves in wp-admin, over REST,
+from WP-Cron (scheduled posts) and WP-CLI, never on a visitor's page load. A bulk edit
+(more than 60 addresses) purges the whole zone instead, at most once a minute. Page 2+
+of archives and date archives are not purged (they expire with Cloudflare's cache
+lifetime). The last result is shown under the checkbox. Only useful when Cloudflare
+caches your HTML ("Cache Everything" rule).
 
 **API Token**
 Default: empty

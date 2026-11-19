@@ -9,6 +9,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 $root = sys_get_temp_dir() . '/bepluspb-osr-' . bin2hex( random_bytes( 4 ) );
 mkdir( "$root/cache", 0777, true );
 register_shutdown_function( function () use ( $root ) { exec( 'rm -rf ' . escapeshellarg( $root ) ); } );

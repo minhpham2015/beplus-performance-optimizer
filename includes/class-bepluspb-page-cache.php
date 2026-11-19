@@ -269,14 +269,15 @@ class BEPLUSPB_Page_Cache {
 	// =========================================================================
 
 	/**
-	 * Whether the page cache is switched on (master toggle AND its own toggle).
+	 * Whether the page cache is switched on (master toggle AND its own toggle, and not paused by
+	 * safe testing: while only administrators get the optimisations, a stored page would be served to visitors).
 	 *
 	 * @param array|null $opts Options (defaults to the saved ones).
 	 * @return bool
 	 */
 	public static function is_enabled( $opts = null ) {
 		$opts = is_array( $opts ) ? $opts : bepluspb_get_options();
-		return ! empty( $opts['cache_enabled'] ) && ! empty( $opts['page_cache_enabled'] );
+		return ! empty( $opts['cache_enabled'] ) && ! empty( $opts['page_cache_enabled'] ) && empty( $opts['safe_mode_admins_only'] );
 	}
 
 	/**
@@ -745,7 +746,7 @@ class BEPLUSPB_Page_Cache {
 			'enabled'         => self::is_enabled( $opts ),
 			'ttl'             => self::sanitize_ttl_hours( $opts['page_cache_ttl'] ?? 10 ) * HOUR_IN_SECONDS,
 			'hosts'           => self::allowed_hosts(),
-			'exclude_paths'   => bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] ?? '' ),
+			'exclude_paths'   => bepluspb_exclude_list( $opts, 'pages' ),
 			'exclude_cookies' => bepluspb_parse_exclude_list( $opts['page_cache_exclude_cookies'] ?? '' ),
 			'accept_variants' => ! empty( $opts['cdn_webp_avif'] ),
 			'mobile'          => self::effective_mobile_mode( $opts ),

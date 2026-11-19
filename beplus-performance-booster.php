@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Beplus Performance Booster
  * Description: Smart caching, JS/CSS minification, lazy loading, and site cleanup in one lightweight plugin — frontend performance without touching the admin.
- * Version: 1.3.4
+ * Version: 1.3.5
  * Author:      Minh BePlus
  * Author URI:  https://beplusthemes.com/
  * License:     GPLv2 or later
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // CONSTANTS
 // ---------------------------------------------------------------------------
 
-define( 'BEPLUSPB_VERSION', '1.3.4' );
+define( 'BEPLUSPB_VERSION', '1.3.5' );
 define( 'BEPLUSPB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BEPLUSPB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BEPLUSPB_OPTIONS_KEY', 'bepluspb_settings' );
@@ -152,6 +152,23 @@ function bepluspb_default_options() {
 		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
+		// --- Automatic exclusions for popular plugins/themes (static list, see BEPLUSPB_Compat) ---
+		'auto_exclude'                       => 1,   // Keep the listed plugins' scripts/styles out of minify/defer/delay/CSS deferral and their checkout pages out of the page cache.
+		'auto_exclude_off'                   => '',  // Rule ids the administrator switched off (newline-separated).
+
+		// --- Safe testing ---
+		'safe_mode_admins_only'              => 0,   // Only logged-in administrators get the front-end optimisations (and Page Cache is paused): visitors see the site as without the plugin.
+
+		// --- Heartbeat control (WordPress Heartbeat API; works without the master cache toggle) ---
+		'heartbeat_dashboard'                => 'default', // default | reduce | disable (wp-admin pages except the editing screens).
+		'heartbeat_editor'                   => 'default', // default | reduce (post editor, site editor, widgets, Customizer: "disable" is not offered, block editors depend on the script).
+		'heartbeat_frontend'                 => 'default', // default | reduce | disable.
+		'heartbeat_interval'                 => 120,       // Seconds between pulses when "reduce" is chosen (15-120).
+
+		// --- Resource hints (preconnect / dns-prefetch for third-party origins) ---
+		'resource_hints_preconnect'          => '',  // Origins to preconnect to, one per line (max 4).
+		'resource_hints_dns_prefetch'        => '',  // Origins to dns-prefetch, one per line (max 10).
+
 		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---
 		'predictive_navigation_enabled'      => 0,
 		'predictive_navigation_mode'         => 'safe',
@@ -166,6 +183,7 @@ function bepluspb_default_options() {
 
 		// --- Cloudflare (API-triggered cache purge + development mode) ---
 		'cloudflare_enabled'                 => 0,
+		'cloudflare_purge_on_edit'           => 0,  // Purge the edited post's URLs at Cloudflare when a post is saved (needs the zone from Test Connection).
 		'cloudflare_api_token'               => '',  // Cloudflare API Token (Bearer auth only, no legacy Global API Key support).
 		'cloudflare_zone_id'                 => '',  // Auto-populated by "Test Connection" — never user-editable directly.
 		'cloudflare_zone_name'               => '',  // Matched zone name, shown read-only in the UI.
@@ -239,6 +257,27 @@ function bepluspb_parse_exclude_list( $textarea ) {
 	return array_values( array_filter( array_map( 'trim', $lines ) ) );
 }
 
+/**
+ * The effective exclusion list of one kind: what the administrator typed plus the automatic exclusions
+ * of the detected plugins/themes (BEPLUSPB_Compat). Front-end code uses this instead of reading the
+ * "Exclude ..." settings directly; the saved settings themselves are never changed.
+ *
+ * @param  array  $opts Options.
+ * @param  string $kind js, css or pages.
+ * @return array
+ */
+function bepluspb_exclude_list( $opts, $kind ) {
+	if ( class_exists( 'BEPLUSPB_Compat' ) ) {
+		return BEPLUSPB_Compat::exclusions( $opts, $kind );
+	}
+	$key = array(
+		'js'    => 'js_exclude',
+		'css'   => 'css_exclude',
+		'pages' => 'cache_exclude_pages',
+	);
+	return isset( $key[ $kind ], $opts[ $key[ $kind ] ] ) ? bepluspb_parse_exclude_list( $opts[ $key[ $kind ] ] ) : array();
+}
+
 
 // ---------------------------------------------------------------------------
 // LOAD CLASS FILES
@@ -252,6 +291,9 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-admin.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-font-preload.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-htaccess.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-compat.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-heartbeat.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-resource-hints.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
@@ -319,6 +361,16 @@ register_deactivation_hook(
 
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Admin', 'init' ) );
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Predictive_Navigation', 'init' ), 20 );
+add_action( 'plugins_loaded', 'bepluspb_boot_heartbeat', 20 );
+add_action( 'plugins_loaded', array( 'BEPLUSPB_Cloudflare', 'register_hooks' ), 20 );
+
+/**
+ * Heartbeat control runs in wp-admin and on the front end, so it is set up here instead of in
+ * bepluspb_boot_frontend() (which skips wp-admin and needs the master cache toggle).
+ */
+function bepluspb_boot_heartbeat() {
+	BEPLUSPB_Heartbeat::init( bepluspb_get_options() );
+}
 
 /**
  * Auto-clear the CSS/JS cache whenever a plugin or theme update completes.
@@ -378,9 +430,30 @@ function bepluspb_boot_frontend() {
 		return;
 	}
 
+	// `?bepluspb_off` loads this one request as if the plugin's front-end optimisations were off
+	// (compare a page with and without them, or find out which one breaks something). It only ever
+	// turns things OFF and stores nothing; the page cache never serves or stores a URL with a query
+	// string it does not know, and the response is marked uncacheable for browsers and CDNs.
+	if ( bepluspb_is_bypass_request() ) {
+		if ( ! headers_sent() ) {
+			nocache_headers();
+		}
+		return;
+	}
+
 	$opts = bepluspb_get_options();
 
 	if ( empty( $opts['cache_enabled'] ) ) {
+		return;
+	}
+
+	$is_admin_user = is_user_logged_in() && current_user_can( 'manage_options' );
+
+	// Safe testing: only administrators get the optimisations, visitors see the untouched site.
+	// (The Page Cache is paused as well, see BEPLUSPB_Page_Cache::is_enabled(): a stored page would
+	// otherwise be served to visitors.)
+	$preview = ! empty( $opts['safe_mode_admins_only'] );
+	if ( $preview && ! $is_admin_user ) {
 		return;
 	}
 
@@ -390,9 +463,10 @@ function bepluspb_boot_frontend() {
 	// Administrators see the untouched page so they can edit and debug it: no minified
 	// CSS/JS, no defer/delay, no HTML/CDN rewriting. Every other logged-in user (members,
 	// customers, editors) is optimised exactly like a visitor, since the files are static.
-	// Return true from this filter to preview exactly what visitors get.
-	$optimize_admins = (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
-	if ( ! $optimize_admins && is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+	// Return true from this filter to preview exactly what visitors get. Safe testing is the
+	// opposite: the administrator is the only one who gets the optimised page.
+	$optimize_admins = $preview || (bool) apply_filters( 'bepluspb_optimize_for_admins', false ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- prefixed.
+	if ( ! $optimize_admins && $is_admin_user ) {
 		return;
 	}
 
@@ -405,7 +479,17 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_Images::init( $opts );
 	BEPLUSPB_Lazy_HTML::init( $opts );
 	BEPLUSPB_Priority_Images::init( $opts );
+	BEPLUSPB_Resource_Hints::init( $opts );
 	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
+}
+
+/**
+ * Whether this request asked for the front-end optimisations to be skipped (`?bepluspb_off`).
+ *
+ * @return bool
+ */
+function bepluspb_is_bypass_request() {
+	return isset( $_GET['bepluspb_off'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only switch that only turns optimisations off, nothing is stored.
 }
