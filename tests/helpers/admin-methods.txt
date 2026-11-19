@@ -63,3 +63,5 @@ handle_ajax_gf_download
 handle_ajax_gf_clear
 gf_status_payload
 render_google_fonts_local_status
+render_card_heartbeat
+render_card_resource_hints

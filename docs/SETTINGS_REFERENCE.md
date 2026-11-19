@@ -199,6 +199,30 @@ can add the image to Priority Images for you.
 
 ---
 
+= 💓 Heartbeat Control (Cleanup tab) =
+
+Default: *WordPress default* for every location. Works without the master cache switch.
+
+* **Dashboard**: every wp-admin page except the editing screens. *Reduce frequency* or *Disable*.
+* **Post editor, site editor, widgets and Customizer**: *Reduce frequency* only. These screens use the
+  Heartbeat for autosave, post locking and the session check, and the block editors need the script to load.
+* **Front end**: *Reduce frequency* or *Disable*. Check plugins that show live data (notifications, forms, carts)
+  after disabling.
+* **Interval when reduced**: 15-120 seconds (a limit of WordPress). A longer interval already set elsewhere is kept.
+
+= 🔗 Resource Hints (Advanced tab) =
+
+Default: empty (nothing printed).
+
+* **Preconnect**: up to 4 origins, one per line (`https://cdn.example.com`). Add `crossorigin` after the origin for
+  fonts and other CORS requests. Each open connection costs the visitor bandwidth and battery: list only servers
+  the first screen needs.
+* **DNS-prefetch**: up to 10 origins. Only resolves the name, cheaper than preconnect.
+* Only http(s) origins are kept (path and query are dropped); IP addresses, credentials and single-label hosts are
+  rejected with a notice. The site's own address is skipped. The plugin never contacts these servers itself.
+
+---
+
 = 🔤 Google Fonts (Advanced tab) =
 
 **Optimize Google Fonts**

@@ -100,6 +100,62 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 			</div>
 		</div>
 		<?php
+		self::render_card_resource_hints( $opts );
+	}
+
+	/**
+	 * Render the "Resource Hints" card: preconnect / dns-prefetch for third-party origins.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_resource_hints( $opts ) {
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Resource Hints', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Tell the browser to open the connection to a third-party server (analytics, fonts, video, widgets) while it is still reading the page, so the first request to it starts sooner. Only list servers the first screen really needs.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_resource_hints_preconnect"><?php esc_html_e( 'Preconnect', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One origin per line, up to 4.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_resource_hints_preconnect"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[resource_hints_preconnect]"
+							rows="4" class="large-text code" placeholder="https://cdn.example.com"><?php echo esc_textarea( $opts['resource_hints_preconnect'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Opens the connection fully (DNS, TCP and TLS). Add the word crossorigin after the origin for fonts and other files fetched with CORS, for example:', 'beplus-performance-booster' ); ?>
+							<code>https://fonts.example.com crossorigin</code><br>
+							<?php esc_html_e( 'Each open connection costs the visitor battery and bandwidth: keep this list to the one to three servers the first screen uses. Google Fonts and the CDN host are already handled by their own settings.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_resource_hints_dns_prefetch"><?php esc_html_e( 'DNS-prefetch', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One origin per line, up to 10.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_resource_hints_dns_prefetch"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[resource_hints_dns_prefetch]"
+							rows="4" class="large-text code" placeholder="https://www.google-analytics.com"><?php echo esc_textarea( $opts['resource_hints_dns_prefetch'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Only looks up the server name: much cheaper than preconnect, a good fit for servers used later in the page (analytics, ads, social widgets).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<p class="description">
+					<?php esc_html_e( 'Only http(s) origins are accepted (a path or query is ignored). The plugin never contacts these servers itself, it only prints the hints in the page head.', 'beplus-performance-booster' ); ?>
+				</p>
+
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -602,6 +658,72 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 					</div>
 				</div>
 
+			</div>
+		</div>
+		<?php
+		self::render_card_heartbeat( $opts );
+	}
+
+	/**
+	 * Render the "Heartbeat Control" card.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_heartbeat( $opts ) {
+		$rows = array(
+			'heartbeat_dashboard' => array(
+				'label'   => __( 'Dashboard', 'beplus-performance-booster' ),
+				'desc'    => __( 'Every wp-admin page except the editing screens below. Disabling is safe for most sites: the "your session has expired" login box and live updates some plugins show on their admin pages stop.', 'beplus-performance-booster' ),
+				'disable' => true,
+			),
+			'heartbeat_editor'    => array(
+				'label'   => __( 'Post editor, site editor, widgets and Customizer', 'beplus-performance-booster' ),
+				'desc'    => __( 'The Heartbeat keeps autosave, post locking ("someone else is editing") and the session check alive here. It can be slowed down, not switched off: the block editors need the script to load.', 'beplus-performance-booster' ),
+				'disable' => false,
+			),
+			'heartbeat_frontend'  => array(
+				'label'   => __( 'Front end', 'beplus-performance-booster' ),
+				'desc'    => __( 'Pages visitors see. Many sites do not load the Heartbeat there at all, but some plugins do (live notifications, forms, cart widgets): check them after disabling.', 'beplus-performance-booster' ),
+				'disable' => true,
+			),
+		);
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Heartbeat Control', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'The WordPress Heartbeat sends a request to admin-ajax.php every 15 to 60 seconds from every open wp-admin tab. Many tabs can keep a small server busy. These settings work even when the master cache switch is off and never touch the database.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+				<?php foreach ( $rows as $key => $row ) : ?>
+					<div class="bepluspb-form-row">
+						<div class="bepluspb-form-row-label">
+							<label for="bepluspb_<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $row['label'] ); ?></label>
+						</div>
+						<div class="bepluspb-form-row-field">
+							<select id="bepluspb_<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[<?php echo esc_attr( $key ); ?>]">
+								<option value="default" <?php selected( $opts[ $key ], 'default' ); ?>><?php esc_html_e( 'WordPress default', 'beplus-performance-booster' ); ?></option>
+								<option value="reduce" <?php selected( $opts[ $key ], 'reduce' ); ?>><?php esc_html_e( 'Reduce frequency', 'beplus-performance-booster' ); ?></option>
+								<?php if ( $row['disable'] ) : ?>
+									<option value="disable" <?php selected( $opts[ $key ], 'disable' ); ?>><?php esc_html_e( 'Disable', 'beplus-performance-booster' ); ?></option>
+								<?php endif; ?>
+							</select>
+							<p class="description"><?php echo esc_html( $row['desc'] ); ?></p>
+						</div>
+					</div>
+				<?php endforeach; ?>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_heartbeat_interval"><?php esc_html_e( 'Interval when reduced', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_heartbeat_interval" min="15" max="120" step="1" class="small-text"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[heartbeat_interval]"
+							value="<?php echo esc_attr( (int) $opts['heartbeat_interval'] ); ?>">
+						<?php esc_html_e( 'seconds', 'beplus-performance-booster' ); ?>
+						<p class="description"><?php esc_html_e( 'Between 15 and 120 (a limit of WordPress itself). A longer interval already set elsewhere is kept. Autosave in the editor then also runs less often.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
 			</div>
 		</div>
 		<?php

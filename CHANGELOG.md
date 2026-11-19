@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Heartbeat Control** (Cleanup tab; `BEPLUSPB_Heartbeat`; options `heartbeat_dashboard`, `heartbeat_editor`, `heartbeat_frontend`, `heartbeat_interval`; all default "WordPress default"). Per location: *Reduce frequency* (raises the `interval` WordPress hands to `heartbeat.js` to 15-120 s, never lowers one that is already longer) or *Disable* (deregisters the `heartbeat` script, at `admin_enqueue_scripts` / `wp_enqueue_scripts` priority 1). Locations: Dashboard (every wp-admin page except the editing screens), Editor (`post.php`, `post-new.php`, `site-editor.php`, `widgets.php`, `customize.php`) and Front end. The editor can only be reduced, not disabled: block editors list `heartbeat` as a script dependency, so deregistering it would stop them from loading; the Customizer preview keeps the script too. Runs from `plugins_loaded`, independent of the master cache switch and of the administrator gate, because most of the traffic it saves comes from wp-admin. No database access, no outbound request. Test: `tests/test-heartbeat.php`.
+- **Resource Hints** (Advanced tab, under Font Preload / Google Fonts; `BEPLUSPB_Resource_Hints`; options `resource_hints_preconnect` (max 4), `resource_hints_dns_prefetch` (max 10)). One third-party origin per line, `preconnect` with an optional `crossorigin` word for fonts/CORS. Output only (`<link>` at `wp_head` priority 1, front end, same gate as the other optimisers): the plugin never contacts these hosts. Every line is reduced to `scheme://host[:port]` and validated on save and again at output: http(s) only, no credentials, real DNS names (no IPs, no single-label hosts), the site's own origin is skipped, invalid lines are dropped with a notice. Test: `tests/test-resource-hints.php`.
+
 ## [1.3.4] - 2026-11-18
 
 ### Fixed

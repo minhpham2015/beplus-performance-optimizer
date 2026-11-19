@@ -22,8 +22,8 @@ Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.4 (trên
 | # | Tính năng | Ghi chú | Trạng thái |
 |---|---|---|---|
 | 5 | Critical CSS | Đã phát hành 1.3.0: Generator chạy trong trình duyệt của admin (không chạy trên máy chủ), lưu theo page type, nhập tay được. Cập nhật 1.3.1–1.3.2. | DONE |
-| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Đã có: Priority Images + LCP Analyzer (1.3.0), preconnect cho CDN và Google Fonts. Còn thiếu: preconnect/dns-prefetch cho domain bên thứ ba khác. | DOING |
-| 7 | Heartbeat control | Không đụng DB. | TODO |
+| 6 | Preconnect / DNS-prefetch + fetchpriority cho ảnh LCP | Priority Images + LCP Analyzer (1.3.0), preconnect cho CDN và Google Fonts, và ô Resource Hints (preconnect tối đa 4 / dns-prefetch tối đa 10 origin bên thứ ba, chỉ in `<link>`, không gọi mạng; test `test-resource-hints.php`). Chưa smoke test trên WP thật. | REVIEW |
+| 7 | Heartbeat control | Dashboard / Editor / Front end: giữ mặc định, giảm tần suất (15–120 s) hoặc tắt (editor chỉ giảm, vì block editor phụ thuộc script). Không đụng DB, độc lập công tắc master. Test `test-heartbeat.php`. Chưa smoke test trên WP thật. | REVIEW |
 | 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Mở rộng `class-bepluspb-recommendations.php`. | TODO |
 | 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | | TODO |
 | 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
@@ -125,6 +125,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-06 | Rà soát roadmap: đồng bộ với 1.1.14, sắp lại nhật ký theo thời gian, chốt 5 việc ưu tiên (smoke test → #4 → #6 → #7 → #8). Chưa có thay đổi code. |
 | 2026-11-12 | Merge nhánh `claude/busy-fermi-af0fhn` (bị sót từ 2026-10-22) vào `staging`: Delay JS (Simple) giữ form submit tới khi script chạy xong, không delay script cần cho inline 'after', chú thích Defer/Delay. Review sau merge sửa thêm: bấm 2 lần gửi form 2 lần, form có field tên `submit` không gửi được trên trình duyệt thiếu `requestSubmit()`, Defer làm dependency chạy sau script cần nó. Test mới `test-delay-js-inline-after-deps.php`. Cần smoke test #31–#32. |
 | 2026-11-19 | Smoke test trên WordPress thật xong và đạt: Page Cache #9–#30, Delay JS #31–#32, Object Cache O1–O5, và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images). #1–#5 chuyển `DONE`, #6 `DOING`. Đồng bộ roadmap với 1.3.4. Việc tiếp: xác nhận CI xanh trên `master`, #6 phần còn lại, #7, #8/#9, #10. |
+| 2026-11-19 | Làm #7 Heartbeat control và phần còn lại của #6 (Resource Hints) ở `[Unreleased]` (chưa tăng version, dự kiến 1.3.5). Test mới `test-heartbeat.php` (39) và `test-resource-hints.php` (53), toàn bộ test hiện có vẫn pass. Cần smoke test H1–H6 bên dưới. |
 
 ## Việc còn lại từ review lần 3
 
@@ -144,3 +145,11 @@ Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy t
 - **O4** Drop-in CŨ đang cài, bỏ tick Enable rồi lưu → drop-in cũ tự bị gỡ (file `object-cache.php` biến mất), site không chết. Nếu `wp-content` không ghi được: lưu báo lỗi, config KHÔNG bị ghi thành tắt.
 - **O5** Gỡ plugin (Delete) khi drop-in còn cài → `object-cache.php` và `.bepluspb_oc.php` cùng biến mất; nếu không xóa được drop-in thì config được giữ lại.
 
+## Smoke test: Heartbeat Control và Resource Hints (chưa chạy)
+
+- **H1** Dashboard = Reduce, interval 120: mở `index.php`, DevTools → Network lọc `admin-ajax.php`, mỗi ~120 s một request `action=heartbeat` (mặc định ~60 s).
+- **H2** Dashboard = Disable: không còn request `heartbeat` trên `index.php`, `plugins.php`; Console không có lỗi JS. Mở bài viết trong editor (Gutenberg và Classic): editor vẫn tải, vẫn lưu được, autosave và khóa bài vẫn chạy.
+- **H3** Editor = Reduce: trong editor request heartbeat thưa hơn; Site Editor, Widgets, Customizer vẫn mở bình thường. Ô Editor không có lựa chọn Disable.
+- **H4** Front end = Disable: `view-source` trang chủ khi đăng nhập admin không còn `heartbeat.min.js`; giỏ hàng/form AJAX của site vẫn chạy. Customizer preview vẫn hoạt động.
+- **H5** Bật Heartbeat khi công tắc master (Cache) đang tắt: vẫn có hiệu lực.
+- **H6** Resource Hints: nhập `https://fonts.example.com crossorigin`, một dòng sai (`javascript:x`), 6 dòng dns-prefetch → lưu: có cảnh báo vàng liệt kê dòng bị bỏ, `view-source` (đăng xuất) có đúng các thẻ `<link rel="preconnect"…>`/`dns-prefetch` ngay đầu `<head>`, không trùng với preconnect của Google Fonts/CDN; với Page Cache bật, trang cache sau khi lưu có thẻ mới.

@@ -152,6 +152,16 @@ function bepluspb_default_options() {
 		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
+		// --- Heartbeat control (WordPress Heartbeat API; works without the master cache toggle) ---
+		'heartbeat_dashboard'                => 'default', // default | reduce | disable (wp-admin pages except the editing screens).
+		'heartbeat_editor'                   => 'default', // default | reduce (post editor, site editor, widgets, Customizer: "disable" is not offered, block editors depend on the script).
+		'heartbeat_frontend'                 => 'default', // default | reduce | disable.
+		'heartbeat_interval'                 => 120,       // Seconds between pulses when "reduce" is chosen (15-120).
+
+		// --- Resource hints (preconnect / dns-prefetch for third-party origins) ---
+		'resource_hints_preconnect'          => '',  // Origins to preconnect to, one per line (max 4).
+		'resource_hints_dns_prefetch'        => '',  // Origins to dns-prefetch, one per line (max 10).
+
 		// --- Predictive Navigation (WordPress 6.8+ native Speculation Rules) ---
 		'predictive_navigation_enabled'      => 0,
 		'predictive_navigation_mode'         => 'safe',
@@ -252,6 +262,8 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-admin.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-font-preload.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-htaccess.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-heartbeat.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-resource-hints.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-js.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-images.php';
@@ -319,6 +331,15 @@ register_deactivation_hook(
 
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Admin', 'init' ) );
 add_action( 'plugins_loaded', array( 'BEPLUSPB_Predictive_Navigation', 'init' ), 20 );
+add_action( 'plugins_loaded', 'bepluspb_boot_heartbeat', 20 );
+
+/**
+ * Heartbeat control runs in wp-admin and on the front end, so it is set up here instead of in
+ * bepluspb_boot_frontend() (which skips wp-admin and needs the master cache toggle).
+ */
+function bepluspb_boot_heartbeat() {
+	BEPLUSPB_Heartbeat::init( bepluspb_get_options() );
+}
 
 /**
  * Auto-clear the CSS/JS cache whenever a plugin or theme update completes.
@@ -405,6 +426,7 @@ function bepluspb_boot_frontend() {
 	BEPLUSPB_Images::init( $opts );
 	BEPLUSPB_Lazy_HTML::init( $opts );
 	BEPLUSPB_Priority_Images::init( $opts );
+	BEPLUSPB_Resource_Hints::init( $opts );
 	BEPLUSPB_Google_Fonts::init( $opts );
 	BEPLUSPB_HTML::init( $opts );
 	BEPLUSPB_CDN::init( $opts );
