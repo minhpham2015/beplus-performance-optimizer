@@ -746,7 +746,7 @@ class BEPLUSPB_Page_Cache {
 			'enabled'         => self::is_enabled( $opts ),
 			'ttl'             => self::sanitize_ttl_hours( $opts['page_cache_ttl'] ?? 10 ) * HOUR_IN_SECONDS,
 			'hosts'           => self::allowed_hosts(),
-			'exclude_paths'   => bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] ?? '' ),
+			'exclude_paths'   => bepluspb_exclude_list( $opts, 'pages' ),
 			'exclude_cookies' => bepluspb_parse_exclude_list( $opts['page_cache_exclude_cookies'] ?? '' ),
 			'accept_variants' => ! empty( $opts['cdn_webp_avif'] ),
 			'mobile'          => self::effective_mobile_mode( $opts ),

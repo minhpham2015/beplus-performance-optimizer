@@ -10,6 +10,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'BEPLUSPB_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
 define( 'BEPLUSPB_VERSION', 'test' );

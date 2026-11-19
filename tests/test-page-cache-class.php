@@ -55,6 +55,7 @@ function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return 
 function bepluspb_get_options() { return $GLOBALS['opts']; }
 function bepluspb_default_options() { return array( 'cache_enabled' => 0, 'page_cache_enabled' => 0 ); }
 function bepluspb_parse_exclude_list( $t ) { return $t ? array_values( array_filter( array_map( 'trim', explode( "\n", $t ) ) ) ) : array(); }
+require_once __DIR__ . '/helpers/exclude-list.php';
 function is_admin() { return false; }
 function wp_next_scheduled( $h ) { return $GLOBALS['cron'][ $h ] ?? false; }
 function wp_schedule_event( $t, $r, $h ) { $GLOBALS['cron'][ $h ] = $t; return true; }

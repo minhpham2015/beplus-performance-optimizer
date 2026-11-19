@@ -199,6 +199,19 @@ can add the image to Priority Images for you.
 
 ---
 
+= 🧩 Automatic Exclusions (Advanced tab) =
+
+**Exclude automatically** — Default: on
+
+When a listed plugin or theme is active, its files are kept out of minify, defer, delay and CSS deferral, and its
+checkout-style pages out of the page cache, as if you had typed them into the Exclude boxes. Your own Exclude boxes
+are never changed. The list ships with the plugin (nothing is downloaded). Rules: WooCommerce, Elementor, Divi / Extra /
+Divi Builder, Slider Revolution, Gravity Forms, and payment/CAPTCHA scripts (Stripe, PayPal, reCAPTCHA, hCaptcha,
+Turnstile; always on). The card shows which rules were found on your site; tick **Skip** on a rule you do not need
+(excluded files load a little slower than optimised ones).
+
+---
+
 = 🧪 Safe Testing (Cache Files tab) =
 
 **Administrators only** — Default: off

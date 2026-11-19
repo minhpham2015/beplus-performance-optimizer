@@ -152,6 +152,10 @@ function bepluspb_default_options() {
 		'page_cache_purge_options'           => '',  // Extra option names ("prefix*" allowed) whose change clears the page cache, newline-separated.
 		'page_cache_purge_scope'             => 'auto', // 'auto' | 'related' | 'all': what editing a published post purges.
 
+		// --- Automatic exclusions for popular plugins/themes (static list, see BEPLUSPB_Compat) ---
+		'auto_exclude'                       => 1,   // Keep the listed plugins' scripts/styles out of minify/defer/delay/CSS deferral and their checkout pages out of the page cache.
+		'auto_exclude_off'                   => '',  // Rule ids the administrator switched off (newline-separated).
+
 		// --- Safe testing ---
 		'safe_mode_admins_only'              => 0,   // Only logged-in administrators get the front-end optimisations (and Page Cache is paused): visitors see the site as without the plugin.
 
@@ -252,6 +256,27 @@ function bepluspb_parse_exclude_list( $textarea ) {
 	return array_values( array_filter( array_map( 'trim', $lines ) ) );
 }
 
+/**
+ * The effective exclusion list of one kind: what the administrator typed plus the automatic exclusions
+ * of the detected plugins/themes (BEPLUSPB_Compat). Front-end code uses this instead of reading the
+ * "Exclude ..." settings directly; the saved settings themselves are never changed.
+ *
+ * @param  array  $opts Options.
+ * @param  string $kind js, css or pages.
+ * @return array
+ */
+function bepluspb_exclude_list( $opts, $kind ) {
+	if ( class_exists( 'BEPLUSPB_Compat' ) ) {
+		return BEPLUSPB_Compat::exclusions( $opts, $kind );
+	}
+	$key = array(
+		'js'    => 'js_exclude',
+		'css'   => 'css_exclude',
+		'pages' => 'cache_exclude_pages',
+	);
+	return isset( $key[ $kind ], $opts[ $key[ $kind ] ] ) ? bepluspb_parse_exclude_list( $opts[ $key[ $kind ] ] ) : array();
+}
+
 
 // ---------------------------------------------------------------------------
 // LOAD CLASS FILES
@@ -265,6 +290,7 @@ require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-admin.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-font-preload.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-htaccess.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-cleanup.php';
+require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-compat.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-heartbeat.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-resource-hints.php';
 require_once BEPLUSPB_PLUGIN_DIR . 'includes/class-bepluspb-css.php';

@@ -294,5 +294,91 @@ gzip_min_length 1024;'
 			</div>
 		</div>
 		<?php
+		self::render_card_auto_exclude( $opts );
+	}
+
+	/**
+	 * Render the "Automatic Exclusions" card: the built-in rules for popular plugins, themes and scripts.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_auto_exclude( $opts ) {
+		$overview = BEPLUSPB_Compat::overview( $opts );
+		?>
+		<div class="bepluspb-card" id="bepluspb-auto-exclude-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Automatic Exclusions', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Some popular plugins and themes break when their scripts are minified, deferred or delayed. When one of them is active, the plugin keeps its files out of those optimizations for you, as if you had typed them into the Exclude boxes.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_auto_exclude"><?php esc_html_e( 'Exclude automatically', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_auto_exclude"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[auto_exclude]" value="1"
+								<?php checked( $opts['auto_exclude'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Apply the rules below for the plugins and themes found on this site.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<p class="description"><?php esc_html_e( 'The list ships with the plugin: nothing is downloaded and your own Exclude boxes are never changed. A rule only switches optimizations off for its files, so those files load a little slower than they could; tick "Skip" if a rule is not needed on your site.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
+
+				<table class="widefat striped" aria-label="<?php esc_attr_e( 'Automatic exclusion rules', 'beplus-performance-booster' ); ?>">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'Rule', 'beplus-performance-booster' ); ?></th>
+							<th><?php esc_html_e( 'On this site', 'beplus-performance-booster' ); ?></th>
+							<th><?php esc_html_e( 'Keeps out', 'beplus-performance-booster' ); ?></th>
+							<th><?php esc_html_e( 'Skip', 'beplus-performance-booster' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ( $overview as $row ) : ?>
+						<?php
+						$parts = array();
+						if ( $row['counts']['js'] ) {
+							$parts[] = __( 'scripts (minify, defer, delay)', 'beplus-performance-booster' );
+						}
+						if ( $row['counts']['css'] ) {
+							$parts[] = __( 'stylesheets (minify, deferral)', 'beplus-performance-booster' );
+						}
+						if ( $row['counts']['pages'] ) {
+							$parts[] = __( 'pages (page cache)', 'beplus-performance-booster' );
+						}
+						if ( ! $row['detected'] ) {
+							$state = __( 'Not found', 'beplus-performance-booster' );
+						} elseif ( $row['skipped'] || empty( $opts['auto_exclude'] ) ) {
+							$state = __( 'Found, not applied', 'beplus-performance-booster' );
+						} else {
+							$state = __( 'Found, applied', 'beplus-performance-booster' );
+						}
+						?>
+						<tr>
+							<th scope="row">
+								<?php echo esc_html( $row['label'] ); ?>
+								<?php if ( '' !== $row['note'] ) : ?>
+									<br><span class="description"><?php echo esc_html( $row['note'] ); ?></span>
+								<?php endif; ?>
+							</th>
+							<td><?php echo esc_html( $state ); ?></td>
+							<td><?php echo esc_html( implode( ', ', $parts ) ); ?></td>
+							<td>
+								<input type="checkbox" id="bepluspb_auto_exclude_off_<?php echo esc_attr( $row['id'] ); ?>"
+									name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[auto_exclude_off][<?php echo esc_attr( $row['id'] ); ?>]" value="1"
+									<?php checked( $row['skipped'], true ); ?>>
+								<label class="screen-reader-text" for="bepluspb_auto_exclude_off_<?php echo esc_attr( $row['id'] ); ?>"><?php echo esc_html( sprintf( /* translators: %s: rule name. */ __( 'Skip the rule for %s', 'beplus-performance-booster' ), $row['label'] ) ); ?></label>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+
+			</div>
+		</div>
+		<?php
 	}
 }

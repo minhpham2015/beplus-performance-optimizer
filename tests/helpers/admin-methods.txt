@@ -66,3 +66,4 @@ render_google_fonts_local_status
 render_card_heartbeat
 render_card_resource_hints
 render_card_safe_mode
+render_card_auto_exclude

@@ -97,7 +97,7 @@ class BEPLUSPB_CSS {
 		if ( empty( $opts['css_non_blocking'] ) && ( empty( $opts['critical_css_enabled'] ) || '' === BEPLUSPB_Critical_CSS::css_for_request() ) ) {
 			return $tag; // Critical CSS only: pages without an entry stay untouched.
 		}
-		return BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $tag, bepluspb_parse_exclude_list( $opts['css_exclude'] ), true ), $tag );
+		return BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $tag, bepluspb_exclude_list( $opts, 'css' ), true ), $tag );
 	}
 
 	// -------------------------------------------------------------------------
@@ -186,14 +186,14 @@ class BEPLUSPB_CSS {
 		$opts = bepluspb_get_options();
 
 		if ( $opts['css_inline_all'] ) {
-			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
+			$exclude = bepluspb_exclude_list( $opts, 'css' );
 			$html    = BEPLUSPB_Utils::guard_transform( self::inline_all_css( $html, $exclude, ! empty( $opts['css_inline_skip_elementor'] ) ), $html );
 		}
 
 		// Critical CSS is independent of the Non-Render-Blocking switch: a page with an entry defers everything.
 		$critical = self::critical_css_for( $opts, $html );
 		if ( '' !== $critical || $opts['css_non_blocking'] ) {
-			$exclude = bepluspb_parse_exclude_list( $opts['css_exclude'] );
+			$exclude = bepluspb_exclude_list( $opts, 'css' );
 			// With critical CSS the first paint no longer needs the theme's stylesheet, so it may be deferred too.
 			$deferred = BEPLUSPB_Utils::guard_transform( self::make_non_blocking( $html, $exclude, '' !== $critical ), $html );
 			if ( $deferred === $html ) {

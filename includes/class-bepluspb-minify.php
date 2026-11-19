@@ -132,9 +132,9 @@ class BEPLUSPB_Minify {
 	 */
 	public static function maybe_minify_js( $src, $handle ) {
 		// "Exclude JS Files" (keywords in the URL) also keeps a script out of minify, as the setting says.
-		if ( function_exists( 'bepluspb_get_options' ) && function_exists( 'bepluspb_parse_exclude_list' ) ) {
+		if ( function_exists( 'bepluspb_get_options' ) && function_exists( 'bepluspb_exclude_list' ) ) {
 			$opts = bepluspb_get_options();
-			foreach ( bepluspb_parse_exclude_list( isset( $opts['js_exclude'] ) ? $opts['js_exclude'] : '' ) as $keyword ) {
+			foreach ( bepluspb_exclude_list( $opts, 'js' ) as $keyword ) {
 				if ( '' !== $keyword && false !== strpos( (string) $src, $keyword ) ) {
 					return $src;
 				}
@@ -394,7 +394,7 @@ class BEPLUSPB_Minify {
 			}
 		}
 
-		$patterns = bepluspb_parse_exclude_list( $opts['cache_exclude_pages'] );
+		$patterns = bepluspb_exclude_list( $opts, 'pages' );
 		if ( ! empty( $patterns ) ) {
 			$current_url = isset( $_SERVER['REQUEST_URI'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 				? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
@@ -429,7 +429,7 @@ class BEPLUSPB_Minify {
 	 */
 	public static function is_css_file_excluded( $src ) {
 		$opts     = bepluspb_get_options();
-		$patterns = bepluspb_parse_exclude_list( $opts['css_exclude'] );
+		$patterns = bepluspb_exclude_list( $opts, 'css' );
 
 		foreach ( $patterns as $pattern ) {
 			if ( '' !== $pattern && false !== strpos( $src, $pattern ) ) {

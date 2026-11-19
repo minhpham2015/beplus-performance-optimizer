@@ -284,6 +284,7 @@ class BEPLUSPB_Admin {
 			'cloudflare_enabled',
 			'predictive_navigation_enabled',
 			'safe_mode_admins_only',
+			'auto_exclude',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -362,6 +363,9 @@ class BEPLUSPB_Admin {
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';
+
+		// Automatic exclusions: only ids of known rules can be switched off.
+		$sanitized['auto_exclude_off'] = BEPLUSPB_Compat::sanitize_skipped( isset( $input['auto_exclude_off'] ) ? $input['auto_exclude_off'] : array() );
 
 		// Heartbeat control: fixed choices only; the editor cannot be disabled (block editors depend on the script).
 		$sanitized['heartbeat_dashboard'] = BEPLUSPB_Heartbeat::sanitize_mode( $input['heartbeat_dashboard'] ?? 'default' );

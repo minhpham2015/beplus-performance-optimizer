@@ -8,6 +8,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 define( 'ABSPATH', __DIR__ . '/' );
 $GLOBALS['db'] = array(); $GLOBALS['opts'] = array(); $GLOBALS['q'] = array( 'front' => true );
 function __( $s ) { return $s; }

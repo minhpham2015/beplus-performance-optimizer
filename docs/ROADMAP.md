@@ -26,7 +26,7 @@ Cập nhật lần cuối: 2026-11-19 · Phiên bản hiện tại: 1.3.4 (trên
 | 7 | Heartbeat control | Dashboard / Editor / Front end: giữ mặc định, giảm tần suất (15–120 s) hoặc tắt (editor chỉ giảm, vì block editor phụ thuộc script). Không đụng DB, độc lập công tắc master. Test `test-heartbeat.php`. Chưa smoke test trên WP thật. | REVIEW |
 | 8 | Recommended Settings nâng cấp (profile An toàn / Cân bằng / Mạnh, có hoàn tác) | Đã có sẵn profile theo loại site, preview, Apply/Disable và Restore (một lần). Thêm trục mức độ **Safe / Balanced / Strong** (`plan_for(..., $level)`); Balanced = plan cũ; builder overlay (Elementor) vẫn thắng. Test `test-recommended-levels.php`. Chưa smoke test trên WP thật. | REVIEW |
 | 9 | Chế độ kiểm tra an toàn (bật thử cho admin, `?bepluspb_off=1`) | Option `safe_mode_admins_only` (chỉ admin được tối ưu, khách thấy site gốc, Page Cache tạm dừng + xóa) và `?bepluspb_off=1` (một request không tối ưu, `nocache_headers`, page cache không phục vụ/lưu). Admin bar có "View without optimizations". Không bao phủ `.htaccess`, Object Cache, Cloudflare, Predictive Navigation, Heartbeat. Test `test-safe-testing.php`. Chưa smoke test trên WP thật. | REVIEW |
-| 10 | Tự exclude theo plugin/theme phổ biến | Danh sách tĩnh, không gọi mạng. | TODO |
+| 10 | Tự exclude theo plugin/theme phổ biến | `BEPLUSPB_Compat`: danh sách tĩnh (WooCommerce, Elementor, Divi, Slider Revolution, Gravity Forms + script thanh toán/CAPTCHA), không gọi mạng, gộp vào mọi ô Exclude qua `bepluspb_exclude_list()`; có công tắc, nút Skip từng rule và bảng hiển thị trong tab Advanced. Test `test-compat-excludes.php` (135). Chưa smoke test trên WP thật. | REVIEW |
 
 ## 1.4.0 — Mở rộng và hoàn thiện
 
@@ -127,6 +127,7 @@ Checklist giữ lại để chạy lại khi sửa Page Cache/Delay JS:
 | 2026-11-19 | Smoke test trên WordPress thật xong và đạt: Page Cache #9–#30, Delay JS #31–#32, Object Cache O1–O5, và các tính năng 1.3.x (Critical CSS Generator, Self-host Google Fonts, lazy load HTML, Priority Images). #1–#5 chuyển `DONE`, #6 `DOING`. Đồng bộ roadmap với 1.3.4. Việc tiếp: xác nhận CI xanh trên `master`, #6 phần còn lại, #7, #8/#9, #10. |
 | 2026-11-19 | Làm #7 Heartbeat control và phần còn lại của #6 (Resource Hints) ở `[Unreleased]` (chưa tăng version, dự kiến 1.3.5). Test mới `test-heartbeat.php` (39) và `test-resource-hints.php` (53), toàn bộ test hiện có vẫn pass. Cần smoke test H1–H6 bên dưới. |
 | 2026-11-19 | Làm #8 (mức độ Safe/Balanced/Strong cho Recommended Settings) và #9 (Safe Testing + `?bepluspb_off=1`) ở `[Unreleased]`. Test mới `test-recommended-levels.php` (60) và `test-safe-testing.php` (37), toàn bộ test hiện có vẫn pass; 5 đột biến đều bị bắt. Cần smoke test S1–S6 bên dưới. |
+| 2026-11-19 | Làm #10 (Automatic Exclusions) ở `[Unreleased]`: class `BEPLUSPB_Compat`, hàm `bepluspb_exclude_list()` thay cho 11 chỗ đọc trực tiếp ô Exclude, card trong tab Advanced. Toàn bộ test pass (8 test cũ thêm `tests/helpers/exclude-list.php`); 5 đột biến đều bị bắt. Cần smoke test A1–A5 bên dưới. |
 
 ## Việc còn lại từ review lần 3
 
@@ -163,3 +164,11 @@ Test tự động dùng file `cache.php` giả của core; O1–O5 đã chạy t
 - **S4** Tắt Safe Testing, lưu: Page Cache hoạt động lại (HIT sau lần tải thứ hai), khách thấy trang tối ưu.
 - **S5** `?bepluspb_off=1` (ẩn danh và admin): trang gốc, header không cache (`Cache-Control: no-cache`), không có `X-Beplus-Page-Cache: HIT`; bỏ tham số thì trở lại bản tối ưu/HIT. Nút "View without optimizations" trên admin bar đúng URL, và "Back to the optimized page" quay lại.
 - **S6** Safe Testing + Cloudflare/CDN: xác nhận CDN không viết lại URL cho khách trong lúc kiểm tra.
+
+## Smoke test: Automatic Exclusions (chưa chạy)
+
+- **A1** Site có WooCommerce + Delay JS (Simple và Advanced) + Defer: `view-source` trang sản phẩm: script `woocommerce/assets/js/…` không có `defer`/`data-bepluspb-delay`/placeholder; script khác vẫn bị delay/defer. Thêm vào giỏ, cập nhật giỏ, thanh toán chạy đúng ngay khi vừa tải trang.
+- **A2** WooCommerce với slug trang đã đổi/dịch (vd. `/gio-hang/`): trang giỏ/thanh toán/tài khoản không có `X-Beplus-Page-Cache: HIT` và không có file trong `wp-content/cache/`. Đặt trang Shop làm trang chủ: trang chủ **vẫn** được cache (không bị loại trừ cả site).
+- **A3** Elementor: CSS `uploads/elementor/css/…` và `elementor/assets/css/…` vẫn render-blocking khi bật Non-Render-Blocking CSS (không FOUC); JS Elementor không bị delay. Divi / Slider Revolution / Gravity Forms: form và slider chạy khi bật Delay + Defer + Minify.
+- **A4** Tab Advanced → Automatic Exclusions: rule đúng "Found, applied" / "Not found"; tick Skip WooCommerce, lưu → script Woo lại bị defer/delay; bỏ tick "Exclude automatically" → mọi rule "Found, not applied". Các ô Exclude JS/CSS/Pages của bạn không bị đổi.
+- **A5** Stripe/PayPal/reCAPTCHA: trang có CAPTCHA hoặc nút thanh toán, bật Delay JS, gửi form ngay sau khi tải trang → CAPTCHA/thanh toán hoạt động.
