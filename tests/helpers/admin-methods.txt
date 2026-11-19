@@ -67,3 +67,5 @@ render_card_heartbeat
 render_card_resource_hints
 render_card_safe_mode
 render_card_auto_exclude
+handle_ajax_toggle_recommended
+render_recommended_toggles

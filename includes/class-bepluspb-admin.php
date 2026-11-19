@@ -87,6 +87,7 @@ class BEPLUSPB_Admin {
 
 		// AJAX handler for the master cache on/off toggle on the Dashboard tab.
 		add_action( 'wp_ajax_bepluspb_toggle_cache', array( __CLASS__, 'handle_ajax_toggle_cache' ) );
+		add_action( 'wp_ajax_bepluspb_toggle_recommended', array( __CLASS__, 'handle_ajax_toggle_recommended' ) );
 
 		// Object Cache AJAX handlers.
 		add_action( 'wp_ajax_bepluspb_test_oc_connection', array( __CLASS__, 'handle_ajax_test_oc' ) );
@@ -164,6 +165,12 @@ class BEPLUSPB_Admin {
 				array(
 					'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
 					'toggleNonce'    => wp_create_nonce( 'bepluspb_toggle_cache' ),
+					'recToggleNonce' => wp_create_nonce( 'bepluspb_toggle_recommended' ),
+					'recActive'      => __( 'Active', 'beplus-performance-booster' ),
+					'recInactive'    => __( 'Inactive', 'beplus-performance-booster' ),
+					'recSaved'       => __( 'Saved.', 'beplus-performance-booster' ),
+					'recSaving'      => __( 'Saving…', 'beplus-performance-booster' ),
+					'recError'       => __( 'Could not save this change.', 'beplus-performance-booster' ),
 					'testOcNonce'    => wp_create_nonce( 'bepluspb_test_oc' ),
 					'installOcNonce' => wp_create_nonce( 'bepluspb_install_oc_dropin' ),
 					'removeOcNonce'  => wp_create_nonce( 'bepluspb_remove_oc_dropin' ),
