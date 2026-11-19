@@ -119,4 +119,15 @@ foreach ( array( "'bepluspb_toggle_recommended'", 'bepluspbAdmin.recToggleNonce'
 $a = strpos( $js, 'Recommended Settings: a switch on each row' ); $b = strpos( $js, 'Update the toggle label, warning notice' );
 t_ok( $a && $b > $a && false === strpos( substr( $js, $a, $b - $a ), 'innerHTML' ), 'the switch code writes text only, never HTML' );
 
+// ---- A stale or missing script must not leave a usable-looking switch ---------------------------
+t_ok( false !== strpos( $src, '<?php checked( $is_on ); ?> disabled>' ), 'switches are rendered disabled' );
+t_ok( false !== strpos( $js, "if (typeof bepluspbAdmin !== 'undefined') { input.disabled = false; }" ), 'admin.js enables each switch when its handler is attached' );
+// ---- Static files are versioned by modification time, so a rebuilt 1.3.5 is not served from a cache -------
+$boot = file_get_contents( dirname( __DIR__ ) . '/beplus-performance-booster.php' );
+t_ok( 1 === preg_match( '/function bepluspb_asset_version\( \$relative \) \{(.*?)\n\}/s', $boot, $m ) && false !== strpos( $m[1], 'filemtime' ) && false !== strpos( $m[1], 'BEPLUSPB_VERSION' ), 'bepluspb_asset_version() = plugin version + file mtime' );
+foreach ( array( "bepluspb_asset_version( 'assets/js/admin.js' )", "bepluspb_asset_version( 'assets/css/admin.css' )", "bepluspb_asset_version( 'assets/js/adminbar.js' )" ) as $needle ) {
+	t_ok( false !== strpos( $src, $needle ), "enqueued with $needle" );
+}
+t_ok( 1 === preg_match( '/' . "assets\/js\/admin\.js'," . '\s*array\(\),\s*bepluspb_asset_version/', $src ), 'admin.js is no longer enqueued with the bare plugin version' );
+
 echo "OK ($n assertions)\n";

@@ -229,6 +229,20 @@ function bepluspb_flush_options_cache() {
 add_action( 'update_option_' . BEPLUSPB_OPTIONS_KEY, 'bepluspb_flush_options_cache' );
 
 /**
+ * Cache-busting version of one of the plugin's own static files (relative to the plugin folder): the plugin
+ * version plus the file's modification time. A plain `?ver=1.3.5` is the same for every build of 1.3.5, so a
+ * browser, CDN or cache plugin keeps serving an older admin.js/admin.css after the plugin files were replaced.
+ *
+ * @param  string $relative Path such as 'assets/js/admin.js'.
+ * @return string
+ */
+function bepluspb_asset_version( $relative ) {
+	$path = BEPLUSPB_PLUGIN_DIR . ltrim( (string) $relative, '/' );
+	$time = is_readable( $path ) ? (int) filemtime( $path ) : 0;
+	return $time > 0 ? BEPLUSPB_VERSION . '.' . $time : BEPLUSPB_VERSION;
+}
+
+/**
  * Notify safe page-cache integrations when the font list changes.
  *
  * @param mixed $old_value Previous option value.
