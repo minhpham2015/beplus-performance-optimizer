@@ -191,11 +191,41 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 					<?php
 					if ( $diff ) :
 						?>
-						<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
+						<?php if ( empty( $opts['cache_enabled'] ) ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The master Cache switch is off, so none of these changes has an effect yet.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<p class="description"><?php esc_html_e( 'Use the switch on a row to apply just that change at once, or "Apply Recommended" to apply them all. Only the settings this plan and level want changed are listed.', 'beplus-performance-booster' ); ?></p>
+						<table class="widefat striped bepluspb-rec-table"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Switch', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
 						<?php
+						$toggle_keys  = BEPLUSPB_Recommendations::toggleable();
+						$toggle_notes = BEPLUSPB_Recommendations::toggle_notes();
 						foreach ( $diff as $key => $change ) :
+							$has_switch = in_array( $key, $toggle_keys, true ) && ( 0 === $change['to'] || 1 === $change['to'] );
+							$is_on      = ! empty( $opts[ $key ] );
 							?>
-						<tr><th scope="row"><?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></td><td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<tr class="bepluspb-rec-row<?php echo $has_switch && (int) $is_on === (int) $change['to'] ? ' bepluspb-rec-row--done' : ''; ?>"<?php echo $has_switch ? ' data-option="' . esc_attr( $key ) . '" data-recommended="' . (int) $change['to'] . '"' : ''; ?>>
+							<th scope="row">
+								<?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?>
+								<?php if ( isset( $toggle_notes[ $key ] ) ) : ?>
+									<br><span class="description"><?php echo esc_html( $toggle_notes[ $key ] ); ?></span>
+								<?php endif; ?>
+							</th>
+							<td><span data-current-for="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></span></td>
+							<td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td>
+							<td class="bepluspb-rec-switch-cell">
+								<?php if ( $has_switch ) : ?>
+									<label class="bepluspb-toggle" for="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>">
+										<input type="checkbox" role="switch" id="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>" class="bepluspb-rec-switch"
+											data-option="<?php echo esc_attr( $key ); ?>" aria-label="<?php echo esc_attr( BEPLUSPB_Recommendations::label( $key ) ); ?>" <?php checked( $is_on ); ?>>
+										<span class="bepluspb-toggle-slider"></span>
+									</label>
+									<span class="bepluspb-rec-toggle-msg description" data-msg-for="<?php echo esc_attr( $key ); ?>" role="status"></span>
+								<?php else : ?>
+									<span class="description"><?php esc_html_e( 'Applied with "Apply Recommended"', 'beplus-performance-booster' ); ?></span>
+								<?php endif; ?>
+							</td>
+						</tr>
+						<?php endforeach; ?></tbody></table>
 						<?php
 else :
 	?>
@@ -206,7 +236,6 @@ else :
 						?>
 						<button class="button" name="operation" value="restore" data-recommendation-confirm="<?php esc_attr_e( 'Restore the previous managed settings?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Restore Previous Settings', 'beplus-performance-booster' ); ?></button><?php endif; ?><p class="description"><?php esc_html_e( 'Disable Recommended does not deactivate the plugin. It only turns off boolean features managed by the selected plan; credentials, endpoints, exclusions and manual fields stay unchanged.', 'beplus-performance-booster' ); ?></p></form>
 				</div>
-				<?php self::render_recommended_toggles( $opts ); ?>
 			</section>
 
 		</div>
@@ -232,49 +261,6 @@ else :
 					★★★★★ <?php esc_html_e( 'Rate this plugin', 'beplus-performance-booster' ); ?>
 				</a>
 			</div>
-		</div>
-		<?php
-	}
-
-	/**
-	 * Render the individual on/off switches of the managed Recommended Settings options (saved by AJAX, one
-	 * option at a time, without leaving the page).
-	 *
-	 * @param array $opts Current option values.
-	 */
-	private static function render_recommended_toggles( $opts ) {
-		$notes = BEPLUSPB_Recommendations::toggle_notes();
-		?>
-		<div class="bepluspb-rec-toggles" id="bepluspb-rec-toggles">
-			<h3><?php esc_html_e( 'Switch settings on or off one by one', 'beplus-performance-booster' ); ?></h3>
-			<p class="description"><?php esc_html_e( 'Each switch saves at once. "Restore Previous Settings" above brings back the values from before the last Apply, so switch things back by hand afterwards if you need to.', 'beplus-performance-booster' ); ?></p>
-			<?php if ( empty( $opts['cache_enabled'] ) ) : ?>
-				<p class="bepluspb-warn"><?php esc_html_e( 'The master Cache switch is off, so none of these has an effect yet.', 'beplus-performance-booster' ); ?></p>
-			<?php endif; ?>
-			<ul class="bepluspb-rec-toggle-list">
-				<?php foreach ( BEPLUSPB_Recommendations::toggleable() as $key ) : ?>
-					<?php
-					$on       = ! empty( $opts[ $key ] );
-					$input_id = 'bepluspb-rec-toggle-' . $key;
-					?>
-					<li class="bepluspb-rec-toggle-row">
-						<label class="bepluspb-toggle" for="<?php echo esc_attr( $input_id ); ?>">
-							<input type="checkbox" role="switch" id="<?php echo esc_attr( $input_id ); ?>" class="bepluspb-rec-switch"
-								data-option="<?php echo esc_attr( $key ); ?>" <?php checked( $on ); ?>>
-							<span class="bepluspb-toggle-slider"></span>
-						</label>
-						<span class="bepluspb-rec-toggle-text">
-							<strong><?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?></strong>
-							<span class="bepluspb-toggle-status bepluspb-toggle-status--<?php echo $on ? 'on' : 'off'; ?>" data-status-for="<?php echo esc_attr( $key ); ?>" aria-live="polite"><?php echo $on ? esc_html__( 'Active', 'beplus-performance-booster' ) : esc_html__( 'Inactive', 'beplus-performance-booster' ); ?></span>
-							<?php if ( isset( $notes[ $key ] ) ) : ?>
-								<span class="description"><?php echo esc_html( $notes[ $key ] ); ?></span>
-							<?php endif; ?>
-							<span class="bepluspb-rec-toggle-msg description" data-msg-for="<?php echo esc_attr( $key ); ?>" role="status"></span>
-						</span>
-					</li>
-				<?php endforeach; ?>
-			</ul>
-			<p class="description bepluspb-rec-stale" id="bepluspb-rec-stale" style="display:none"><?php esc_html_e( 'The plan preview above was worked out before this change. Reload the page to refresh it.', 'beplus-performance-booster' ); ?></p>
 		</div>
 		<?php
 	}

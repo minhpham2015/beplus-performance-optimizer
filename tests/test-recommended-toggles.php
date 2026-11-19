@@ -101,15 +101,22 @@ t_ok( 'success' === $e->getMessage(), 'switching it off never needs a writable .
 
 // ---- Wiring: hook, nonce, script, markup ---------------------------------------
 $src = bepluspb_admin_source();
-foreach ( array( "add_action( 'wp_ajax_bepluspb_toggle_recommended', array( __CLASS__, 'handle_ajax_toggle_recommended' ) )", "'recToggleNonce' => wp_create_nonce( 'bepluspb_toggle_recommended' )", 'render_recommended_toggles( $opts )', 'class="bepluspb-rec-switch"', 'role="switch"', 'data-option=', 'BEPLUSPB_Recommendations::toggleable()' ) as $needle ) {
+foreach ( array( "add_action( 'wp_ajax_bepluspb_toggle_recommended', array( __CLASS__, 'handle_ajax_toggle_recommended' ) )", "'recToggleNonce' => wp_create_nonce( 'bepluspb_toggle_recommended' )", 'class="bepluspb-rec-switch"', 'bepluspb-rec-table', 'data-recommended=', '$has_switch = in_array( $key, $toggle_keys, true ) && ( 0 === $change[\'to\'] || 1 === $change[\'to\'] )', 'role="switch"', 'data-option=', 'BEPLUSPB_Recommendations::toggleable()' ) as $needle ) {
 	t_ok( false !== strpos( $src, $needle ), "admin source contains: $needle" );
 }
 t_ok( false === strpos( $src, 'wp_ajax_nopriv_bepluspb_toggle_recommended' ), 'no logged-out endpoint' );
+// The switches live inside "Exact changes before save", one per planned change, not in a list of their own.
+t_ok( false === strpos( $src, 'render_recommended_toggles' ) && false === strpos( $src, 'bepluspb-rec-toggle-list' ), 'there is no separate list of switches any more' );
+$table_start = strpos( $src, 'bepluspb-rec-table' ); $table_end = strpos( $src, '</tbody></table>', $table_start );
+$table = substr( $src, $table_start, $table_end - $table_start );
+t_ok( false !== strpos( $table, 'foreach ( $diff as $key => $change )' ) && false !== strpos( $table, 'class="bepluspb-rec-switch"' ), 'the switches are rendered inside the loop over the plan\'s changes (only options the plan and level change get one)' );
+t_ok( false !== strpos( $table, 'Applied with "Apply Recommended"' ), 'a change that is not an on/off value (the Predictive Navigation mode) has no switch' );
+t_ok( false !== strpos( $table, 'data-current-for=' ) && 1 === substr_count( $table, 'checked( $is_on )' ), 'the switch starts from the real current value' );
 $js = file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
-foreach ( array( "'bepluspb_toggle_recommended'", 'bepluspbAdmin.recToggleNonce', '.bepluspb-rec-switch', 'input.checked = !input.checked' ) as $needle ) {
+foreach ( array( "'bepluspb_toggle_recommended'", 'bepluspbAdmin.recToggleNonce', '.bepluspb-rec-switch', 'input.checked = !input.checked', 'bepluspb-rec-row--done', 'data-current-for' ) as $needle ) {
 	t_ok( false !== strpos( $js, $needle ), "admin.js contains: $needle (reverts on failure)" );
 }
-$a = strpos( $js, 'Recommended Settings: one switch' ); $b = strpos( $js, 'Update the toggle label, warning notice' );
+$a = strpos( $js, 'Recommended Settings: a switch on each row' ); $b = strpos( $js, 'Update the toggle label, warning notice' );
 t_ok( $a && $b > $a && false === strpos( substr( $js, $a, $b - $a ), 'innerHTML' ), 'the switch code writes text only, never HTML' );
 
 echo "OK ($n assertions)\n";
