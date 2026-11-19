@@ -229,8 +229,8 @@ Pick the site profile and a level, preview the exact changes, apply. "Restore Pr
 
 * **Safe**: caching, lazy load, CSS minify, emoji/embed cleanup. No JS minify or defer, no HTML minify.
 * **Balanced** (default): the recommended plan of the profile.
-* **Switches**: under the plan, every option the plan manages has its own Active/Inactive switch that saves at once
-  (AJAX). Risky options show a warning. Switching by hand does not change the "Restore Previous Settings" snapshot.
+* **Switches**: every row of "Exact changes before save" has its own Active/Inactive switch that saves at once (AJAX), so
+  only the options the chosen plan and level want changed are listed. Risky options show a warning. Switching by hand does not change the "Restore Previous Settings" snapshot.
 * **Strong**: Balanced plus Non-Render-Blocking CSS and Delay JS (not on shops and membership sites). Page-builder
   safety rules (Elementor) still apply at every level.
 

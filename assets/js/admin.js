@@ -213,18 +213,22 @@
 	}
 
 	// -------------------------------------------------------------------------
-	// Recommended Settings: one switch per option, saved by AJAX
+	// Recommended Settings: a switch on each row of "Exact changes before save", saved by AJAX
 	// -------------------------------------------------------------------------
 
 	var recSwitches = document.querySelectorAll('.bepluspb-rec-switch');
-	var recStale    = document.getElementById('bepluspb-rec-stale');
 
 	function recSetState(option, on) {
 		var i18n  = (typeof bepluspbAdmin !== 'undefined') ? bepluspbAdmin : {};
-		var label = document.querySelector('[data-status-for="' + option + '"]');
-		if (label) {
-			label.textContent = on ? (i18n.recActive || 'Active') : (i18n.recInactive || 'Inactive');
-			label.className   = 'bepluspb-toggle-status bepluspb-toggle-status--' + (on ? 'on' : 'off');
+		var cell  = document.querySelector('[data-current-for="' + option + '"]');
+		var row   = document.querySelector('tr[data-option="' + option + '"]');
+		if (cell) {
+			cell.textContent = on ? (i18n.recActive || 'Active') : (i18n.recInactive || 'Inactive');
+		}
+		if (row) {
+			// The row is "done" once the setting matches what the plan recommends.
+			var wanted = row.getAttribute('data-recommended') === '1';
+			row.classList.toggle('bepluspb-rec-row--done', on === wanted);
 		}
 	}
 
@@ -249,7 +253,7 @@
 			};
 
 			input.disabled = true;
-			recSetState(option, enabled);
+			recSetState(option, !!enabled);
 			recSay(option, bepluspbAdmin.recSaving || 'Saving…', false);
 
 			var data = new FormData();
@@ -264,7 +268,6 @@
 					if (json && json.success) {
 						input.disabled = false;
 						recSay(option, bepluspbAdmin.recSaved || 'Saved.', false);
-						if (recStale) { recStale.style.display = ''; }
 					} else {
 						revert(json && json.data && json.data.message ? String(json.data.message) : '');
 					}
