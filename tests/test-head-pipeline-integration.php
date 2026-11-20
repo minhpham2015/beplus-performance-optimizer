@@ -9,6 +9,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 $root = sys_get_temp_dir() . '/bepluspb-pipe-' . bin2hex( random_bytes( 5 ) );
 mkdir( "$root/uploads/bepluspb-cache/fonts", 0777, true );
 register_shutdown_function( function () use ( $root ) { exec( 'rm -rf ' . escapeshellarg( $root ) ); } );

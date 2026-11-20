@@ -9,6 +9,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 $root = sys_get_temp_dir() . '/bepluspb-behavior-' . bin2hex( random_bytes( 5 ) );
 mkdir( "$root/wp/wp-content/themes/t", 0777, true ); mkdir( "$root/wp/wp-content/uploads/2026", 0777, true ); mkdir( "$root/wp/wp-includes", 0777, true ); mkdir( "$root/outside", 0777, true );
 register_shutdown_function( function () use ( $root ) { exec( 'rm -rf ' . escapeshellarg( $root ) ); } );

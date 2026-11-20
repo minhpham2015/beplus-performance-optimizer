@@ -87,6 +87,7 @@ class BEPLUSPB_Admin {
 
 		// AJAX handler for the master cache on/off toggle on the Dashboard tab.
 		add_action( 'wp_ajax_bepluspb_toggle_cache', array( __CLASS__, 'handle_ajax_toggle_cache' ) );
+		add_action( 'wp_ajax_bepluspb_toggle_recommended', array( __CLASS__, 'handle_ajax_toggle_recommended' ) );
 
 		// Object Cache AJAX handlers.
 		add_action( 'wp_ajax_bepluspb_test_oc_connection', array( __CLASS__, 'handle_ajax_test_oc' ) );
@@ -139,7 +140,7 @@ class BEPLUSPB_Admin {
 			'bepluspb-admin',
 			BEPLUSPB_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			BEPLUSPB_VERSION
+			bepluspb_asset_version( 'assets/css/admin.css' )
 		);
 
 		// Admin bar purge confirmation on every other admin screen (the settings page's admin.js covers itself).
@@ -154,7 +155,7 @@ class BEPLUSPB_Admin {
 				'bepluspb-admin-js',
 				BEPLUSPB_PLUGIN_URL . 'assets/js/admin.js',
 				array(),
-				BEPLUSPB_VERSION,
+				bepluspb_asset_version( 'assets/js/admin.js' ),
 				true // load in footer.
 			);
 			// Pass AJAX URL, nonce, and translated strings for the master cache toggle.
@@ -164,6 +165,12 @@ class BEPLUSPB_Admin {
 				array(
 					'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
 					'toggleNonce'    => wp_create_nonce( 'bepluspb_toggle_cache' ),
+					'recToggleNonce' => wp_create_nonce( 'bepluspb_toggle_recommended' ),
+					'recActive'      => __( 'Active', 'beplus-performance-booster' ),
+					'recInactive'    => __( 'Inactive', 'beplus-performance-booster' ),
+					'recSaved'       => __( 'Saved.', 'beplus-performance-booster' ),
+					'recSaving'      => __( 'Saving…', 'beplus-performance-booster' ),
+					'recError'       => __( 'Could not save this change.', 'beplus-performance-booster' ),
 					'testOcNonce'    => wp_create_nonce( 'bepluspb_test_oc' ),
 					'installOcNonce' => wp_create_nonce( 'bepluspb_install_oc_dropin' ),
 					'removeOcNonce'  => wp_create_nonce( 'bepluspb_remove_oc_dropin' ),
@@ -192,14 +199,14 @@ class BEPLUSPB_Admin {
 			'bepluspb-admin',
 			BEPLUSPB_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			BEPLUSPB_VERSION
+			bepluspb_asset_version( 'assets/css/admin.css' )
 		);
 		self::enqueue_adminbar_script();
 	}
 
 	/** Confirmation dialog for the admin bar purge forms (needs the admin bar to be showing). */
 	private static function enqueue_adminbar_script() {
-		wp_enqueue_script( 'bepluspb-adminbar-js', BEPLUSPB_PLUGIN_URL . 'assets/js/adminbar.js', array(), BEPLUSPB_VERSION, true );
+		wp_enqueue_script( 'bepluspb-adminbar-js', BEPLUSPB_PLUGIN_URL . 'assets/js/adminbar.js', array(), bepluspb_asset_version( 'assets/js/adminbar.js' ), true );
 	}
 
 	// =========================================================================
@@ -282,7 +289,10 @@ class BEPLUSPB_Admin {
 			'cdn_webp_avif',
 			// Cloudflare.
 			'cloudflare_enabled',
+			'cloudflare_purge_on_edit',
 			'predictive_navigation_enabled',
+			'safe_mode_admins_only',
+			'auto_exclude',
 		);
 		foreach ( $booleans as $key ) {
 			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
@@ -361,6 +371,39 @@ class BEPLUSPB_Admin {
 		$sanitized['font_preload'] = isset( $input['font_preload'] )
 			? sanitize_textarea_field( wp_unslash( $input['font_preload'] ) )
 			: '';
+
+		// Automatic exclusions: only ids of known rules can be switched off.
+		$sanitized['auto_exclude_off'] = BEPLUSPB_Compat::sanitize_skipped( isset( $input['auto_exclude_off'] ) ? $input['auto_exclude_off'] : array() );
+
+		// Heartbeat control: fixed choices only; the editor cannot be disabled (block editors depend on the script).
+		$sanitized['heartbeat_dashboard'] = BEPLUSPB_Heartbeat::sanitize_mode( $input['heartbeat_dashboard'] ?? 'default' );
+		$sanitized['heartbeat_editor']    = BEPLUSPB_Heartbeat::sanitize_mode( $input['heartbeat_editor'] ?? 'default', false );
+		$sanitized['heartbeat_frontend']  = BEPLUSPB_Heartbeat::sanitize_mode( $input['heartbeat_frontend'] ?? 'default' );
+		$sanitized['heartbeat_interval']  = BEPLUSPB_Heartbeat::sanitize_interval( $input['heartbeat_interval'] ?? 120 );
+
+		// Resource hints: keep only valid origins and say which lines were dropped.
+		$resource_lists  = array(
+			'resource_hints_preconnect'   => array( BEPLUSPB_Resource_Hints::MAX_PRECONNECT, __( 'Preconnect', 'beplus-performance-booster' ) ),
+			'resource_hints_dns_prefetch' => array( BEPLUSPB_Resource_Hints::MAX_DNS_PREFETCH, __( 'DNS-prefetch', 'beplus-performance-booster' ) ),
+		);
+		$resource_errors = array();
+		foreach ( $resource_lists as $resource_key => $resource_info ) {
+			$resource_value = isset( $input[ $resource_key ] ) ? wp_unslash( (string) $input[ $resource_key ] ) : '';
+			$resource_parse = BEPLUSPB_Resource_Hints::parse( $resource_value, $resource_info[0] );
+
+			$sanitized[ $resource_key ] = BEPLUSPB_Resource_Hints::sanitize( $resource_value, $resource_info[0] );
+			foreach ( $resource_parse['errors'] as $resource_error ) {
+				$resource_errors[] = $resource_info[1] . ': ' . $resource_error;
+			}
+		}
+		if ( $resource_errors ) {
+			add_settings_error(
+				BEPLUSPB_OPTIONS_KEY,
+				'bepluspb_resource_hints',
+				esc_html( __( 'Resource Hints: some lines were not saved.', 'beplus-performance-booster' ) . ' ' . implode( ' ', $resource_errors ) ),
+				'warning'
+			);
+		}
 
 		$sanitized['page_cache_ttl']             = BEPLUSPB_Page_Cache::sanitize_ttl_hours( $input['page_cache_ttl'] ?? 10 );
 		$sanitized['page_cache_exclude_cookies'] = BEPLUSPB_Page_Cache::sanitize_cookie_list( $input['page_cache_exclude_cookies'] ?? '' );
@@ -555,6 +598,7 @@ class BEPLUSPB_Admin {
 				<?php settings_fields( 'bepluspb_settings_group' ); ?>
 
 				<div id="bepluspb-tab-cache_files" class="bepluspb-tab-panel" role="tabpanel">
+					<?php self::render_card_safe_mode( $opts ); ?>
 					<?php self::render_section_page_cache( $opts ); ?>
 					<?php self::render_section_cache_files( $opts, $cache_dir_writable ); ?>
 				</div>

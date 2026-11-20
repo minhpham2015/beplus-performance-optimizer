@@ -100,6 +100,62 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 			</div>
 		</div>
 		<?php
+		self::render_card_resource_hints( $opts );
+	}
+
+	/**
+	 * Render the "Resource Hints" card: preconnect / dns-prefetch for third-party origins.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_resource_hints( $opts ) {
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Resource Hints', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Tell the browser to open the connection to a third-party server (analytics, fonts, video, widgets) while it is still reading the page, so the first request to it starts sooner. Only list servers the first screen really needs.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_resource_hints_preconnect"><?php esc_html_e( 'Preconnect', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One origin per line, up to 4.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_resource_hints_preconnect"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[resource_hints_preconnect]"
+							rows="4" class="large-text code" placeholder="https://cdn.example.com"><?php echo esc_textarea( $opts['resource_hints_preconnect'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Opens the connection fully (DNS, TCP and TLS). Add the word crossorigin after the origin for fonts and other files fetched with CORS, for example:', 'beplus-performance-booster' ); ?>
+							<code>https://fonts.example.com crossorigin</code><br>
+							<?php esc_html_e( 'Each open connection costs the visitor battery and bandwidth: keep this list to the one to three servers the first screen uses. Google Fonts and the CDN host are already handled by their own settings.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_resource_hints_dns_prefetch"><?php esc_html_e( 'DNS-prefetch', 'beplus-performance-booster' ); ?></label>
+						<p class="bepluspb-row-desc"><?php esc_html_e( 'One origin per line, up to 10.', 'beplus-performance-booster' ); ?></p>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<textarea id="bepluspb_resource_hints_dns_prefetch"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[resource_hints_dns_prefetch]"
+							rows="4" class="large-text code" placeholder="https://www.google-analytics.com"><?php echo esc_textarea( $opts['resource_hints_dns_prefetch'] ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Only looks up the server name: much cheaper than preconnect, a good fit for servers used later in the page (analytics, ads, social widgets).', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
+
+				<p class="description">
+					<?php esc_html_e( 'Only http(s) origins are accepted (a path or query is ignored). The plugin never contacts these servers itself, it only prints the hints in the page head.', 'beplus-performance-booster' ); ?>
+				</p>
+
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -139,6 +195,40 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 								<?php checked( $opts['cloudflare_enabled'], 1 ); ?>>
 							<span class="bepluspb-check-text"><?php esc_html_e( 'When on, the existing "Clear Cache" button also purges Cloudflare\'s cache for this zone.', 'beplus-performance-booster' ); ?></span>
 						</label>
+					</div>
+				</div>
+
+				<!-- Purge by URL on edit -->
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_cloudflare_purge_on_edit"><?php esc_html_e( 'Purge Edited Pages', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_cloudflare_purge_on_edit"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[cloudflare_purge_on_edit]" value="1"
+								<?php checked( $opts['cloudflare_purge_on_edit'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'When a post or page is published, updated, unpublished or trashed, purge only its addresses at Cloudflare (the page, the home page, the posts page or post type archive, its category/tag archives, the author archive and the main feed). Needs the zone found by Test Connection.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<?php $bepluspb_cf_last = BEPLUSPB_Cloudflare::last_auto_purge(); ?>
+						<?php if ( $bepluspb_cf_last ) : ?>
+							<p class="description">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: 1: date and time, 2: "succeeded" or "failed", 3: number of addresses. */
+										__( 'Last automatic purge: %1$s, %2$s (%3$d addresses).', 'beplus-performance-booster' ),
+										wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $bepluspb_cf_last['time'] ),
+										$bepluspb_cf_last['success'] ? __( 'succeeded', 'beplus-performance-booster' ) : __( 'failed', 'beplus-performance-booster' ),
+										(int) $bepluspb_cf_last['count']
+									)
+								);
+								?>
+								<?php echo ( ! $bepluspb_cf_last['success'] && '' !== $bepluspb_cf_last['message'] ) ? esc_html( $bepluspb_cf_last['message'] ) : ''; ?>
+								<?php echo 'all' === $bepluspb_cf_last['mode'] ? esc_html__( 'It was a bulk edit, so the whole zone was purged.', 'beplus-performance-booster' ) : ''; ?>
+							</p>
+						<?php endif; ?>
+						<p class="description"><?php esc_html_e( 'Runs when a post is saved in wp-admin, over REST, from WP-Cron or WP-CLI, never on a visitor\'s page load. More than 60 addresses at once (a bulk edit) purge the whole zone instead, at most once a minute. Page 2+ of archives and date archives are not purged: they expire with Cloudflare\'s cache lifetime. Only useful if Cloudflare caches your HTML (a "Cache Everything" rule); otherwise there is nothing to purge.', 'beplus-performance-booster' ); ?></p>
 					</div>
 				</div>
 
@@ -602,6 +692,72 @@ trait BEPLUSPB_Admin_Tabs_Delivery {
 					</div>
 				</div>
 
+			</div>
+		</div>
+		<?php
+		self::render_card_heartbeat( $opts );
+	}
+
+	/**
+	 * Render the "Heartbeat Control" card.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_heartbeat( $opts ) {
+		$rows = array(
+			'heartbeat_dashboard' => array(
+				'label'   => __( 'Dashboard', 'beplus-performance-booster' ),
+				'desc'    => __( 'Every wp-admin page except the editing screens below. Disabling is safe for most sites: the "your session has expired" login box and live updates some plugins show on their admin pages stop.', 'beplus-performance-booster' ),
+				'disable' => true,
+			),
+			'heartbeat_editor'    => array(
+				'label'   => __( 'Post editor, site editor, widgets and Customizer', 'beplus-performance-booster' ),
+				'desc'    => __( 'The Heartbeat keeps autosave, post locking ("someone else is editing") and the session check alive here. It can be slowed down, not switched off: the block editors need the script to load.', 'beplus-performance-booster' ),
+				'disable' => false,
+			),
+			'heartbeat_frontend'  => array(
+				'label'   => __( 'Front end', 'beplus-performance-booster' ),
+				'desc'    => __( 'Pages visitors see. Many sites do not load the Heartbeat there at all, but some plugins do (live notifications, forms, cart widgets): check them after disabling.', 'beplus-performance-booster' ),
+				'disable' => true,
+			),
+		);
+		?>
+		<div class="bepluspb-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Heartbeat Control', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'The WordPress Heartbeat sends a request to admin-ajax.php every 15 to 60 seconds from every open wp-admin tab. Many tabs can keep a small server busy. These settings work even when the master cache switch is off and never touch the database.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+				<?php foreach ( $rows as $key => $row ) : ?>
+					<div class="bepluspb-form-row">
+						<div class="bepluspb-form-row-label">
+							<label for="bepluspb_<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $row['label'] ); ?></label>
+						</div>
+						<div class="bepluspb-form-row-field">
+							<select id="bepluspb_<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[<?php echo esc_attr( $key ); ?>]">
+								<option value="default" <?php selected( $opts[ $key ], 'default' ); ?>><?php esc_html_e( 'WordPress default', 'beplus-performance-booster' ); ?></option>
+								<option value="reduce" <?php selected( $opts[ $key ], 'reduce' ); ?>><?php esc_html_e( 'Reduce frequency', 'beplus-performance-booster' ); ?></option>
+								<?php if ( $row['disable'] ) : ?>
+									<option value="disable" <?php selected( $opts[ $key ], 'disable' ); ?>><?php esc_html_e( 'Disable', 'beplus-performance-booster' ); ?></option>
+								<?php endif; ?>
+							</select>
+							<p class="description"><?php echo esc_html( $row['desc'] ); ?></p>
+						</div>
+					</div>
+				<?php endforeach; ?>
+
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_heartbeat_interval"><?php esc_html_e( 'Interval when reduced', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<input type="number" id="bepluspb_heartbeat_interval" min="15" max="120" step="1" class="small-text"
+							name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[heartbeat_interval]"
+							value="<?php echo esc_attr( (int) $opts['heartbeat_interval'] ); ?>">
+						<?php esc_html_e( 'seconds', 'beplus-performance-booster' ); ?>
+						<p class="description"><?php esc_html_e( 'Between 15 and 120 (a limit of WordPress itself). A longer interval already set elsewhere is kept. Autosave in the editor then also runs less often.', 'beplus-performance-booster' ); ?></p>
+					</div>
+				</div>
 			</div>
 		</div>
 		<?php

@@ -6,6 +6,7 @@
  */
 
 // phpcs:disable
+require_once __DIR__ . "/helpers/exclude-list.php";
 if ( ! defined( 'ABSPATH' ) ) { define( 'ABSPATH', __DIR__ ); }
 require dirname( __DIR__ ) . '/includes/class-bepluspb-utils.php';
 require dirname( __DIR__ ) . '/includes/class-bepluspb-minify.php';

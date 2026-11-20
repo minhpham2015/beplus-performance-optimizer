@@ -212,6 +212,78 @@
 		});
 	}
 
+	// -------------------------------------------------------------------------
+	// Recommended Settings: a switch on each row of "Exact changes before save", saved by AJAX
+	// -------------------------------------------------------------------------
+
+	var recSwitches = document.querySelectorAll('.bepluspb-rec-switch');
+
+	// Hide the "greyed out until the script has loaded" hint once the script is running.
+	if (recSwitches.length && typeof bepluspbAdmin !== 'undefined') {
+		Array.prototype.forEach.call(document.querySelectorAll('.bepluspb-rec-js-note'), function (n) { n.style.display = 'none'; });
+	}
+
+	function recSetState(option, on) {
+		var i18n  = (typeof bepluspbAdmin !== 'undefined') ? bepluspbAdmin : {};
+		var cell  = document.querySelector('[data-current-for="' + option + '"]');
+		var row   = document.querySelector('tr[data-option="' + option + '"]');
+		if (cell) {
+			cell.textContent = on ? (i18n.recActive || 'Active') : (i18n.recInactive || 'Inactive');
+		}
+		if (row) {
+			// The row is "done" once the setting matches what the plan recommends.
+			var wanted = row.getAttribute('data-recommended') === '1';
+			row.classList.toggle('bepluspb-rec-row--done', on === wanted);
+		}
+	}
+
+	function recSay(option, text, bad) {
+		var msg = document.querySelector('[data-msg-for="' + option + '"]');
+		if (msg) {
+			msg.textContent = text;
+			msg.style.color = bad ? '#b32d2e' : '';
+		}
+	}
+
+	Array.prototype.forEach.call(recSwitches, function (input) {
+		// The switches are rendered disabled: they only work once this handler is attached, so a stale or
+		// missing script can never leave a switch that looks usable but saves nothing.
+		if (typeof bepluspbAdmin !== 'undefined') { input.disabled = false; }
+		input.addEventListener('change', function () {
+			if (typeof bepluspbAdmin === 'undefined') { return; }
+			var option  = input.getAttribute('data-option');
+			var enabled = input.checked ? 1 : 0;
+			var revert  = function (text) {
+				input.checked = !input.checked;
+				recSetState(option, input.checked);
+				recSay(option, text || bepluspbAdmin.recError || 'Could not save this change.', true);
+				input.disabled = false;
+			};
+
+			input.disabled = true;
+			recSetState(option, !!enabled);
+			recSay(option, bepluspbAdmin.recSaving || 'Saving…', false);
+
+			var data = new FormData();
+			data.append('action',  'bepluspb_toggle_recommended');
+			data.append('nonce',   bepluspbAdmin.recToggleNonce);
+			data.append('option',  option);
+			data.append('enabled', enabled);
+
+			fetch(bepluspbAdmin.ajaxUrl, { method: 'POST', body: data })
+				.then(function (r) { return r.json().catch(function () { return { success: false }; }); })
+				.then(function (json) {
+					if (json && json.success) {
+						input.disabled = false;
+						recSay(option, bepluspbAdmin.recSaved || 'Saved.', false);
+					} else {
+						revert(json && json.data && json.data.message ? String(json.data.message) : '');
+					}
+				})
+				.catch(function () { revert(''); });
+		});
+	});
+
 	/**
 	 * Update the toggle label, warning notice, and clear button to reflect state.
 	 *

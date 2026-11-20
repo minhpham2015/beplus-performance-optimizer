@@ -124,7 +124,7 @@ class BEPLUSPB_JS {
 		}
 
 		$opts    = bepluspb_get_options();
-		$exclude = bepluspb_parse_exclude_list( $opts['js_exclude'] );
+		$exclude = bepluspb_exclude_list( $opts, 'js' );
 		foreach ( $exclude as $keyword ) {
 			if ( ! empty( $keyword ) && false !== strpos( $src, $keyword ) ) {
 				return $tag;
@@ -324,7 +324,7 @@ class BEPLUSPB_JS {
 		}
 
 		$opts    = bepluspb_get_options();
-		$exclude = bepluspb_parse_exclude_list( $opts['js_exclude'] );
+		$exclude = bepluspb_exclude_list( $opts, 'js' );
 		foreach ( $exclude as $keyword ) {
 			if ( ! empty( $keyword ) && false !== strpos( $src, $keyword ) ) {
 				return $tag;
@@ -408,7 +408,7 @@ class BEPLUSPB_JS {
 	 */
 	public static function enqueue_delay_script() {
 		$opts    = bepluspb_get_options();
-		$exclude = bepluspb_parse_exclude_list( $opts['js_exclude'] );
+		$exclude = bepluspb_exclude_list( $opts, 'js' );
 
 		wp_enqueue_script(
 			'bepluspb-delay-js',
@@ -573,7 +573,7 @@ class BEPLUSPB_JS {
 		// Rewrite all <script> tags to block execution until first interaction.
 		// -----------------------------------------------------------------
 
-		$exclude      = bepluspb_parse_exclude_list( $opts['js_exclude'] );
+		$exclude      = bepluspb_exclude_list( $opts, 'js' );
 		$delimiter    = 'BEPLUSPB' . wp_generate_password( 16, false );
 		$replacements = array();
 

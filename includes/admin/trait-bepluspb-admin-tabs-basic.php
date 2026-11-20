@@ -149,7 +149,9 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 			$detected          = BEPLUSPB_Recommendations::infer_profile( BEPLUSPB_Recommendations::local_signals() );
 			$requested_profile = isset( $_GET['bepluspb_profile'] ) ? sanitize_key( wp_unslash( $_GET['bepluspb_profile'] ) ) : $detected['profile']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display override.
 			$profile           = BEPLUSPB_Recommendations::sanitize_profile( $requested_profile );
-			$plan              = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), $detected['builders'] );
+			$level             = BEPLUSPB_Recommendations::sanitize_level( isset( $_GET['bepluspb_level'] ) ? sanitize_key( wp_unslash( $_GET['bepluspb_level'] ) ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only display override.
+			$level_labels      = BEPLUSPB_Recommendations::level_labels();
+			$plan              = BEPLUSPB_Recommendations::plan_for( $profile, get_bloginfo( 'version' ), $detected['builders'], $level );
 			$diff              = BEPLUSPB_Recommendations::diff( (array) get_option( BEPLUSPB_OPTIONS_KEY, array() ), $plan );
 			$profile_labels    = array(
 				'blog_business'  => __( 'Blog / Business', 'beplus-performance-booster' ),
@@ -179,22 +181,56 @@ trait BEPLUSPB_Admin_Tabs_Basic {
 						<?php
 						foreach ( $profile_labels as $value => $label ) :
 							?>
-							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $profile, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select><button class="button" type="submit"><?php esc_html_e( 'Preview plan', 'beplus-performance-booster' ); ?></button></form>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $profile, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select><label for="bepluspb-recommendation-level"><strong><?php esc_html_e( 'Level', 'beplus-performance-booster' ); ?></strong></label><select id="bepluspb-recommendation-level" name="bepluspb_level">
+						<?php
+						foreach ( $level_labels as $value => $info ) :
+							?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $level, $value ); ?>><?php echo esc_html( $info['label'] ); ?></option><?php endforeach; ?></select><button class="button" type="submit"><?php esc_html_e( 'Preview plan', 'beplus-performance-booster' ); ?></button><p class="description"><?php echo esc_html( $level_labels[ $level ]['desc'] ); ?></p></form>
 					</div>
 					<div class="bepluspb-recommendation-preview"><h3><?php esc_html_e( 'Exact changes before save', 'beplus-performance-booster' ); ?></h3>
 					<?php
 					if ( $diff ) :
 						?>
-						<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
+						<?php if ( empty( $opts['cache_enabled'] ) ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'The master Cache switch is off, so none of these changes has an effect yet.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<p class="description"><?php esc_html_e( 'Use the switch on a row to apply just that change at once, or "Apply Recommended" to apply them all. Only the settings this plan and level want changed are listed.', 'beplus-performance-booster' ); ?> <span class="bepluspb-rec-js-note"><?php esc_html_e( 'The switches stay greyed out until the page script has loaded; if they never become usable, hard-reload the page (Ctrl+F5) or clear your cache plugin/CDN.', 'beplus-performance-booster' ); ?></span></p>
+						<table class="widefat striped bepluspb-rec-table"><thead><tr><th><?php esc_html_e( 'Setting', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Current', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Recommended', 'beplus-performance-booster' ); ?></th><th><?php esc_html_e( 'Switch', 'beplus-performance-booster' ); ?></th></tr></thead><tbody>
 						<?php
+						$toggle_keys  = BEPLUSPB_Recommendations::toggleable();
+						$toggle_notes = BEPLUSPB_Recommendations::toggle_notes();
 						foreach ( $diff as $key => $change ) :
+							$has_switch = in_array( $key, $toggle_keys, true ) && ( 0 === $change['to'] || 1 === $change['to'] );
+							$is_on      = ! empty( $opts[ $key ] );
 							?>
-						<tr><th scope="row"><?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?></th><td><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></td><td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td></tr><?php endforeach; ?></tbody></table>
+						<tr class="bepluspb-rec-row<?php echo $has_switch && (int) $is_on === (int) $change['to'] ? ' bepluspb-rec-row--done' : ''; ?>"<?php echo $has_switch ? ' data-option="' . esc_attr( $key ) . '" data-recommended="' . (int) $change['to'] . '"' : ''; ?>>
+							<th scope="row">
+								<?php echo esc_html( BEPLUSPB_Recommendations::label( $key ) ); ?>
+								<?php if ( isset( $toggle_notes[ $key ] ) ) : ?>
+									<br><span class="description"><?php echo esc_html( $toggle_notes[ $key ] ); ?></span>
+								<?php endif; ?>
+							</th>
+							<td><span data-current-for="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( null === $change['from'] ? 'Not saved' : ( BEPLUSPB_Recommendations::value_label( $key, $change['from'] ) ?? self::format_recommendation_value( $change['from'] ) ) ); ?></span></td>
+							<td><?php echo esc_html( BEPLUSPB_Recommendations::value_label( $key, $change['to'] ) ?? self::format_recommendation_value( $change['to'] ) ); ?></td>
+							<td class="bepluspb-rec-switch-cell">
+								<?php if ( $has_switch ) : ?>
+									<label class="bepluspb-toggle" for="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>">
+										<input type="checkbox" role="switch" id="bepluspb-rec-toggle-<?php echo esc_attr( $key ); ?>" class="bepluspb-rec-switch"
+											data-option="<?php echo esc_attr( $key ); ?>" aria-label="<?php echo esc_attr( BEPLUSPB_Recommendations::label( $key ) ); ?>" <?php checked( $is_on ); ?> disabled>
+										<span class="bepluspb-toggle-slider"></span>
+									</label>
+									<span class="bepluspb-rec-toggle-msg description" data-msg-for="<?php echo esc_attr( $key ); ?>" role="status"></span>
+								<?php else : ?>
+									<span class="description"><?php esc_html_e( 'Applied with "Apply Recommended"', 'beplus-performance-booster' ); ?></span>
+								<?php endif; ?>
+							</td>
+						</tr>
+						<?php endforeach; ?></tbody></table>
 						<?php
 else :
 	?>
 	<p><?php esc_html_e( 'This plan is already applied.', 'beplus-performance-booster' ); ?></p><?php endif; ?></div>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-recommendation-actions"><input type="hidden" name="action" value="bepluspb_recommendation_action"><input type="hidden" name="profile" value="<?php echo esc_attr( $profile ); ?>"><?php wp_nonce_field( 'bepluspb_recommendation_action' ); ?><button class="button button-primary" name="operation" value="apply" data-recommendation-confirm="<?php esc_attr_e( 'Apply exactly the previewed changes?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Apply Recommended', 'beplus-performance-booster' ); ?></button><button class="button" name="operation" value="disable" data-recommendation-confirm="<?php esc_attr_e( 'Turn off only features managed by this plan?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Disable Recommended', 'beplus-performance-booster' ); ?></button>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bepluspb-recommendation-actions"><input type="hidden" name="action" value="bepluspb_recommendation_action"><input type="hidden" name="profile" value="<?php echo esc_attr( $profile ); ?>"><input type="hidden" name="level" value="<?php echo esc_attr( $level ); ?>"><?php wp_nonce_field( 'bepluspb_recommendation_action' ); ?><button class="button button-primary" name="operation" value="apply" data-recommendation-confirm="<?php esc_attr_e( 'Apply exactly the previewed changes?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Apply Recommended', 'beplus-performance-booster' ); ?></button><button class="button" name="operation" value="disable" data-recommendation-confirm="<?php esc_attr_e( 'Turn off only features managed by this plan?', 'beplus-performance-booster' ); ?>"><?php esc_html_e( 'Disable Recommended', 'beplus-performance-booster' ); ?></button>
 					<?php
 					if ( is_array( $snapshot ) && empty( $snapshot['used'] ) ) :
 						?>
@@ -224,6 +260,46 @@ else :
 				<a href="https://wordpress.org/plugins/beplus-performance-booster/#reviews" target="_blank" rel="noopener noreferrer">
 					★★★★★ <?php esc_html_e( 'Rate this plugin', 'beplus-performance-booster' ); ?>
 				</a>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Safe Testing" card: try the optimisations as administrator before visitors get them.
+	 *
+	 * @param array $opts Current option values.
+	 */
+	private static function render_card_safe_mode( $opts ) {
+		?>
+		<div class="bepluspb-card" id="bepluspb-safe-mode-card">
+			<div class="bepluspb-card-header">
+				<h2><?php esc_html_e( 'Safe Testing', 'beplus-performance-booster' ); ?></h2>
+				<p><?php esc_html_e( 'Try the optimizations on the live site without your visitors seeing them, and compare any page with and without them.', 'beplus-performance-booster' ); ?></p>
+			</div>
+			<div class="bepluspb-card-body">
+				<div class="bepluspb-form-row">
+					<div class="bepluspb-form-row-label">
+						<label for="bepluspb_safe_mode_admins_only"><?php esc_html_e( 'Administrators only', 'beplus-performance-booster' ); ?></label>
+					</div>
+					<div class="bepluspb-form-row-field">
+						<label class="bepluspb-check-label">
+							<input type="checkbox" id="bepluspb_safe_mode_admins_only"
+								name="<?php echo esc_attr( BEPLUSPB_OPTIONS_KEY ); ?>[safe_mode_admins_only]" value="1"
+								<?php checked( $opts['safe_mode_admins_only'], 1 ); ?>>
+							<span class="bepluspb-check-text"><?php esc_html_e( 'Only logged-in administrators get the front-end optimizations. Visitors and other users see the site as if the plugin did nothing. The Page Cache is paused (and emptied) meanwhile.', 'beplus-performance-booster' ); ?></span>
+						</label>
+						<?php if ( ! empty( $opts['safe_mode_admins_only'] ) ) : ?>
+							<p class="bepluspb-warn"><?php esc_html_e( 'Safe Testing is ON: visitors are not getting any optimization right now. Untick this box and save when you are happy with what you see as administrator.', 'beplus-performance-booster' ); ?></p>
+						<?php endif; ?>
+						<p class="description">
+							<?php esc_html_e( 'Covers minify, CSS/JS handling, Delay/Defer, lazy load, fonts, resource hints, CDN rewriting, HTML minify, asset cleanup and the Page Cache. It does not cover browser-cache rules in .htaccess, the Object Cache, Cloudflare, Predictive Navigation or Heartbeat control. Normally administrators see the untouched page; while this is on, they see the optimized one.', 'beplus-performance-booster' ); ?>
+						</p>
+						<p class="description">
+							<?php esc_html_e( 'On any single page: add ?bepluspb_off=1 to the address (or use "View without optimizations" in the admin bar) to load that one request without the optimizations. Nothing is saved and the page is never cached.', 'beplus-performance-booster' ); ?>
+						</p>
+					</div>
+				</div>
 			</div>
 		</div>
 		<?php
@@ -308,6 +384,8 @@ else :
 							<?php if ( ! $status['config_ok'] ) : ?>
 						<p class="bepluspb-warn"><?php esc_html_e( 'The page cache configuration is missing or unreadable. Save these settings again to rebuild it.', 'beplus-performance-booster' ); ?></p>
 							<?php endif; ?>
+						<?php elseif ( ! empty( $opts['page_cache_enabled'] ) && ! empty( $opts['safe_mode_admins_only'] ) ) : ?>
+						<p class="bepluspb-warn"><?php esc_html_e( 'Page Cache is paused while Safe Testing is on (see the card above): only administrators get the optimisations, so no page is stored or served.', 'beplus-performance-booster' ); ?></p>
 						<?php elseif ( ! empty( $opts['page_cache_enabled'] ) && empty( $opts['cache_enabled'] ) ) : ?>
 						<p class="bepluspb-warn"><?php esc_html_e( 'Page Cache is switched on, but the master Cache toggle on the Dashboard is off, so nothing is cached yet.', 'beplus-performance-booster' ); ?></p>
 						<?php endif; ?>

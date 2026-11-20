@@ -3,7 +3,7 @@ Contributors: bearsthemes, minhphamit
 Tags: performance, lazy load, cache, minify, optimization
 Requires at least: 5.0
 Tested up to: 7.1.1
-Stable tag: 1.3.4
+Stable tag: 1.3.5
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -38,6 +38,11 @@ accidentally break the admin panel or your own editing experience.
 * Critical CSS per page type, generated in your own browser, so stylesheets can load after the first paint without a flash of unstyled content
 * Priority Images (LCP): preload and top priority for the hero image, plus an "Analyze LCP" tool in the admin bar that finds it for you
 * Google Fonts: font-display and preconnect, or download the fonts once and serve them from your own site
+* Heartbeat control: slow the WordPress Heartbeat down or switch it off in the dashboard and on the front end
+* Resource hints: preconnect and dns-prefetch for the third-party servers your first screen uses
+* Safe Testing: try the optimizations as administrator while visitors see the untouched site, and compare any page with `?bepluspb_off=1`
+* Automatic exclusions for WooCommerce, Elementor, Divi, Slider Revolution, Gravity Forms and payment/CAPTCHA scripts
+* Cloudflare: purge only the pages you edit instead of the whole zone
 
 Full settings reference (every option, default, and what it does) has moved out of this readme to keep the Description section within WordPress.org's import limits: https://github.com/minhpham2015/beplus-performance-optimizer/blob/master/docs/SETTINGS_REFERENCE.md
 
@@ -114,6 +119,15 @@ The optional Page Cache Preload only requests your own site's pages.
 8. **Object Cache tab** — Redis/Memcached connection settings, persistent connections, and global cache groups.
 
 == Changelog ==
+
+= 1.3.5 =
+* New: Heartbeat control (Cleanup tab). Reduce how often WordPress pings admin-ajax.php, or switch the Heartbeat off, separately for the dashboard, the editors and the front end. The editors can only be slowed down, never switched off.
+* New: Resource Hints (Advanced tab). Add `preconnect` (up to 4) and `dns-prefetch` (up to 10) hints for third-party servers; only valid http(s) origins are accepted.
+* New: Automatic Exclusions (Advanced tab). When WooCommerce, Elementor, Divi, Slider Revolution or Gravity Forms is active, their scripts and styles stay out of minify, defer, delay and CSS deferral, and the cart, checkout and account pages stay out of the page cache. Payment and CAPTCHA scripts (Stripe, PayPal, reCAPTCHA, hCaptcha, Turnstile) are never delayed. On by default; every rule can be skipped, and your own Exclude boxes are never changed.
+* New: Safe Testing (Cache Files tab). Only administrators get the optimizations while it is on; visitors see the site as if the plugin did nothing (the Page Cache pauses). Add `?bepluspb_off=1` to any address, or use "View without optimizations" in the admin bar, to load one page without the optimizations.
+* New: every change listed under "Exact changes before save" in Recommended Settings has its own switch, saved at once without reloading the page.
+* New: Recommended Settings levels Safe, Balanced and Strong next to the site type. Balanced is the plan you had before; Safe leaves out JS minify/defer and HTML minify; Strong adds Non-Render-Blocking CSS and Delay JS. "Restore Previous Settings" undoes it.
+* New: Cloudflare "Purge Edited Pages" (off by default). When you publish, update, unpublish or trash a post, only its page, the home page, its archives, the author page and the feed are purged at Cloudflare; a bulk edit purges the whole zone once.
 
 = 1.3.4 =
 * Fix: Delay JS (Simple mode) now replays `DOMContentLoaded` and `load` for scripts that run late, so Contact Form 7 and similar forms work instead of reloading the page on submit.
@@ -357,6 +371,9 @@ The optional Page Cache Preload only requests your own site's pages.
 * Uninstall script cleans up all options, rules, cache files, and post meta.
 
 == Upgrade Notice ==
+
+= 1.3.5 =
+Adds Heartbeat control, Resource Hints, Safe Testing, Recommended Settings levels and Cloudflare purge-by-page. Automatic Exclusions are on by default: scripts of WooCommerce, Elementor and a few other plugins are no longer delayed or deferred. Press "Purge ALL Cache" once after updating.
 
 = 1.3.4 =
 Delay JS now keeps consent banners and Elementor's background script running at once, fixes forms that reloaded the page in Simple mode, and plays Elementor entrance animations on load. HTML lazy load covers iframes and sliders.

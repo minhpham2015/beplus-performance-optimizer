@@ -38,11 +38,26 @@ trait BEPLUSPB_Admin_Admin_Bar {
 			array(
 				'id'    => 'bepluspb-cache',
 				'title' => '<span class="bepluspb-ab-dot" aria-hidden="true" style="background:' . esc_attr( $dot_color ) . '"></span>'
-					. esc_html__( 'Beplus Performance Booster', 'beplus-performance-booster' ),
+					. esc_html__( 'Beplus Performance Booster', 'beplus-performance-booster' )
+					. ( ! empty( $opts['safe_mode_admins_only'] ) ? ' <span class="bepluspb-ab-preview">(' . esc_html__( 'Safe Testing', 'beplus-performance-booster' ) . ')</span>' : '' ),
 				'href'  => admin_url( 'options-general.php?page=beplus-performance-booster' ),
 				'meta'  => array( 'class' => 'bepluspb-adminbar-root' ),
 			)
 		);
+
+		// Compare the page with and without the optimizations (front end only).
+		if ( ! is_admin() ) {
+			$off_url = bepluspb_is_bypass_request() ? remove_query_arg( 'bepluspb_off' ) : add_query_arg( 'bepluspb_off', '1' );
+			$wp_admin_bar->add_node(
+				array(
+					'id'     => 'bepluspb-off',
+					'parent' => 'bepluspb-cache',
+					'title'  => bepluspb_is_bypass_request() ? esc_html__( 'Back to the optimized page', 'beplus-performance-booster' ) : esc_html__( 'View without optimizations', 'beplus-performance-booster' ),
+					'href'   => esc_url( $off_url ),
+					'meta'   => array( 'title' => esc_attr__( 'Load this page once without the front-end optimizations, to compare or to find out which one breaks something', 'beplus-performance-booster' ) ),
+				)
+			);
+		}
 
 		// LCP Analyzer: only meaningful on a front-end page (it measures the page being viewed).
 		if ( ! is_admin() ) {

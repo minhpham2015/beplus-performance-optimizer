@@ -115,7 +115,8 @@ t_ok( false === strpos( $sources['admin'], 'Enable Cache for Logged-In Users' ) 
 // ---- Boot order: administrators see the untouched page, everyone else is optimised ---------------------
 $main      = $sources['main'];
 $boot      = substr( $main, strpos( $main, 'function bepluspb_boot_frontend' ) );
-$p_gate    = strpos( $boot, "current_user_can( 'manage_options' )" );
+$p_gate    = strpos( $boot, '! $optimize_admins && $is_admin_user' ); // The administrator gate (the capability check itself now sits above it, in $is_admin_user).
+t_ok( false !== strpos( $boot, "current_user_can( 'manage_options' )" ), 'the gate is still based on manage_options' );
 $p_minify  = strpos( $boot, 'BEPLUSPB_Minify::init( $opts )' );
 $p_page    = strpos( $boot, 'BEPLUSPB_Page_Cache::init( $opts )' );
 t_ok( false !== $p_gate && false !== $p_minify && $p_gate < $p_minify, 'Minify is initialised after the administrator gate (admins keep the original CSS/JS)' );

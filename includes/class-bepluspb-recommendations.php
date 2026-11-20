@@ -72,6 +72,32 @@ class BEPLUSPB_Recommendations {
 		return isset( $modes[ $value ] ) ? $modes[ $value ] : null;
 	}
 
+	/**
+	 * The managed options that are plain on/off switches the Dashboard can flip one at a time (AJAX): every managed
+	 * key except the master cache switch (it has its own toggle) and the Predictive Navigation mode (a choice).
+	 *
+	 * @return array
+	 */
+	public static function toggleable() {
+		return array_values( array_diff( self::allowlist(), array( 'cache_enabled', 'predictive_navigation_mode' ) ) ); }
+	/**
+	 * Short warnings shown next to the switches that deserve one (option key => text).
+	 *
+	 * @return array
+	 */
+	public static function toggle_notes() {
+		return array(
+			'minify_js_files'               => __( 'Can break scripts that are not written to be minified. Check the site after switching on.', 'beplus-performance-booster' ),
+			'js_defer'                      => __( 'Can break scripts that expect to run before the page is ready. Check forms, menus and sliders.', 'beplus-performance-booster' ),
+			'js_delay'                      => __( 'Risky: scripts wait for the first interaction. Check forms, carts and sliders; Safe Testing and ?bepluspb_off=1 help.', 'beplus-performance-booster' ),
+			'css_non_blocking'              => __( 'Risky: can flash unstyled content unless Critical CSS covers the page.', 'beplus-performance-booster' ),
+			'css_remove_unused'             => __( 'Risky: removes CSS that is not found in the page HTML; scripts that add classes later may lose styles.', 'beplus-performance-booster' ),
+			'css_inline_all'                => __( 'Makes pages larger and can break relative URLs in the CSS. Check the site after switching on.', 'beplus-performance-booster' ),
+			'html_minify'                   => __( 'Can break pages with inline scripts or pre-formatted text that depend on whitespace.', 'beplus-performance-booster' ),
+			'predictive_navigation_enabled' => __( 'Needs WordPress 6.8 or newer and pretty permalinks.', 'beplus-performance-booster' ),
+			'remove_woo_scripts'            => __( 'Needs WooCommerce. Switch off if a shop widget stops working on non-shop pages.', 'beplus-performance-booster' ),
+			'cache_headers'                 => __( 'Writes browser-cache rules into .htaccess (needs a writable .htaccess on Apache).', 'beplus-performance-booster' ),
+		); }
 	/** Return valid profile identifiers. */
 	public static function profiles() {
 		return array( 'blog_business', 'woocommerce', 'membership_lms', 'high_traffic' ); }
@@ -79,6 +105,58 @@ class BEPLUSPB_Recommendations {
 	public static function sanitize_profile( $profile ) {
 		$profile = sanitize_key( $profile );
 		return in_array( $profile, self::profiles(), true ) ? $profile : 'blog_business'; }
+	/** Return the valid levels: how far the plan goes. "balanced" is the plan of the profile itself. */
+	public static function levels() {
+		return array( 'safe', 'balanced', 'strong' ); }
+	/** Sanitize a level identifier. */
+	public static function sanitize_level( $level ) {
+		$level = is_string( $level ) ? sanitize_key( $level ) : '';
+		return in_array( $level, self::levels(), true ) ? $level : 'balanced'; }
+	/**
+	 * Level names and what they change, as the settings screen shows them (level => label + description).
+	 *
+	 * @return array
+	 */
+	public static function level_labels() {
+		return array(
+			'safe'     => array(
+				'label' => __( 'Safe', 'beplus-performance-booster' ),
+				'desc'  => __( 'Only the changes that almost never break a site: caching, lazy load, CSS minify, emoji/embed cleanup. No JS minify or defer, no HTML minify.', 'beplus-performance-booster' ),
+			),
+			'balanced' => array(
+				'label' => __( 'Balanced', 'beplus-performance-booster' ),
+				'desc'  => __( 'The recommended plan for this kind of site: adds JS minify and defer, HTML minify and Predictive Navigation.', 'beplus-performance-booster' ),
+			),
+			'strong'   => array(
+				'label' => __( 'Strong', 'beplus-performance-booster' ),
+				'desc'  => __( 'Everything in Balanced plus Non-Render-Blocking CSS and Delay JS (shops and membership sites keep Delay JS off). Check the site afterwards; Restore Previous Settings undoes it.', 'beplus-performance-booster' ),
+			),
+		); }
+	/**
+	 * What a level changes on top of a profile's plan. Applied before the builder overrides, so a page
+	 * builder's safety rules still win ("strong" never switches on what Elementor must keep off).
+	 *
+	 * @param string $level   Level.
+	 * @param string $profile Profile (shops and membership sites never get Delay JS from a level).
+	 * @return array
+	 */
+	public static function level_overlay( $level, $profile ) {
+		switch ( self::sanitize_level( $level ) ) {
+			case 'safe':
+				return array(
+					'minify_js_files'            => 0,
+					'js_defer'                   => 0,
+					'html_minify'                => 0,
+					'predictive_navigation_mode' => 'safe',
+				);
+			case 'strong':
+				$plan = array( 'css_non_blocking' => 1 );
+				if ( in_array( self::sanitize_profile( $profile ), array( 'blog_business', 'high_traffic' ), true ) ) {
+					$plan['js_delay'] = 1;
+				}
+				return $plan;
+		}
+		return array(); }
 	/** Return plans for a WordPress version. */
 	public static function plans( $wp_version = '6.8' ) {
 		$predictive = version_compare( $wp_version, '6.8', '>=' ) ? 1 : 0;
@@ -162,10 +240,12 @@ class BEPLUSPB_Recommendations {
 				$plan = array_merge( $plan, $overlays[ $builder ]['values'] );
 			}
 		} return $plan; }
-	/** The exact plan for a profile on this site: profile values plus builder overrides. */
-	public static function plan_for( $profile, $wp_version, $builders ) {
-		$plans = self::plans( (string) $wp_version );
-		return self::apply_builders( $plans[ self::sanitize_profile( $profile ) ], $builders ); }
+	/** The exact plan for a profile and level on this site: profile values, level overlay, then builder overrides. */
+	public static function plan_for( $profile, $wp_version, $builders, $level = 'balanced' ) {
+		$plans   = self::plans( (string) $wp_version );
+		$profile = self::sanitize_profile( $profile );
+		$plan    = array_merge( $plans[ $profile ], self::level_overlay( $level, $profile ) );
+		return self::apply_builders( $plan, $builders ); }
 	/** Infer a plan from local signals. */
 	public static function infer_profile( $signals ) {
 		$plugins    = isset( $signals['plugins'] ) ? $signals['plugins'] : array();
@@ -239,7 +319,7 @@ class BEPLUSPB_Recommendations {
 			}
 		} return $saved; }
 	/** Create a secret-free audit snapshot. */
-	public static function snapshot( $saved, $profile, $user_id, $time ) {
+	public static function snapshot( $saved, $profile, $user_id, $time, $level = 'balanced' ) {
 		$values = array();
 		foreach ( self::allowlist() as $key ) {
 			$values[ $key ] = array_key_exists( $key, $saved ) ? array(
@@ -248,6 +328,7 @@ class BEPLUSPB_Recommendations {
 			) : array( 'exists' => false );
 		} return array(
 			'profile' => self::sanitize_profile( $profile ),
+			'level'   => self::sanitize_level( $level ),
 			'user_id' => (int) $user_id,
 			'time'    => (int) $time,
 			'used'    => false,
