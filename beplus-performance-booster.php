@@ -465,7 +465,7 @@ function bepluspb_boot_frontend() {
 
 	// Safe testing: only administrators get the optimisations, visitors see the untouched site.
 	// (The Page Cache is paused as well, see BEPLUSPB_Page_Cache::is_enabled(): a stored page would
-	// otherwise be served to visitors.)
+	// otherwise be served to visitors).
 	$preview = ! empty( $opts['safe_mode_admins_only'] );
 	if ( $preview && ! $is_admin_user ) {
 		return;

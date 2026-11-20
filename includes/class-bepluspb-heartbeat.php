@@ -31,7 +31,7 @@ class BEPLUSPB_Heartbeat {
 	const MIN_INTERVAL = 15;  // heartbeat.js ignores anything outside 15-120 seconds.
 	const MAX_INTERVAL = 120;
 
-	/** wp-admin screens that need the Heartbeat (post lock, autosave, session check) to keep working. */
+	/** Wp-admin screens that need the Heartbeat (post lock, autosave, session check) to keep working. */
 	const EDITOR_SCREENS = array( 'post.php', 'post-new.php', 'site-editor.php', 'widgets.php', 'customize.php' );
 
 	/**

@@ -25,13 +25,21 @@ class BEPLUSPB_Cloudflare {
 	const RESULT_TRANSIENT  = 'bepluspb_cf_auto_purge';
 	const MAX_TERMS         = 10;   // Term archives purged per taxonomy for one edit.
 
-	/** Post ids and extra URLs collected during this request, purged once at shutdown. @var array */
+	/**
+	 * Post ids and extra URLs collected during this request, purged once at shutdown.
+	 *
+	 * @var array
+	 */
 	private static $queue = array(
 		'posts' => array(),
 		'urls'  => array(),
 	);
 
-	/** Whether the shutdown flush is already registered. @var bool */
+	/**
+	 * Whether the shutdown flush is already registered.
+	 *
+	 * @var bool
+	 */
 	private static $flush_hooked = false;
 
 	/**
@@ -190,8 +198,8 @@ class BEPLUSPB_Cloudflare {
 	 * up (the response is released first when PHP-FPM allows it) and the final state of terms and meta is used.
 	 */
 	public static function flush_queue() {
-		$queue       = self::$queue;
-		self::$queue = array(
+		$queue              = self::$queue;
+		self::$queue        = array(
 			'posts' => array(),
 			'urls'  => array(),
 		);

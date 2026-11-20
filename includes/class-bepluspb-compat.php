@@ -24,7 +24,11 @@ class BEPLUSPB_Compat {
 	const MIN_KEYWORD = 4;   // A shorter keyword matches almost every URL.
 	const MAX_KEYWORD = 200;
 
-	/** Memoised detection result for the request. @var array|null */
+	/**
+	 * Memoised detection result for the request.
+	 *
+	 * @var array|null
+	 */
 	private static $active = null;
 
 	/**
